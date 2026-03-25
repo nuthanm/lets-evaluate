@@ -416,3 +416,7 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+lets_evaluate.db
+__pycache__/
+*.pyc
+.env
