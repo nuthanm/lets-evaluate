@@ -71,82 +71,85 @@ div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
   line-height: 2 !important;
 }
 
-/* ── Architecture diagram ── */
+/* ── Architecture diagram (horizontal flow) ── */
 @keyframes archNodeIn {
-  0%   { opacity: 0; transform: translateY(18px) scale(0.92); }
-  100% { opacity: 1; transform: translateY(0)    scale(1);    }
+  0%   { opacity: 0; transform: translateX(-14px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(0)     scale(1);    }
 }
 @keyframes archGlow {
   0%, 100% { box-shadow: 0 4px 20px rgba(79,70,229,0.2); }
-  50%       { box-shadow: 0 4px 30px rgba(79,70,229,0.5); }
-}
-@keyframes fadeBarIn {
-  0%   { opacity: 0; }
-  100% { opacity: 1; }
+  50%       { box-shadow: 0 4px 32px rgba(79,70,229,0.5); }
 }
 
-.arch-diagram { max-width: 900px; margin: 12px auto 24px; padding: 0 8px; }
+/* Full-width wrapper */
+.arch-wrap {
+  width: 100%; padding: 18px 4px 8px; box-sizing: border-box;
+}
 
-.arch-row-center { display:flex; justify-content:center; margin:6px 0; }
+/* Horizontal pipeline row */
+.arch-flow {
+  display: flex; flex-direction: row;
+  align-items: center; justify-content: center;
+  gap: 2px; flex-wrap: nowrap; overflow-x: auto; padding: 4px 0 12px;
+}
 
-.arch-node {
-  background: white;
-  border: 2px solid #4F46E5;
-  border-radius: 14px;
-  padding: 14px 22px;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+/* Each step card */
+.arch-card {
+  background: white; border: 2px solid #4F46E5; border-radius: 14px;
+  padding: 12px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
   animation: archNodeIn 0.5s ease forwards; opacity: 0;
   box-shadow: 0 4px 14px rgba(0,0,0,0.07);
   transition: transform .2s, box-shadow .2s;
+  min-width: 108px; flex-shrink: 0; text-align: center;
 }
-.arch-node:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(79,70,229,0.18); }
-.arch-hero {
+.arch-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(79,70,229,0.2); }
+
+/* Hero card (platform) */
+.arch-hero-card {
   background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
-  animation-delay:.05s;
   animation: archNodeIn .5s ease .05s forwards, archGlow 3s ease .6s infinite;
-  max-width: 340px;
-}
-.arch-ico   { font-size:2rem; line-height:1; }
-.arch-lbl   { font-size:1rem; font-weight:700; color:#1E293B; }
-.arch-sub   { font-size:0.74rem; color:#64748B; }
-.arch-ico-sm{ font-size:1.4rem; }
-.arch-lbl-sm{ font-size:0.82rem; font-weight:600; color:#1E293B; margin-top:3px; }
-
-.arch-arrow-v {
-  text-align:center; font-size:1.4rem; color:#4F46E5; margin:2px 0; line-height:1;
-  animation: archNodeIn .4s ease forwards; opacity:0;
+  min-width: 130px;
 }
 
-.arch-fork-bar, .arch-merge-bar {
-  height:2px;
-  background: linear-gradient(90deg, transparent 15%, #CBD5E1 15%, #CBD5E1 85%, transparent 85%);
-  margin:10px 0;
-  animation: fadeBarIn .4s ease forwards; opacity:0;
+.arch-card-icon  { font-size: 1.6rem; line-height: 1; }
+.arch-card-title { font-size: 0.88rem; font-weight: 700; color: #1E293B; }
+.arch-card-sub   { font-size: 0.68rem; color: #64748B; text-align: center; }
+
+/* Badge label (for group cards) */
+.arch-card-badge {
+  font-size: 0.72rem; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; margin-bottom: 2px; letter-spacing: .03em;
 }
 
-.arch-tracks {
-  display: flex; gap:14px; align-items:flex-start; justify-content:center;
+/* Item list inside a card */
+.arch-card-items { display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; }
+.arch-card-items span {
+  font-size: 0.7rem; color: #475569;
+  background: #F8FAFC; border-radius: 6px;
+  padding: 2px 8px; text-align: center;
 }
-.arch-track {
-  flex:1; display:flex; flex-direction:column; align-items:center; gap:0;
+
+/* Horizontal connector arrow */
+.arch-h-arrow {
+  font-size: 1.4rem; color: #4F46E5; flex-shrink: 0;
+  animation: archNodeIn 0.4s ease forwards; opacity: 0;
+  padding: 0 2px; line-height: 1;
 }
-.arch-track-title {
-  font-size:0.78rem; font-weight:700; padding:5px 14px;
-  border-radius:20px; margin-bottom:8px; letter-spacing:.03em;
-  animation: archNodeIn .4s ease forwards; opacity:0;
-}
-.arch-track-node {
-  background:white; border:1.5px solid #CBD5E1; border-radius:12px;
-  padding:9px 12px; display:flex; flex-direction:column; align-items:center; gap:2px;
-  width:100%;
-  animation: archNodeIn .5s ease forwards; opacity:0;
-  box-shadow:0 2px 8px rgba(0,0,0,0.05);
-  transition:transform .2s, border-color .2s;
-}
-.arch-track-node:hover { transform:translateY(-2px); border-color:#4F46E5; }
-.arch-track-arrow {
-  font-size:1.1rem; color:#CBD5E1; text-align:center; padding:1px 0;
-  animation: archNodeIn .3s ease forwards; opacity:0;
+
+/* Footer principle row */
+.arch-footer-row { display: flex; justify-content: center; margin-top: 18px; }
+
+/* Colour variant classes for individual pipeline steps */
+.arch-card-auth    { border-color: #7C3AED; }
+.arch-card-dash    { border-color: #2563EB; }
+.arch-card-setup   { border-color: #0891B2; }
+.arch-card-eval    { border-color: #7C3AED; }
+.arch-card-output  { border-color: #059669; }
+.arch-card-principle {
+  border-color: #4F46E5;
+  background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
+  min-width: 360px;
 }
 
 /* ── Footer ── */
@@ -186,113 +189,87 @@ with hcol2:
 with hcol3:
     st.page_link("pages/9_Terms_Conditions.py", label="Terms & Conditions")
 
-# ── Animated App Architecture Flow ─────────────────────────────────────────
+# ── Animated App Architecture Flow (horizontal) ────────────────────────────
 st.markdown("""
-<div class="arch-diagram">
+<div class="arch-wrap">
 
-  <!-- Tier 1: Platform -->
-  <div class="arch-row-center">
-    <div class="arch-node arch-hero">
-      <span class="arch-ico">⚖️</span>
-      <span class="arch-lbl">Let's Evaluate</span>
-      <span class="arch-sub">AI-Assisted Hiring Platform</span>
+  <div class="arch-flow">
+
+    <!-- 1: Platform -->
+    <div class="arch-card arch-hero-card" style="animation-delay:.05s">
+      <div class="arch-card-icon">⚖️</div>
+      <div class="arch-card-title">Let's Evaluate</div>
+      <div class="arch-card-sub">AI Hiring Platform</div>
     </div>
-  </div>
 
-  <div class="arch-row-center">
-    <div class="arch-arrow-v" style="animation-delay:.2s">↓</div>
-  </div>
+    <div class="arch-h-arrow" style="animation-delay:.2s">→</div>
 
-  <!-- Tier 2: Authentication -->
-  <div class="arch-row-center">
-    <div class="arch-node" style="border-color:#7C3AED;max-width:300px;animation-delay:.3s">
-      <span class="arch-ico">🔐</span>
-      <span class="arch-lbl">Authentication</span>
-      <span class="arch-sub">Login · Register · Password Reset</span>
-    </div>
-  </div>
-
-  <div class="arch-row-center">
-    <div class="arch-arrow-v" style="animation-delay:.5s">↓</div>
-  </div>
-
-  <!-- Tier 3: Dashboard -->
-  <div class="arch-row-center">
-    <div class="arch-node" style="border-color:#2563EB;max-width:300px;animation-delay:.6s">
-      <span class="arch-ico">📊</span>
-      <span class="arch-lbl">Dashboard</span>
-      <span class="arch-sub">Central hub · Metrics · Quick access</span>
-    </div>
-  </div>
-
-  <!-- Fork bar -->
-  <div class="arch-fork-bar" style="animation-delay:.85s"></div>
-
-  <!-- Tier 4: Three parallel tracks -->
-  <div class="arch-tracks">
-
-    <!-- Track A: Setup -->
-    <div class="arch-track">
-      <div class="arch-track-title" style="background:#EFF6FF;color:#2563EB;animation-delay:.9s">
-        📋 Setup
-      </div>
-      <div class="arch-track-node" style="border-color:#0891B2;animation-delay:.95s">
-        <span class="arch-ico-sm">📁</span><span class="arch-lbl-sm">Projects</span>
-      </div>
-      <div class="arch-track-arrow" style="animation-delay:1.05s">↓</div>
-      <div class="arch-track-node" style="border-color:#059669;animation-delay:1.1s">
-        <span class="arch-ico-sm">👥</span><span class="arch-lbl-sm">Roles</span>
-      </div>
-      <div class="arch-track-arrow" style="animation-delay:1.2s">↓</div>
-      <div class="arch-track-node" style="border-color:#D97706;animation-delay:1.25s">
-        <span class="arch-ico-sm">❓</span><span class="arch-lbl-sm">Questions</span>
+    <!-- 2: Auth -->
+    <div class="arch-card arch-card-auth" style="animation-delay:.25s">
+      <div class="arch-card-icon">🔐</div>
+      <div class="arch-card-title">Authentication</div>
+      <div class="arch-card-items">
+        <span>Login</span>
+        <span>Register</span>
+        <span>Password Reset</span>
       </div>
     </div>
 
-    <!-- Track B: Evaluation flow -->
-    <div class="arch-track">
-      <div class="arch-track-title" style="background:#F5F3FF;color:#7C3AED;animation-delay:.9s">
-        🤖 Evaluate
-      </div>
-      <div class="arch-track-node" style="border-color:#DC2626;animation-delay:1.0s">
-        <span class="arch-ico-sm">📄</span><span class="arch-lbl-sm">Resume Upload</span>
-      </div>
-      <div class="arch-track-arrow" style="animation-delay:1.1s">↓</div>
-      <div class="arch-track-node" style="border-color:#7C3AED;animation-delay:1.15s">
-        <span class="arch-ico-sm">🤖</span><span class="arch-lbl-sm">AI Analysis</span>
-      </div>
-      <div class="arch-track-arrow" style="animation-delay:1.25s">↓</div>
-      <div class="arch-track-node" style="border-color:#4F46E5;animation-delay:1.3s">
-        <span class="arch-ico-sm">🧑‍💼</span><span class="arch-lbl-sm">Evaluation</span>
+    <div class="arch-h-arrow" style="animation-delay:.4s">→</div>
+
+    <!-- 3: Dashboard -->
+    <div class="arch-card arch-card-dash" style="animation-delay:.45s">
+      <div class="arch-card-icon">📊</div>
+      <div class="arch-card-title">Dashboard</div>
+      <div class="arch-card-items">
+        <span>Metrics</span>
+        <span>Quick Access</span>
       </div>
     </div>
 
-    <!-- Track C: Output -->
-    <div class="arch-track">
-      <div class="arch-track-title" style="background:#F0FDF4;color:#059669;animation-delay:.9s">
-        📤 Output
+    <div class="arch-h-arrow" style="animation-delay:.6s">→</div>
+
+    <!-- 4: Setup -->
+    <div class="arch-card arch-card-setup" style="animation-delay:.65s">
+      <div class="arch-card-badge" style="background:#EFF6FF;color:#0891B2">📋 Setup</div>
+      <div class="arch-card-items">
+        <span>📁 Projects</span>
+        <span>👥 Roles</span>
+        <span>❓ Questions</span>
       </div>
-      <div class="arch-track-node" style="border-color:#059669;animation-delay:1.05s">
-        <span class="arch-ico-sm">📋</span><span class="arch-lbl-sm">PDF Reports</span>
+    </div>
+
+    <div class="arch-h-arrow" style="animation-delay:.8s">→</div>
+
+    <!-- 5: Evaluate -->
+    <div class="arch-card arch-card-eval" style="animation-delay:.85s">
+      <div class="arch-card-badge" style="background:#F5F3FF;color:#7C3AED">🤖 Evaluate</div>
+      <div class="arch-card-items">
+        <span>📄 Resume Upload</span>
+        <span>🤖 AI Analysis</span>
+        <span>🧑‍💼 Evaluation</span>
       </div>
-      <div class="arch-track-arrow" style="animation-delay:1.15s">↓</div>
-      <div class="arch-track-node" style="border-color:#64748B;animation-delay:1.2s">
-        <span class="arch-ico-sm">📂</span><span class="arch-lbl-sm">Archives</span>
+    </div>
+
+    <div class="arch-h-arrow" style="animation-delay:1.0s">→</div>
+
+    <!-- 6: Output -->
+    <div class="arch-card arch-card-output" style="animation-delay:1.05s">
+      <div class="arch-card-badge" style="background:#F0FDF4;color:#059669">📤 Output</div>
+      <div class="arch-card-items">
+        <span>📋 PDF Reports</span>
+        <span>📂 Archives</span>
       </div>
     </div>
 
   </div>
 
-  <!-- Merge bar -->
-  <div class="arch-merge-bar" style="animation-delay:1.5s"></div>
-
-  <!-- Tier 5: Principle footer -->
-  <div class="arch-row-center">
-    <div class="arch-node" style="border-color:#4F46E5;max-width:420px;
-         background:linear-gradient(135deg,#EEF2FF,#F5F3FF);animation-delay:1.6s">
-      <span class="arch-ico">🧠</span>
-      <span class="arch-lbl">AI Assists · Humans Decide</span>
-      <span class="arch-sub">OpenAI GPT-4o-mini · Privacy-first · Transparent · Accountable</span>
+  <!-- AI principle footer -->
+  <div class="arch-footer-row">
+    <div class="arch-card arch-card-principle" style="animation-delay:1.2s">
+      <div class="arch-card-icon">🧠</div>
+      <div class="arch-card-title">AI Assists · Humans Decide</div>
+      <div class="arch-card-sub">OpenAI GPT-4o-mini · Privacy-first · Transparent · Accountable</div>
     </div>
   </div>
 
