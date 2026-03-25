@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -82,7 +82,7 @@ def generate_evaluation_pdf(evaluation_data: dict) -> bytes:
     header_data = [[
         Paragraph("🎯 Let's Evaluate", styles["title"]),
         Paragraph(
-            f"Generated: {datetime.utcnow().strftime('%d %b %Y, %H:%M')} UTC",
+            f"Generated: {datetime.now(timezone.utc).strftime('%d %b %Y, %H:%M')} UTC",
             ParagraphStyle("hdr_r", parent=styles["subtitle"], alignment=TA_RIGHT),
         ),
     ]]

@@ -9,6 +9,15 @@ from utils.database import (
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions
 
+
+def _truncate(text: str, max_chars: int = 80) -> str:
+    """Word-aware, multi-byte-safe truncation."""
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(" ")
+    return (truncated[:last_space] if last_space > 0 else truncated) + "…"
+
 st.set_page_config(page_title="Evaluate Candidate – Let's Evaluate", page_icon="🤖", layout="wide")
 init_db()
 require_auth()
@@ -306,7 +315,7 @@ elif st.session_state["eval_step"] == 3:
     if role_qs:
         st.markdown(f"**📌 Pre-linked Questions ({len(role_qs)})**")
         for i, q in enumerate(role_qs, 1):
-            with st.expander(f"Q{i}: {q['question_text'][:80]}…"):
+            with st.expander(f"Q{i}: {_truncate(q['question_text'])}"):
                 st.write(q["question_text"])
                 st.caption(f"Category: {q['category']} | Difficulty: {q['difficulty']}")
 
@@ -321,7 +330,7 @@ elif st.session_state["eval_step"] == 3:
         std_qs = st.session_state["eval_std_questions"]
         st.markdown(f"**🎯 AI Standard Questions ({len(std_qs)})**")
         for i, q in enumerate(std_qs, 1):
-            with st.expander(f"Q{i}: {q.get('question', '')[:80]}…"):
+            with st.expander(f"Q{i}: {_truncate(q.get('question', ''))}"):
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
 
@@ -338,7 +347,7 @@ elif st.session_state["eval_step"] == 3:
         res_qs = st.session_state["eval_resume_questions"]
         st.markdown(f"**📄 Resume-Based Questions ({len(res_qs)})**")
         for i, q in enumerate(res_qs, 1):
-            with st.expander(f"Q{i}: {q.get('question', '')[:80]}…"):
+            with st.expander(f"Q{i}: {_truncate(q.get('question', ''))}"):
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
 

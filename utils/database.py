@@ -603,7 +603,7 @@ def get_valid_reset(user_id: str, passcode: str) -> dict | None:
             .filter(
                 PasswordReset.user_id == user_id,
                 PasswordReset.passcode == passcode,
-                PasswordReset.used == False,  # noqa: E712
+                PasswordReset.used.is_(False),
                 PasswordReset.expires_at > datetime.utcnow(),
             )
             .first()

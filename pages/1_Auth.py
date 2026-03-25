@@ -146,7 +146,6 @@ else:
 
         login_email = st.text_input("Email", key="login_email")
         login_pass = st.text_input("Password", type="password", key="login_pass")
-        remember = st.checkbox("Remember me", key="login_remember")
 
         if st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login"):
             if not login_email or not login_pass:

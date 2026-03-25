@@ -14,7 +14,8 @@ def _get_llm():
 
 def _is_configured() -> bool:
     key = os.getenv("OPENAI_API_KEY", "")
-    return bool(key and key != "your_openai_api_key_here")
+    # Accept any key that looks like a real OpenAI key (starts with "sk-")
+    return bool(key and key.startswith("sk-"))
 
 
 def _parse_json_response(text: str) -> dict | list:
