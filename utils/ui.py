@@ -1,7 +1,7 @@
 """Shared UI helpers for every page in Let's Evaluate."""
 
 import streamlit as st
-from utils.auth import logout_user as _logout
+from utils.auth import logout_user
 
 BRAND = "⚖️ Let's Evaluate"
 
@@ -79,7 +79,7 @@ def render_authenticated_sidebar() -> None:
         st.page_link("pages/7_Archives.py", label="📂 Archives")
         st.divider()
         if st.button("🚪 Logout", use_container_width=True):
-            _logout()
+            logout_user()
             st.switch_page("app.py")
 
 
