@@ -71,87 +71,6 @@ div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
   line-height: 2 !important;
 }
 
-/* ── Architecture diagram (horizontal flow) ── */
-@keyframes archNodeIn {
-  0%   { opacity: 0; transform: translateX(-14px) scale(0.94); }
-  100% { opacity: 1; transform: translateX(0)     scale(1);    }
-}
-@keyframes archGlow {
-  0%, 100% { box-shadow: 0 4px 20px rgba(79,70,229,0.2); }
-  50%       { box-shadow: 0 4px 32px rgba(79,70,229,0.5); }
-}
-
-/* Full-width wrapper */
-.arch-wrap {
-  width: 100%; padding: 18px 4px 8px; box-sizing: border-box;
-}
-
-/* Horizontal pipeline row */
-.arch-flow {
-  display: flex; flex-direction: row;
-  align-items: center; justify-content: center;
-  gap: 2px; flex-wrap: nowrap; overflow-x: auto; padding: 4px 0 12px;
-}
-
-/* Each step card */
-.arch-card {
-  background: white; border: 2px solid #4F46E5; border-radius: 14px;
-  padding: 12px 14px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  animation: archNodeIn 0.5s ease forwards; opacity: 0;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.07);
-  transition: transform .2s, box-shadow .2s;
-  min-width: 108px; flex-shrink: 0; text-align: center;
-}
-.arch-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(79,70,229,0.2); }
-
-/* Hero card (platform) */
-.arch-hero-card {
-  background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
-  animation: archNodeIn .5s ease .05s forwards, archGlow 3s ease .6s infinite;
-  min-width: 130px;
-}
-
-.arch-card-icon  { font-size: 1.6rem; line-height: 1; }
-.arch-card-title { font-size: 0.88rem; font-weight: 700; color: #1E293B; }
-.arch-card-sub   { font-size: 0.68rem; color: #64748B; text-align: center; }
-
-/* Badge label (for group cards) */
-.arch-card-badge {
-  font-size: 0.72rem; font-weight: 700; padding: 3px 10px;
-  border-radius: 20px; margin-bottom: 2px; letter-spacing: .03em;
-}
-
-/* Item list inside a card */
-.arch-card-items { display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; }
-.arch-card-items span {
-  font-size: 0.7rem; color: #475569;
-  background: #F8FAFC; border-radius: 6px;
-  padding: 2px 8px; text-align: center;
-}
-
-/* Horizontal connector arrow */
-.arch-h-arrow {
-  font-size: 1.4rem; color: #4F46E5; flex-shrink: 0;
-  animation: archNodeIn 0.4s ease forwards; opacity: 0;
-  padding: 0 2px; line-height: 1;
-}
-
-/* Footer principle row */
-.arch-footer-row { display: flex; justify-content: center; margin-top: 18px; }
-
-/* Colour variant classes for individual pipeline steps */
-.arch-card-auth    { border-color: #7C3AED; }
-.arch-card-dash    { border-color: #2563EB; }
-.arch-card-setup   { border-color: #0891B2; }
-.arch-card-eval    { border-color: #7C3AED; }
-.arch-card-output  { border-color: #059669; }
-.arch-card-principle {
-  border-color: #4F46E5;
-  background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
-  min-width: 360px;
-}
-
 /* ── Footer ── */
 .page-footer {
   border-top: 1px solid #E2E8F0;
@@ -190,7 +109,83 @@ with hcol3:
     st.page_link("pages/9_Terms_Conditions.py", label="Terms & Conditions")
 
 # ── Animated App Architecture Flow (horizontal) ────────────────────────────
-st.markdown("""
+st.html("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+@keyframes archNodeIn {
+  0%   { opacity: 0; transform: translateX(-14px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(0)     scale(1);    }
+}
+@keyframes archGlow {
+  0%, 100% { box-shadow: 0 4px 20px rgba(79,70,229,0.2); }
+  50%       { box-shadow: 0 4px 32px rgba(79,70,229,0.5); }
+}
+
+.arch-wrap {
+  width: 100%; padding: 18px 8px 8px; box-sizing: border-box;
+}
+
+.arch-flow {
+  display: flex; flex-direction: row;
+  align-items: center; justify-content: center;
+  gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding: 4px 0 12px;
+}
+
+.arch-card {
+  background: white; border: 2px solid #4F46E5; border-radius: 14px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  animation: archNodeIn 0.5s ease forwards; opacity: 0;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.07);
+  transition: transform .2s, box-shadow .2s;
+  min-width: 120px; flex-shrink: 0; text-align: center;
+}
+.arch-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(79,70,229,0.2); }
+
+.arch-hero-card {
+  background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
+  animation: archNodeIn .5s ease .05s forwards, archGlow 3s ease .6s infinite;
+  min-width: 140px;
+}
+
+.arch-card-icon  { font-size: 1.7rem; line-height: 1; }
+.arch-card-title { font-size: 0.9rem; font-weight: 700; color: #1E293B; }
+.arch-card-sub   { font-size: 0.7rem; color: #64748B; text-align: center; }
+
+.arch-card-badge {
+  font-size: 0.74rem; font-weight: 700; padding: 3px 12px;
+  border-radius: 20px; margin-bottom: 2px; letter-spacing: .03em;
+}
+
+.arch-card-items { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; }
+.arch-card-items span {
+  font-size: 0.72rem; color: #475569;
+  background: #F8FAFC; border-radius: 6px;
+  padding: 3px 10px; text-align: center;
+}
+
+.arch-h-arrow {
+  font-size: 1.5rem; color: #4F46E5; flex-shrink: 0;
+  animation: archNodeIn 0.4s ease forwards; opacity: 0;
+  padding: 0 2px; line-height: 1;
+}
+
+.arch-footer-row { display: flex; justify-content: center; margin-top: 18px; }
+
+.arch-card-auth    { border-color: #7C3AED; }
+.arch-card-dash    { border-color: #2563EB; }
+.arch-card-setup   { border-color: #0891B2; }
+.arch-card-eval    { border-color: #7C3AED; }
+.arch-card-output  { border-color: #059669; }
+.arch-card-principle {
+  border-color: #4F46E5;
+  background: linear-gradient(135deg,#EEF2FF,#F5F3FF);
+  min-width: 400px;
+}
+</style>
+
 <div class="arch-wrap">
 
   <div class="arch-flow">
@@ -274,7 +269,7 @@ st.markdown("""
   </div>
 
 </div>
-""", unsafe_allow_html=True)
+""")
 
 # ── CTA ─────────────────────────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
