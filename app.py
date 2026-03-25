@@ -3,7 +3,7 @@ from utils.database import init_db
 
 st.set_page_config(
     page_title="Let's Evaluate",
-    page_icon="🎯",
+    page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -12,7 +12,10 @@ st.set_page_config(
 if not st.session_state.get("authenticated", False):
     st.markdown("""
     <style>
-    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    section[data-testid="stSidebar"] > div:first-child button,
+    button[kind="header"] { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -22,7 +25,7 @@ init_db()
 # ── Sidebar nav (authenticated users only) ─────────────────────────────────
 if st.session_state.get("authenticated", False):
     with st.sidebar:
-        st.markdown("### 🎯 Let's Evaluate")
+        st.markdown("### ⚖️ Let's Evaluate")
         st.page_link("pages/2_Dashboard.py", label="🏠 Dashboard")
         st.page_link("pages/3_Projects.py", label="📁 Projects")
         st.page_link("pages/4_Roles.py", label="👥 Roles")
@@ -48,40 +51,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 [data-testid="stDecoration"] { display: none !important; }
 .stHeadingActionButton { display: none !important; }
 
-/* ── Animated gradient hero ── */
-@keyframes gradientShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.hero-bg {
-  background: linear-gradient(135deg, #4F46E5, #7C3AED, #2563EB, #4F46E5);
-  background-size: 300% 300%;
-  animation: gradientShift 8s ease infinite;
-  border-radius: 20px;
-  padding: 60px 40px;
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.hero-title {
-  font-size: 3.2rem;
-  font-weight: 800;
-  color: #fff;
-  line-height: 1.15;
-  margin-bottom: 16px;
-  text-shadow: 0 2px 20px rgba(0,0,0,0.25);
-}
-
-.hero-sub {
-  font-size: 1.2rem;
-  color: rgba(255,255,255,0.88);
-  max-width: 620px;
-  margin: 0 auto;
-  line-height: 1.6;
-}
-
 /* ── Header ── */
 .app-header {
   display: flex;
@@ -89,11 +58,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   align-items: center;
   padding: 12px 0 24px 0;
 }
-.brand {
+.brand a {
   font-size: 1.6rem;
   font-weight: 800;
   color: #4F46E5;
+  text-decoration: none;
 }
+.brand a:hover { opacity: 0.85; }
 .header-links a {
   color: #64748B;
   text-decoration: none;
@@ -178,48 +149,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   margin-bottom: 30px;
 }
 
-/* ── Feature cards ── */
-.feature-card {
-  background: #F8FAFC;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 16px;
-  padding: 28px 24px;
-  text-align: center;
-  transition: all .3s ease;
-  height: 100%;
-}
-.feature-card:hover {
-  border-color: #4F46E5;
-  box-shadow: 0 8px 24px rgba(79,70,229,0.12);
-  transform: translateY(-4px);
-}
-.feature-icon { font-size: 2.4rem; margin-bottom: 14px; }
-.feature-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #1E293B;
-  margin-bottom: 8px;
-}
-.feature-desc { font-size: 0.9rem; color: #64748B; line-height: 1.5; }
-
-/* ── Section heading ── */
-.section-heading {
-  text-align: center;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #1E293B;
-  margin-bottom: 8px;
-}
-.section-sub {
-  text-align: center;
-  color: #64748B;
-  font-size: 1rem;
-  margin-bottom: 32px;
-}
-
-/* ── Brand accent in headings ── */
-.brand-accent { color: #4F46E5; }
-
 /* ── Footer ── */
 .page-footer {
   border-top: 1px solid #E2E8F0;
@@ -229,13 +158,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   color: #94A3B8;
   font-size: 0.82rem;
 }
-.page-footer a {
-  color: #64748B;
-  text-decoration: none;
-  margin: 0 10px;
-  font-weight: 500;
-}
-.page-footer a:hover { color: #4F46E5; }
 
 /* ── CTA button ── */
 .stButton > button {
@@ -258,28 +180,15 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 # ── App Header ──────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
-  <div class="brand">🎯 Let's Evaluate</div>
+  <div class="brand"><a href="/">⚖️ Let's Evaluate</a></div>
   <div class="header-links">
-    <a href="#privacy">Privacy Policy</a>
-    <a href="#terms">Terms &amp; Conditions</a>
+    <a href="/Privacy_Policy">Privacy Policy</a>
+    <a href="/Terms_Conditions">Terms &amp; Conditions</a>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Hero section ────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="hero-bg">
-  <div class="hero-title">Simplify Your Interview Process</div>
-  <div class="hero-sub">
-    Leverage AI-powered resume analysis, smart question generation, and
-    structured evaluation workflows — all in one elegant platform.
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Animated Workflow ───────────────────────────────────────────────────────
-st.markdown('<div class="section-heading">How It Works</div>', unsafe_allow_html=True)
-st.markdown('<div class="section-sub">Five intelligent steps from resume to result</div>', unsafe_allow_html=True)
+# ── Animated Architecture Flow ─────────────────────────────────────────────
 
 st.markdown("""
 <div class="workflow-container">
@@ -315,58 +224,21 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Features ────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-heading" style="margin-top:16px;">Why <span class="brand-accent">Let\'s Evaluate</span>?</div>', unsafe_allow_html=True)
-st.markdown('<div class="section-sub">Everything you need to run consistent, data-driven interviews</div>', unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown("""
-    <div class="feature-card">
-      <div class="feature-icon">🧠</div>
-      <div class="feature-title">AI-Powered Insights</div>
-      <div class="feature-desc">GPT-4o-mini analyses resumes in seconds, highlighting tech matches,
-      experience gaps, and tailored interview questions.</div>
-    </div>""", unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class="feature-card">
-      <div class="feature-icon">🗂️</div>
-      <div class="feature-title">Structured Workflows</div>
-      <div class="feature-desc">Organise evaluations by projects and roles. Keep every question,
-      score, and comment in one searchable archive.</div>
-    </div>""", unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div class="feature-card">
-      <div class="feature-icon">📑</div>
-      <div class="feature-title">PDF Reports</div>
-      <div class="feature-desc">Generate professional evaluation PDFs with one click — ready
-      to share with your hiring team instantly.</div>
-    </div>""", unsafe_allow_html=True)
-
 # ── CTA ─────────────────────────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
 _, cta_col, _ = st.columns([2, 1, 2])
 with cta_col:
     if st.session_state.get("authenticated", False):
-        if st.button("🏠 Go to Dashboard", use_container_width=True):
+        if st.button("Go to Dashboard", use_container_width=True):
             st.switch_page("pages/2_Dashboard.py")
     else:
-        if st.button("🚀 Start Evaluating", use_container_width=True):
+        if st.button("Start Evaluate", use_container_width=True):
             st.switch_page("pages/1_Auth.py")
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.markdown("<br><br>", unsafe_allow_html=True)
-st.divider()
-fc1, fc2, fc3 = st.columns([2, 1, 2])
-with fc2:
-    st.page_link("pages/8_Privacy_Policy.py", label="🔒 Privacy Policy")
-    st.page_link("pages/9_Terms_Conditions.py", label="📜 Terms & Conditions")
 st.markdown(
-    '<p style="text-align:center;color:#94A3B8;font-size:0.8rem;margin-top:8px;">'
+    '<p style="text-align:center;color:#94A3B8;font-size:0.8rem;border-top:1px solid #E2E8F0;padding-top:20px;margin-top:48px;">'
     '© 2025 Let\'s Evaluate · AI assists; humans decide.</p>',
     unsafe_allow_html=True,
 )
