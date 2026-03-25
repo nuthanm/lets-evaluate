@@ -32,6 +32,10 @@ st.markdown("""
 [data-testid="stDecoration"] { display: none !important; }
 .stHeadingActionButton { display: none !important; }
 [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+header[data-testid="stHeader"] { display: none !important; }
+#MainMenu { display: none !important; }
+footer { display: none !important; }
+.block-container { padding-top: 0.6rem !important; }
 
 .policy-section {
   background: #F8FAFC;
@@ -61,6 +65,9 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Logo header ─────────────────────────────────────────────────────────────
+st.page_link("app.py", label="⚖️ Let's Evaluate")
 
 # ── Header ─────────────────────────────────────────────────────────────────
 st.markdown("# 📜 Terms & Conditions")
