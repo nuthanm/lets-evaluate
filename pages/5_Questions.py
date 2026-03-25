@@ -30,7 +30,10 @@ with st.sidebar:
 # ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none; }
+[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="StyledLinkIconContainer"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.stHeadingActionButton { display: none !important; }
 .q-card {
   background: #F8FAFC;
   border: 1.5px solid #E2E8F0;
@@ -58,7 +61,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-CATEGORIES = ["Technical", "Behavioral", "Situational", "Process"]
+CATEGORIES = ["Technical", "Behavioral", "Situational", "Process", "Other"]
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
 DIFF_BADGE = {"Easy": "badge-easy", "Medium": "badge-med", "Hard": "badge-hard"}
 
@@ -82,13 +85,20 @@ with st.expander("➕ Add New Question", expanded=False):
             q_diff = st.selectbox("Difficulty", DIFFICULTIES)
         with c3:
             q_role = st.selectbox("Link to Role (optional)", list(role_options.keys()))
+        q_cat_other = st.text_input(
+            "Custom category name (required when 'Other' is selected above)",
+            placeholder="e.g. Leadership, Domain Knowledge…",
+        )
         submitted = st.form_submit_button("✅ Add Question", type="primary")
         if submitted:
             if not q_text.strip():
                 st.error("Question text is required.")
+            elif q_cat == "Other" and not q_cat_other.strip():
+                st.error("Please enter a custom category name when 'Other' is selected.")
             else:
+                final_cat = q_cat_other.strip() if q_cat == "Other" else q_cat
                 rid = role_options.get(q_role)
-                create_question(uid, q_text.strip(), q_cat, q_diff, rid)
+                create_question(uid, q_text.strip(), final_cat, q_diff, rid)
                 st.success("Question added!")
                 st.rerun()
 
@@ -111,7 +121,12 @@ if filter_role != "All":
     target_rid = role_id_to_name and next((r["id"] for r in roles if r["name"] == filter_role), None)
     filtered = [q for q in filtered if q.get("role_id") == target_rid]
 if filter_cat != "All":
-    filtered = [q for q in filtered if q.get("category") == filter_cat]
+    _preset_cats = {"Technical", "Behavioral", "Situational", "Process"}
+    if filter_cat == "Other":
+        # Show questions whose category is not one of the preset values
+        filtered = [q for q in filtered if q.get("category") not in _preset_cats]
+    else:
+        filtered = [q for q in filtered if q.get("category") == filter_cat]
 if filter_diff != "All":
     filtered = [q for q in filtered if q.get("difficulty") == filter_diff]
 
@@ -169,8 +184,12 @@ if edit_id:
             eq_text = st.text_area("Question Text *", value=eq["question_text"], height=90)
             ec1, ec2, ec3 = st.columns(3)
             with ec1:
+                # If the saved category is not in the preset list it was a custom "Other" entry
+                existing_cat = eq.get("category", "Technical")
+                cat_in_list = existing_cat in CATEGORIES
+                default_cat = existing_cat if cat_in_list else "Other"
                 eq_cat = st.selectbox("Category", CATEGORIES,
-                                       index=CATEGORIES.index(eq.get("category", "Technical")))
+                                       index=CATEGORIES.index(default_cat))
             with ec2:
                 eq_diff = st.selectbox("Difficulty", DIFFICULTIES,
                                         index=DIFFICULTIES.index(eq.get("difficulty", "Medium")))
@@ -179,6 +198,11 @@ if edit_id:
                 cur_role_name = role_id_to_name.get(eq.get("role_id"), "(None)")
                 eq_role = st.selectbox("Link to Role", role_names,
                                         index=role_names.index(cur_role_name) if cur_role_name in role_names else 0)
+            eq_cat_other = st.text_input(
+                "Custom category name (required when 'Other' is selected above)",
+                value="" if cat_in_list else existing_cat,
+                placeholder="e.g. Leadership, Domain Knowledge…",
+            )
 
             s1, s2 = st.columns(2)
             with s1:
@@ -189,9 +213,12 @@ if edit_id:
             if save:
                 if not eq_text.strip():
                     st.error("Question text is required.")
+                elif eq_cat == "Other" and not eq_cat_other.strip():
+                    st.error("Please enter a custom category name when 'Other' is selected.")
                 else:
+                    final_cat = eq_cat_other.strip() if eq_cat == "Other" else eq_cat
                     rid = role_options.get(eq_role)
-                    update_question(edit_id, eq_text.strip(), eq_cat, eq_diff, rid)
+                    update_question(edit_id, eq_text.strip(), final_cat, eq_diff, rid)
                     st.session_state["edit_question_id"] = None
                     st.toast("Question updated!", icon="✅")
                     st.rerun()

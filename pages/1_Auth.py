@@ -19,21 +19,32 @@ init_db()
 if st.session_state.get("authenticated", False):
     st.switch_page("pages/2_Dashboard.py")
 
-# ── Sidebar nav ────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🎯 Let's Evaluate")
-    st.page_link("app.py", label="🏠 Home")
-
 # ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none; }
-.auth-card {
-  background: #F8FAFC;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 16px;
-  padding: 32px 28px;
+[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+[data-testid="StyledLinkIconContainer"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.stHeadingActionButton { display: none !important; }
+
+/* ── Auth page layout ── */
+.auth-page-header {
+  text-align: center;
+  padding: 32px 0 24px;
 }
+.auth-brand {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #4F46E5;
+  margin-bottom: 6px;
+}
+.auth-tagline {
+  color: #64748B;
+  font-size: 0.95rem;
+}
+
+/* ── Auth card ── */
 .auth-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -41,8 +52,46 @@ st.markdown("""
   margin-bottom: 4px;
 }
 .auth-sub { color: #64748B; font-size: 0.9rem; margin-bottom: 20px; }
+
+/* ── Column card styling ── */
+[data-testid="column"] > div:first-child > div:first-child {
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 16px;
+  padding: 28px 24px;
+}
+
+/* ── Vertical divider ── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+}
+.auth-divider-line {
+  width: 1px;
+  height: 80%;
+  background: linear-gradient(to bottom, transparent, #CBD5E1, transparent);
+}
+.auth-divider-or {
+  position: absolute;
+  background: #fff;
+  color: #94A3B8;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  border-radius: 50%;
+  border: 1px solid #E2E8F0;
+}
+
 .divider-text {
   text-align: center; color: #94A3B8; font-size: 0.85rem; margin: 8px 0;
+}
+
+/* ── CTA button ── */
+.stButton > button {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -59,13 +108,20 @@ if "reset_user_id" not in st.session_state:
 
 view = st.session_state["auth_view"]
 
+# ── Brand header ────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="auth-page-header">
+  <div class="auth-brand">🎯 Let's Evaluate</div>
+  <div class="auth-tagline">AI-assisted · Human-driven · Interview platform</div>
+</div>
+""", unsafe_allow_html=True)
+
 # ===========================================================================
 # FORGOT PASSWORD (full-width centred)
 # ===========================================================================
 if view == "forgot":
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown('<div class="auth-title">🔑 Reset Password</div>', unsafe_allow_html=True)
 
         step = st.session_state["reset_step"]
@@ -130,17 +186,14 @@ if view == "forgot":
                     st.session_state["reset_step"] = 1
                     st.rerun()
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
 # ===========================================================================
 # LOGIN + REGISTER (two columns)
 # ===========================================================================
 else:
-    left, right = st.columns(2, gap="large")
+    left, mid_col, right = st.columns([10, 1, 10], gap="small")
 
     # ── LEFT: Login ────────────────────────────────────────────────────────
     with left:
-        st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown('<div class="auth-title">👋 Welcome Back</div>', unsafe_allow_html=True)
         st.markdown('<div class="auth-sub">Sign in to your Let\'s Evaluate account</div>', unsafe_allow_html=True)
 
@@ -174,11 +227,16 @@ else:
                 st.session_state["auth_view"] = "register"
                 st.rerun()
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    # ── MIDDLE: Vertical divider ───────────────────────────────────────────
+    with mid_col:
+        st.markdown("""
+        <div class="auth-divider">
+          <div class="auth-divider-line"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── RIGHT: Register ────────────────────────────────────────────────────
     with right:
-        st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown('<div class="auth-title">✨ Create Account</div>', unsafe_allow_html=True)
         st.markdown('<div class="auth-sub">Join Let\'s Evaluate and start hiring smarter</div>', unsafe_allow_html=True)
 
@@ -207,5 +265,3 @@ else:
         if st.button("← Back to Sign In", use_container_width=True, key="btn_to_login"):
             st.session_state["auth_view"] = "login"
             st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)

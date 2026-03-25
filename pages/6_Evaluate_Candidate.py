@@ -43,7 +43,10 @@ with st.sidebar:
 # ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none; }
+[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="StyledLinkIconContainer"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.stHeadingActionButton { display: none !important; }
 .step-header {
   background: linear-gradient(135deg, #4F46E5, #7C3AED);
   color: white;
