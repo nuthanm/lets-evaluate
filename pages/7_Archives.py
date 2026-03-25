@@ -33,7 +33,10 @@ with st.sidebar:
 # ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none; }
+[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="StyledLinkIconContainer"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.stHeadingActionButton { display: none !important; }
 .status-badge {
   display: inline-block;
   border-radius: 20px;

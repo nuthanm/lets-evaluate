@@ -8,6 +8,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Hide sidebar toggle arrow on landing page for non-authenticated users
+if not st.session_state.get("authenticated", False):
+    st.markdown("""
+    <style>
+    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
 # Initialise database on every cold start
 init_db()
 
@@ -34,8 +42,11 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-/* Hide default streamlit nav */
-[data-testid="stSidebarNav"] { display: none; }
+/* Hide default streamlit nav, heading anchor buttons and top decoration */
+[data-testid="stSidebarNav"] { display: none !important; }
+[data-testid="StyledLinkIconContainer"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.stHeadingActionButton { display: none !important; }
 
 /* ── Animated gradient hero ── */
 @keyframes gradientShift {
@@ -150,6 +161,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   text-align: center;
   max-width: 90px;
 }
+.step-note {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: #94A3B8;
+  text-align: center;
+  max-width: 90px;
+  line-height: 1.3;
+}
 
 .workflow-arrow {
   font-size: 1.8rem;
@@ -197,6 +216,26 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   font-size: 1rem;
   margin-bottom: 32px;
 }
+
+/* ── Brand accent in headings ── */
+.brand-accent { color: #4F46E5; }
+
+/* ── Footer ── */
+.page-footer {
+  border-top: 1px solid #E2E8F0;
+  margin-top: 48px;
+  padding-top: 20px;
+  text-align: center;
+  color: #94A3B8;
+  font-size: 0.82rem;
+}
+.page-footer a {
+  color: #64748B;
+  text-decoration: none;
+  margin: 0 10px;
+  font-weight: 500;
+}
+.page-footer a:hover { color: #4F46E5; }
 
 /* ── CTA button ── */
 .stButton > button {
@@ -247,32 +286,37 @@ st.markdown("""
   <div class="workflow-step">
     <div class="step-icon">📄</div>
     <div class="step-label">Profile Upload</div>
+    <div class="step-note">Human uploads resume</div>
   </div>
   <div class="workflow-arrow">➜</div>
   <div class="workflow-step">
     <div class="step-icon">🤖</div>
     <div class="step-label">AI Analysis</div>
+    <div class="step-note">Skills &amp; gap detection</div>
   </div>
   <div class="workflow-arrow">➜</div>
   <div class="workflow-step">
     <div class="step-icon">❓</div>
-    <div class="step-label">Question Generation</div>
+    <div class="step-label">Question Bank</div>
+    <div class="step-note">Human reviews &amp; approves</div>
   </div>
   <div class="workflow-arrow">➜</div>
   <div class="workflow-step">
-    <div class="step-icon">📋</div>
+    <div class="step-icon">🧑‍💼</div>
     <div class="step-label">Evaluation</div>
+    <div class="step-note">Human-led interview</div>
   </div>
   <div class="workflow-arrow">➜</div>
   <div class="workflow-step">
     <div class="step-icon">📊</div>
     <div class="step-label">Results</div>
+    <div class="step-note">Human makes final call</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ── Features ────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-heading" style="margin-top:16px;">Why Let\'s Evaluate?</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-heading" style="margin-top:16px;">Why <span class="brand-accent">Let\'s Evaluate</span>?</div>', unsafe_allow_html=True)
 st.markdown('<div class="section-sub">Everything you need to run consistent, data-driven interviews</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
@@ -311,5 +355,18 @@ with cta_col:
         if st.button("🏠 Go to Dashboard", use_container_width=True):
             st.switch_page("pages/2_Dashboard.py")
     else:
-        if st.button("🚀 Start Evaluate", use_container_width=True):
+        if st.button("🚀 Start Evaluating", use_container_width=True):
             st.switch_page("pages/1_Auth.py")
+
+# ── Footer ───────────────────────────────────────────────────────────────────
+st.markdown("<br><br>", unsafe_allow_html=True)
+st.divider()
+fc1, fc2, fc3 = st.columns([2, 1, 2])
+with fc2:
+    st.page_link("pages/8_Privacy_Policy.py", label="🔒 Privacy Policy")
+    st.page_link("pages/9_Terms_Conditions.py", label="📜 Terms & Conditions")
+st.markdown(
+    '<p style="text-align:center;color:#94A3B8;font-size:0.8rem;margin-top:8px;">'
+    '© 2025 Let\'s Evaluate · AI assists; humans decide.</p>',
+    unsafe_allow_html=True,
+)
