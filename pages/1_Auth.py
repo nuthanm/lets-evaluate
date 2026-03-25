@@ -11,8 +11,14 @@ from utils.database import (
 )
 from utils.auth import hash_password, verify_password, login_user, require_auth, get_current_user
 from utils.email_utils import send_password_reset_email
+from utils.ui import inject_common_css, render_page_logo
 
-st.set_page_config(page_title="Let's Evaluate – Auth", page_icon="🎯", layout="wide")
+st.set_page_config(
+    page_title="Let's Evaluate – Auth",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 init_db()
 
 # Redirect authenticated users straight to dashboard
@@ -20,14 +26,9 @@ if st.session_state.get("authenticated", False):
     st.switch_page("pages/2_Dashboard.py")
 
 # ── CSS ────────────────────────────────────────────────────────────────────
+inject_common_css()
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-[data-testid="StyledLinkIconContainer"] { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-.stHeadingActionButton { display: none !important; }
-
 /* ── Auth page layout ── */
 .auth-page-header {
   text-align: center;
@@ -111,7 +112,7 @@ view = st.session_state["auth_view"]
 # ── Brand header ────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="auth-page-header">
-  <div class="auth-brand">🎯 Let's Evaluate</div>
+  <div class="auth-brand">⚖️ Let's Evaluate</div>
   <div class="auth-tagline">AI-assisted · Human-driven · Interview platform</div>
 </div>
 """, unsafe_allow_html=True)

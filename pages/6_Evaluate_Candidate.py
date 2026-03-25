@@ -18,7 +18,12 @@ def _truncate(text: str, max_chars: int = 80) -> str:
     last_space = truncated.rfind(" ")
     return (truncated[:last_space] if last_space > 0 else truncated) + "…"
 
-st.set_page_config(page_title="Evaluate Candidate – Let's Evaluate", page_icon="🤖", layout="wide")
+st.set_page_config(
+    page_title="Evaluate Candidate – Let's Evaluate",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 init_db()
 require_auth()
 
@@ -26,27 +31,13 @@ user = get_current_user()
 uid = user["id"]
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🎯 Let's Evaluate")
-    st.page_link("app.py", label="🏠 Home")
-    st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
-    st.page_link("pages/3_Projects.py", label="📁 Projects")
-    st.page_link("pages/4_Roles.py", label="👥 Roles")
-    st.page_link("pages/5_Questions.py", label="❓ Questions")
-    st.page_link("pages/6_Evaluate_Candidate.py", label="🤖 Evaluate Candidate")
-    st.page_link("pages/7_Archives.py", label="📂 Archives")
-    st.divider()
-    if st.button("🚪 Logout", use_container_width=True):
-        logout_user()
-        st.switch_page("app.py")
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
+render_authenticated_sidebar()
 
 # ── CSS ────────────────────────────────────────────────────────────────────
+inject_common_css()
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none !important; }
-[data-testid="StyledLinkIconContainer"] { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-.stHeadingActionButton { display: none !important; }
 .step-header {
   background: linear-gradient(135deg, #4F46E5, #7C3AED);
   color: white;
@@ -135,6 +126,7 @@ def _extract_text_from_docx(file_bytes: bytes) -> str:
         return ""
 
 
+render_page_logo()
 st.markdown("## 🤖 Evaluate Candidate")
 
 projects = get_projects_for_user(uid)
