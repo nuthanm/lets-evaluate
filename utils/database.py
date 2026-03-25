@@ -1,7 +1,7 @@
 import uuid
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, event
@@ -35,7 +35,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
 
@@ -54,8 +54,8 @@ class Project(Base):
     name = Column(String, nullable=False)
     description = Column(Text, default="")
     tech_stack = Column(Text, default="[]")  # JSON list stored as text
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="projects")
     roles = relationship("Role", back_populates="project")
@@ -71,8 +71,8 @@ class Role(Base):
     name = Column(String, nullable=False)
     description = Column(Text, default="")
     requirements = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="roles")
     project = relationship("Project", back_populates="roles")
@@ -89,8 +89,8 @@ class Question(Base):
     question_text = Column(Text, nullable=False)
     category = Column(String, default="Technical")  # Technical/Behavioral/Situational/Process
     difficulty = Column(String, default="Medium")   # Easy/Medium/Hard
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="questions")
     role = relationship("Role", back_populates="questions")
@@ -111,8 +111,8 @@ class Evaluation(Base):
     resume_questions = Column(Text, default="[]")    # JSON
     comments = Column(Text, default="")
     status = Column(String, default="Pending")  # Pending/Selected/Rejected/Hold
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="evaluations")
     project = relationship("Project", back_populates="evaluations")
@@ -240,7 +240,7 @@ def update_project(project_id: str, name: str, description: str, tech_stack: lis
             "name": name,
             "description": description,
             "tech_stack": json.dumps(tech_stack),
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         })
         db.commit()
     finally:
@@ -323,7 +323,7 @@ def update_role(role_id: str, name: str, description: str, requirements: str, pr
             "description": description,
             "requirements": requirements,
             "project_id": project_id or None,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         })
         db.commit()
     finally:
@@ -414,7 +414,7 @@ def update_question(question_id: str, question_text: str, category: str, difficu
             "category": category,
             "difficulty": difficulty,
             "role_id": role_id or None,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         })
         db.commit()
     finally:
@@ -558,7 +558,7 @@ def update_evaluation(evaluation_id: str, **kwargs):
                 update_data[key] = json.dumps(value)
             else:
                 update_data[key] = value
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now(timezone.utc)
         db.query(Evaluation).filter(Evaluation.id == evaluation_id).update(update_data)
         db.commit()
     finally:
@@ -604,7 +604,7 @@ def get_valid_reset(user_id: str, passcode: str) -> dict | None:
                 PasswordReset.user_id == user_id,
                 PasswordReset.passcode == passcode,
                 PasswordReset.used.is_(False),
-                PasswordReset.expires_at > datetime.utcnow(),
+                PasswordReset.expires_at > datetime.now(timezone.utc),
             )
             .first()
         )

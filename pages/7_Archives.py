@@ -1,3 +1,4 @@
+import streamlit as st
 from datetime import datetime
 
 from utils.database import (
@@ -133,7 +134,11 @@ else:
             if st.button("📥", key=f"pdf_{ev['id']}", help="Download PDF"):
                 with st.spinner("Generating PDF…"):
                     pdf_bytes = generate_evaluation_pdf(ev)
-                filename = f"eval_{ev['candidate_name'].replace(' ', '_')}_{ev['id'][:8]}.pdf"
+                safe_name = "".join(
+                    c if c.isalnum() or c in ("-", "_") else "_"
+                    for c in ev["candidate_name"].replace(" ", "_")
+                )
+                filename = f"eval_{safe_name}_{ev['id'][:8]}.pdf"
                 st.download_button(
                     label="⬇ Download",
                     data=pdf_bytes,

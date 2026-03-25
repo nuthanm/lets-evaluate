@@ -6,6 +6,11 @@ load_dotenv()
 
 _OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
 
+# Token-limit guards for LLM prompts
+_MAX_RESUME_CHARS = 4000      # ~1 000 tokens — keeps cost low while retaining key detail
+_MAX_ROLE_REQ_CHARS = 2000    # role requirements excerpt
+_MAX_RESUME_RESUME_CHARS = 3000  # shorter excerpt for resume-based Q generation
+
 
 def _get_llm():
     from langchain_openai import ChatOpenAI
@@ -50,12 +55,12 @@ def analyze_resume(
         prompt = f"""You are an expert technical recruiter. Analyse the following resume against the job requirements.
 
 Resume:
-{resume_text[:4000]}
+{resume_text[:_MAX_RESUME_CHARS]}
 
 Required Tech Stack: {", ".join(project_tech_stack)}
 
 Role Requirements:
-{role_requirements[:2000]}
+{role_requirements[:_MAX_ROLE_REQ_CHARS]}
 
 Return ONLY a valid JSON object (no markdown) with exactly these keys:
 {{
@@ -139,10 +144,10 @@ def generate_resume_based_questions(
         prompt = f"""You are an expert technical interviewer. Based on this candidate's resume, generate {num_questions} targeted interview questions.
 
 Resume (excerpt):
-{resume_text[:3000]}
+{resume_text[:_MAX_RESUME_RESUME_CHARS]}
 
 Role Requirements:
-{role_requirements[:1000]}
+{role_requirements[:_MAX_ROLE_REQ_CHARS // 2]}
 
 Return ONLY a valid JSON array (no markdown) where each element has:
 {{

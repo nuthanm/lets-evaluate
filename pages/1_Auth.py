@@ -1,6 +1,6 @@
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 import streamlit as st
 
@@ -83,7 +83,7 @@ if view == "forgot":
                         st.error("No account found with that email.")
                     else:
                         passcode = "".join(random.choices(string.digits, k=6))
-                        expires = datetime.utcnow() + timedelta(minutes=15)
+                        expires = datetime.now(timezone.utc) + timedelta(minutes=15)
                         create_password_reset(user["id"], passcode, expires)
                         ok, err = send_password_reset_email(fp_email, passcode, provider)
                         if ok:
