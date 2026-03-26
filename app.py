@@ -41,6 +41,19 @@ st.markdown("""
   background-size: 100% 2px !important;
 }
 
+/* ── Header nav links (raw <a> tags for Privacy / Terms) ── */
+nav a {
+  background-image: linear-gradient(#4F46E5, #4F46E5) !important;
+  background-size: 0% 2px !important;
+  background-repeat: no-repeat !important;
+  background-position: bottom left !important;
+  transition: color .2s, background-size .35s ease !important;
+}
+nav a:hover {
+  color: #4F46E5 !important;
+  background-size: 100% 2px !important;
+}
+
 /* ── Hero text ── */
 .hero-badge {
   display: inline-block; background: #EEF2FF; color: #4F46E5;

@@ -1,7 +1,7 @@
 import streamlit as st
+from datetime import datetime
 from utils.database import init_db
-from utils.auth import logout_user
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_policy_page_logo, create_logo_favicon
 
 _is_auth = st.session_state.get("authenticated", False)
 st.set_page_config(
@@ -50,11 +50,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Logo header ─────────────────────────────────────────────────────────────
-render_page_logo()
+render_policy_page_logo()
 
 # ── Header ─────────────────────────────────────────────────────────────────
 st.markdown("# 📜 Terms & Conditions")
-st.markdown('<p class="policy-meta">Last updated: March 2025 &nbsp;·&nbsp; Let\'s Evaluate Platform</p>',
+st.markdown(f'<p class="policy-meta">Last updated: {datetime.now().strftime("%B %Y")} &nbsp;·&nbsp; Let\'s Evaluate Platform</p>',
             unsafe_allow_html=True)
 
 st.markdown("""
@@ -181,7 +181,3 @@ st.markdown("""
   </p>
 </div>
 """, unsafe_allow_html=True)
-
-st.divider()
-st.page_link("app.py", label="← Back to Home")
-st.page_link("pages/8_Privacy_Policy.py", label="🔒 View Privacy Policy")

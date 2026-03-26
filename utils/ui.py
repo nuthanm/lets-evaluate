@@ -124,6 +124,50 @@ def render_page_logo() -> None:
     st.markdown(LOGO_HTML, unsafe_allow_html=True)
 
 
+def render_policy_page_logo() -> None:
+    """Render the brand logo for policy pages using st.page_link for reliable navigation.
+
+    Splits the logo into two side-by-side columns: the gradient icon (HTML visual)
+    and the brand name rendered as a ``st.page_link`` so Streamlit's native router
+    handles the navigation to the home page instantly.
+    """
+    # Style the main-content page_link to look like the brand logo text
+    st.markdown("""
+<style>
+.block-container [data-testid="stPageLink-NavLink"] {
+  color: #1E293B !important;
+  font-size: 1.15rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1 !important;
+  background-image: none !important;
+  background-size: 0 !important;
+  border: none !important;
+  padding: 0 !important;
+  transition: color .2s !important;
+}
+.block-container [data-testid="stPageLink-NavLink"]:hover {
+  color: #4F46E5 !important;
+  background-image: none !important;
+}
+</style>
+""", unsafe_allow_html=True)
+    _icon_col, _text_col, _ = st.columns([1, 3, 12])
+    with _icon_col:
+        st.markdown(
+            '<div style="padding-top:6px;">'
+            '<span style="width:34px;height:34px;'
+            'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
+            'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
+            'box-shadow:0 2px 8px rgba(79,70,229,.30);">'
+            + _SCALES_SVG_18
+            + '</span></div>',
+            unsafe_allow_html=True,
+        )
+    with _text_col:
+        st.page_link("app.py", label=BRAND)
+
+
 @st.cache_resource
 def create_logo_favicon():
     """Return a PIL Image of the brand logo for use as a browser favicon.
