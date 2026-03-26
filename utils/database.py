@@ -1,10 +1,11 @@
 import uuid
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
-    Text, ForeignKey, event
+    Text, ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
@@ -13,11 +14,34 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lets_evaluate.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Engine and session factory are created lazily on first use to avoid
+# import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
+# when the module is loaded before the Streamlit runtime is fully ready).
+# A lock ensures thread-safe initialization in Streamlit's multi-threaded env.
+_engine = None
+_SessionLocal = None
+_db_lock = threading.Lock()
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        with _db_lock:
+            if _engine is None:
+                _engine = create_engine(
+                    DATABASE_URL,
+                    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+                )
+    return _engine
+
+
+def _get_session_factory():
+    global _SessionLocal
+    if _SessionLocal is None:
+        with _db_lock:
+            if _SessionLocal is None:
+                _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_get_engine())
+    return _SessionLocal
 
 
 class Base(DeclarativeBase):
@@ -136,11 +160,11 @@ class PasswordReset(Base):
 # ---------------------------------------------------------------------------
 
 def get_db() -> Session:
-    return SessionLocal()
+    return _get_session_factory()()
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=_get_engine())
 
 
 # ---------------------------------------------------------------------------
