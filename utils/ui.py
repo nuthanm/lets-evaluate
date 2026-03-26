@@ -1,5 +1,6 @@
 """Shared UI helpers for every page in Let's Evaluate."""
 
+import html
 import streamlit as st
 from utils.auth import logout_user
 
@@ -28,21 +29,6 @@ _SCALES_SVG_14 = (
     '</svg>'
 )
 
-# Reusable logo HTML – navigates to home page on click
-LOGO_HTML = (
-    '<a href="/" target="_self" style="cursor:pointer;display:inline-flex;align-items:center;'
-    'gap:10px;text-decoration:none;">'
-    '<span style="width:34px;height:34px;'
-    'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
-    'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
-    'box-shadow:0 2px 8px rgba(79,70,229,.30);">'
-    + _SCALES_SVG_18
-    + '</span>'
-    '<span style="font-size:1.2rem;font-weight:800;color:#1E293B;'
-    "letter-spacing:-.02em;line-height:1;\">Let's Evaluate</span>"
-    '</a>'
-)
-
 # Larger logo variant for prominent page headers (e.g. auth page)
 _SCALES_SVG_28 = (
     '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white"'
@@ -54,6 +40,35 @@ _SCALES_SVG_28 = (
     '<line x1="9" y1="21" x2="15" y2="21"/>'
     '</svg>'
 )
+
+
+_ALLOWED_LOGO_HREFS = {"/", "/Dashboard"}
+
+
+def _make_logo_html(href: str = "/") -> str:
+    """Generate logo HTML that navigates to *href* on click.
+
+    Only hrefs from the known-safe allowlist are accepted; any other value
+    falls back to the landing page ("/") to prevent open-redirect / XSS.
+    """
+    safe_href = html.escape(href if href in _ALLOWED_LOGO_HREFS else "/")
+    return (
+        f'<a href="{safe_href}" target="_self" style="cursor:pointer;display:inline-flex;align-items:center;'
+        'gap:10px;text-decoration:none;">'
+        '<span style="width:34px;height:34px;'
+        'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
+        'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
+        'box-shadow:0 2px 8px rgba(79,70,229,.30);">'
+        + _SCALES_SVG_18
+        + '</span>'
+        '<span style="font-size:1.2rem;font-weight:800;color:#1E293B;'
+        "letter-spacing:-.02em;line-height:1;\">Let's Evaluate</span>"
+        '</a>'
+    )
+
+
+# Reusable logo HTML – navigates to home page on click (for unauthenticated pages)
+LOGO_HTML = _make_logo_html("/")
 
 LOGO_HTML_LARGE = (
     '<a href="/" target="_self" style="cursor:pointer;display:inline-flex;align-items:center;'
@@ -97,12 +112,6 @@ footer                                     { display: none !important; }
 [data-testid="stHeadingWithActionElements"] button { display: none !important; }
 .stHeadingActionButton                    { display: none !important; }
 
-/* Always hide the sidebar collapse/expand toggle (stops the > blinking) */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"],
-section[data-testid="stSidebar"] > div:first-child button,
-button[kind="header"]                     { display: none !important; }
-
 /* Primary action buttons */
 .stButton > button {
   background: linear-gradient(135deg, #4F46E5, #7C3AED) !important;
@@ -131,17 +140,17 @@ def render_authenticated_sidebar() -> None:
     """Render the standard authenticated navigation sidebar."""
     with st.sidebar:
         st.markdown(
-            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 10px;">'
+            '<a href="/Dashboard" target="_self" style="display:flex;align-items:center;'
+            'gap:8px;padding:2px 0 10px;text-decoration:none;">'
             '<span style="width:28px;height:28px;'
             'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:7px;'
             'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">'
             + _SCALES_SVG_14
             + '</span>'
             '<span style="font-weight:800;font-size:0.95rem;color:#1E293B;">'
-            "Let's Evaluate</span></div>",
+            "Let's Evaluate</span></a>",
             unsafe_allow_html=True,
         )
-        st.page_link("app.py", label="🏠 Home")
         st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
         st.page_link("pages/3_Projects.py", label="📁 Projects")
         st.page_link("pages/4_Roles.py", label="👥 Roles")
@@ -149,14 +158,31 @@ def render_authenticated_sidebar() -> None:
         st.page_link("pages/6_Evaluate_Candidate.py", label="🤖 Evaluate Candidate")
         st.page_link("pages/7_Archives.py", label="📂 Archives")
         st.divider()
-        if st.button("🚪 Logout", use_container_width=True):
+        user_name = st.session_state.get("user_name", "")
+        user_email = st.session_state.get("user_email", "")
+        if user_name or user_email:
+            safe_name = html.escape(user_name)
+            safe_email = html.escape(user_email)
+            st.markdown(
+                f'<div style="font-size:0.8rem;color:#64748B;padding:0 0 8px;'
+                f'word-break:break-all;">'
+                f'<span style="font-weight:600;color:#1E293B;">{safe_name}</span><br>'
+                f'{safe_email}</div>',
+                unsafe_allow_html=True,
+            )
+        if st.button("🚪 Sign Out", use_container_width=True):
             logout_user()
             st.switch_page("app.py")
 
 
 def render_page_logo() -> None:
-    """Render the brand logo link at the top of a page's main content area."""
-    st.markdown(LOGO_HTML, unsafe_allow_html=True)
+    """Render the brand logo link at the top of a page's main content area.
+
+    When the user is authenticated the logo links to the Dashboard; otherwise
+    it links to the landing page.
+    """
+    href = "/Dashboard" if st.session_state.get("authenticated", False) else "/"
+    st.markdown(_make_logo_html(href), unsafe_allow_html=True)
 
 
 def render_policy_page_logo() -> None:
