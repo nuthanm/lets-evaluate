@@ -108,8 +108,10 @@ def generate_evaluation_pdf(evaluation_data: dict) -> bytes:
          "Email", evaluation_data.get("candidate_email", "—")],
         ["Project", evaluation_data.get("project_name", "—"),
          "Role", evaluation_data.get("role_name", "—")],
-        ["Resume", evaluation_data.get("resume_filename", "—"),
+        ["Interviewer", evaluation_data.get("interviewer_name") or "—",
          "Status", status],
+        ["Resume", evaluation_data.get("resume_filename", "—"),
+         "", ""],
     ]
     info_table = Table(
         [[Paragraph(f"<b>{r[0]}</b>", styles["small"]),

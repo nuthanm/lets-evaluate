@@ -134,7 +134,8 @@ class Evaluation(Base):
     standard_questions = Column(Text, default="[]")  # JSON
     resume_questions = Column(Text, default="[]")    # JSON
     comments = Column(Text, default="")
-    status = Column(String, default="Pending")  # Pending/Selected/Rejected/Hold
+    status = Column(String, default="Pending")  # Pending/Selected/Shortlisted/Rejected/Hold
+    interviewer_name = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -165,6 +166,20 @@ def get_db() -> Session:
 
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
+    # Migrate: add interviewer_name column if it doesn't exist (SQLite)
+    try:
+        engine = _get_engine()
+        with engine.connect() as conn:
+            cols = [row[1] for row in conn.execute(
+                __import__("sqlalchemy").text("PRAGMA table_info(evaluations)")
+            )]
+            if "interviewer_name" not in cols:
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
+                ))
+                conn.commit()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +503,7 @@ def get_evaluations_for_user(user_id: str) -> list[dict]:
                 "resume_questions": json.loads(r.Evaluation.resume_questions or "[]"),
                 "comments": r.Evaluation.comments,
                 "status": r.Evaluation.status,
+                "interviewer_name": r.Evaluation.interviewer_name or "",
                 "created_at": r.Evaluation.created_at,
                 "updated_at": r.Evaluation.updated_at,
             }
@@ -527,6 +543,7 @@ def get_evaluation_by_id(evaluation_id: str) -> dict | None:
             "resume_questions": json.loads(row.Evaluation.resume_questions or "[]"),
             "comments": row.Evaluation.comments,
             "status": row.Evaluation.status,
+            "interviewer_name": row.Evaluation.interviewer_name or "",
             "created_at": row.Evaluation.created_at,
             "updated_at": row.Evaluation.updated_at,
         }
@@ -546,6 +563,7 @@ def create_evaluation(
     resume_questions: list,
     comments: str,
     status: str = "Pending",
+    interviewer_name: str = "",
 ) -> dict:
     db = get_db()
     try:
@@ -562,6 +580,7 @@ def create_evaluation(
             resume_questions=json.dumps(resume_questions),
             comments=comments,
             status=status,
+            interviewer_name=interviewer_name,
         )
         db.add(ev)
         db.commit()

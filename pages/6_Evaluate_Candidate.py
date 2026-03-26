@@ -5,10 +5,10 @@ import pdfplumber
 
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_project, get_questions_for_role,
-    create_evaluation,
+    create_evaluation, create_question,
 )
 from utils.auth import require_auth, get_current_user, logout_user
-from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions
+from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions, refine_evaluation_notes
 from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
 
 
@@ -94,6 +94,9 @@ defaults = {
     "eval_std_questions": [],
     "eval_resume_questions": [],
     "eval_role_questions": [],
+    "eval_interviewer_name": "",
+    "eval_q_satisfaction": {},   # {key: {"level": str, "comment": str}}
+    "eval_refined_notes": "",
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -400,6 +403,36 @@ elif st.session_state["eval_step"] == 3:
     role_name = role["name"] if role else "Unknown Role"
     role_req = role["requirements"] if role else ""
 
+    SATISFACTION_OPTIONS = ["—", "Satisfied", "Not Satisfied", "Other"]
+
+    def _render_satisfaction(q_key: str):
+        """Render satisfaction level dropdown and optional comment box for a question."""
+        sat = st.session_state["eval_q_satisfaction"].get(q_key, {"level": "—", "comment": ""})
+        level = st.selectbox(
+            "Satisfaction Level",
+            SATISFACTION_OPTIONS,
+            index=SATISFACTION_OPTIONS.index(sat["level"]) if sat["level"] in SATISFACTION_OPTIONS else 0,
+            key=f"sat_sel_{q_key}",
+            label_visibility="visible",
+        )
+        comment = sat.get("comment", "")
+        if level == "Other":
+            comment = st.text_area(
+                "Comment",
+                value=comment,
+                height=80,
+                placeholder="Add your comments here…",
+                key=f"sat_cmt_{q_key}",
+            )
+            if st.button("💾 Save Comment", key=f"sat_save_{q_key}"):
+                st.session_state["eval_q_satisfaction"][q_key] = {"level": level, "comment": comment}
+                st.toast("Comment saved!", icon="✅")
+                st.rerun()
+        else:
+            if level != sat["level"]:
+                st.session_state["eval_q_satisfaction"][q_key] = {"level": level, "comment": ""}
+                st.rerun()
+
     # Role-linked questions
     role_qs = st.session_state.get("eval_role_questions", [])
     if role_qs:
@@ -408,6 +441,7 @@ elif st.session_state["eval_step"] == 3:
             with st.expander(f"Q{i}: {_truncate(q['question_text'])}"):
                 st.write(q["question_text"])
                 st.caption(f"Category: {q['category']} | Difficulty: {q['difficulty']}")
+                _render_satisfaction(f"role_{q['id']}")
 
     # Standard AI questions
     if not st.session_state["eval_std_questions"]:
@@ -420,9 +454,20 @@ elif st.session_state["eval_step"] == 3:
         std_qs = st.session_state["eval_std_questions"]
         st.markdown(f"**🎯 AI Standard Questions ({len(std_qs)})**")
         for i, q in enumerate(std_qs, 1):
+            q_key = f"std_{i}"
             with st.expander(f"Q{i}: {_truncate(q.get('question', ''))}"):
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
+                _render_satisfaction(q_key)
+                if st.button("➕ Add to My Questions", key=f"add_std_{i}"):
+                    create_question(
+                        uid,
+                        q.get("question", ""),
+                        "AI Based Questions",
+                        "Medium",
+                        role_id,
+                    )
+                    st.toast("Added to My Questions!", icon="✅")
 
     # Resume-based questions
     if not st.session_state["eval_resume_questions"]:
@@ -437,9 +482,20 @@ elif st.session_state["eval_step"] == 3:
         res_qs = st.session_state["eval_resume_questions"]
         st.markdown(f"**📄 Resume-Based Questions ({len(res_qs)})**")
         for i, q in enumerate(res_qs, 1):
+            q_key = f"res_{i}"
             with st.expander(f"Q{i}: {_truncate(q.get('question', ''))}"):
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
+                _render_satisfaction(q_key)
+                if st.button("➕ Add to My Questions", key=f"add_res_{i}"):
+                    create_question(
+                        uid,
+                        q.get("question", ""),
+                        "AI Based Questions",
+                        "Medium",
+                        role_id,
+                    )
+                    st.toast("Added to My Questions!", icon="✅")
 
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2 = st.columns(2)
@@ -463,14 +519,58 @@ elif st.session_state["eval_step"] == 4:
     st.markdown(f"**Resume:** {st.session_state['eval_resume_filename']}")
     st.divider()
 
+    interviewer_name = st.text_input(
+        "Interviewer Name",
+        value=st.session_state["eval_interviewer_name"],
+        placeholder="e.g. John Smith",
+        key="eval_interviewer_name_input",
+    )
+    st.session_state["eval_interviewer_name"] = interviewer_name
+
+    # Evaluation notes with AI-refine and copy
+    st.markdown("**Evaluation Notes**")
+    notes_val = st.session_state.get("eval_refined_notes") or ""
+
     comments = st.text_area(
         "Add your evaluation notes…",
+        value=notes_val,
         height=150,
         placeholder="Overall impression, cultural fit, red flags, recommendations…",
         key="eval_comments",
     )
+    # Sync refined notes back
+    st.session_state["eval_refined_notes"] = comments
 
-    status = st.selectbox("Initial Status", ["Pending", "Selected", "Rejected", "Hold"], key="eval_status")
+    btn_ai, btn_copy = st.columns([2, 1])
+    with btn_ai:
+        if st.button("✨ Refine with AI", help="Use AI to professionally reformat your notes"):
+            if not comments.strip():
+                st.warning("Please add some evaluation notes first.")
+            else:
+                with st.spinner("Refining with AI…"):
+                    refined = refine_evaluation_notes(comments)
+                st.session_state["eval_refined_notes"] = refined
+                st.rerun()
+    with btn_copy:
+        # JavaScript-based clipboard copy
+        safe_text = comments.replace("`", "\\`").replace("\\", "\\\\")
+        st.components.v1.html(
+            f"""<button onclick="navigator.clipboard.writeText(`{safe_text}`).then(function(){{
+                this.innerText='✅ Copied!';setTimeout(()=>this.innerText='📋 Copy',2000);
+            }}.bind(this)).catch(()=>this.innerText='❌ Failed')"
+            style="background:#4F46E5;color:white;border:none;padding:6px 16px;
+                   border-radius:8px;cursor:pointer;font-weight:600;font-size:0.88rem;
+                   margin-top:4px;">📋 Copy</button>""",
+            height=45,
+        )
+
+    EVAL_STATUS_OPTIONS = ["Pending", "Shortlisted", "Selected", "Rejected", "Hold"]
+    status = st.selectbox(
+        "Technical Evaluation Status",
+        EVAL_STATUS_OPTIONS,
+        index=0,
+        key="eval_status",
+    )
 
     b1, b2 = st.columns(2)
     with b1:
@@ -491,6 +591,7 @@ elif st.session_state["eval_step"] == 4:
                 resume_questions=st.session_state["eval_resume_questions"],
                 comments=comments,
                 status=status,
+                interviewer_name=st.session_state["eval_interviewer_name"],
             )
             st.success(f"✅ Evaluation saved! ID: {result['id']}")
             st.balloons()

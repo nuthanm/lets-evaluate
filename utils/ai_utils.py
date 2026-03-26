@@ -209,3 +209,21 @@ Return ONLY a valid JSON array (no markdown) where each element has:
         return []
     except Exception as exc:
         return [{"question": f"Failed to generate questions: {exc}", "category": "Technical", "expected_answer_hints": "N/A"}]
+
+
+def refine_evaluation_notes(notes: str) -> str:
+    """Use AI to refine and format evaluation notes into clear, professional content."""
+    if not _is_configured():
+        return notes
+
+    try:
+        llm = _get_llm()
+        prompt = f"""You are an expert HR professional. Refine and improve the following candidate evaluation notes to be clear, professional, and well-structured. Keep the core content and sentiment but improve formatting, grammar, and clarity. Use bullet points where appropriate. Return only the refined text without any additional explanation or preamble.
+
+Evaluation notes:
+{notes[:2000]}"""
+
+        response = llm.invoke(prompt)
+        return response.content.strip()
+    except Exception:
+        return notes
