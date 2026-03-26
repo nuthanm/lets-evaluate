@@ -125,14 +125,18 @@ def render_page_logo() -> None:
 
 
 @st.cache_resource
-def create_logo_favicon() -> "Image.Image":
+def create_logo_favicon():
     """Return a PIL Image of the brand logo for use as a browser favicon.
 
     Produces a 64×64 RGBA image: purple gradient rounded square (#4F46E5 →
     #7C3AED at 135°) with the white scales icon centred inside — matching the
-    logo shown on every page.
+    logo shown on every page.  Falls back to the '⚖️' emoji string if Pillow
+    is not installed.
     """
-    from PIL import Image, ImageDraw
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return "⚖️"
 
     size = 64
 
