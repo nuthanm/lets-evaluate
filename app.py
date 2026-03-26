@@ -528,6 +528,13 @@ with hero_right:
 </script>
 """, height=320, scrolling=False)
 
+    st.markdown(
+        '<p style="text-align:center;color:#94A3B8;font-size:0.72rem;'
+        'margin-top:4px;letter-spacing:0.01em;">'
+        '* 87% is for illustration purposes only.</p>',
+        unsafe_allow_html=True,
+    )
+
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
     f'<p style="text-align:center;color:#94A3B8;font-size:0.75rem;'
