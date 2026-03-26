@@ -65,11 +65,14 @@ st.markdown("""
   padding-top: 0.5rem !important;
   padding-bottom: 0 !important;
 }
-[data-testid="stAppViewContainer"] {
-  overflow-y: hidden !important;
+/* Hide overflow only on wide screens where everything fits in one viewport */
+@media (min-width: 769px) and (min-height: 501px) {
+  [data-testid="stAppViewContainer"] {
+    overflow-y: hidden !important;
+  }
 }
-/* Re-enable scroll on very small screens where content may not fit */
-@media (max-height: 500px) {
+/* Always allow scroll on mobile / short screens so animation is reachable */
+@media (max-width: 768px), (max-height: 500px) {
   [data-testid="stAppViewContainer"] {
     overflow-y: auto !important;
   }
@@ -92,16 +95,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Page Header ────────────────────────────────────────────────────────────
-hcol1, hcol2, hcol3 = st.columns([4, 1, 1])
-with hcol1:
-    st.markdown(LOGO_HTML, unsafe_allow_html=True)
-with hcol2:
-    st.page_link("pages/8_Privacy_Policy.py", label="Privacy Policy")
-with hcol3:
-    st.page_link("pages/9_Terms_Conditions.py", label="Terms & Conditions")
+# Pure HTML flex-row so both nav links stay inline on every screen size.
+# Streamlit routes pages by stripping the numeric prefix from the filename:
+#   pages/8_Privacy_Policy.py  → /Privacy_Policy
+#   pages/9_Terms_Conditions.py → /Terms_Conditions
+st.markdown(
+    f'<div style="display:flex;align-items:center;justify-content:space-between;'
+    'flex-wrap:wrap;gap:8px;padding:4px 0 10px;">'
+    + LOGO_HTML
+    + '<nav style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">'
+    '<a href="/Privacy_Policy" target="_self" '
+    'style="color:#64748B;font-size:0.9rem;font-weight:500;text-decoration:none;'
+    'white-space:nowrap;">Privacy Policy</a>'
+    '<a href="/Terms_Conditions" target="_self" '
+    'style="color:#64748B;font-size:0.9rem;font-weight:500;text-decoration:none;'
+    'white-space:nowrap;">Terms &amp; Conditions</a>'
+    '</nav></div>',
+    unsafe_allow_html=True,
+)
 
 # ── Hero Section ───────────────────────────────────────────────────────────
-hero_left, hero_right = st.columns([1, 1], gap="large")
+hero_left, hero_right = st.columns([2, 3], gap="large")
 
 with hero_left:
     st.markdown("""
@@ -130,7 +144,7 @@ with hero_right:
     components.html("""
 <style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}</style>
 <div style="width:100%;display:flex;justify-content:center;padding:4px 0 0;">
-<svg viewBox="20 10 540 265" xmlns="http://www.w3.org/2000/svg"
+<svg viewBox="20 10 540 288" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;max-width:580px;height:auto;display:block;">
   <defs>
     <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -424,7 +438,7 @@ with hero_right:
   </circle>
   <text x="95" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">1</text>
-  <text x="95" y="263" text-anchor="middle" fill="#64748B"
+  <text x="95" y="275" text-anchor="middle" fill="#64748B"
         font-size="12" font-weight="600" font-family="Arial,sans-serif">You</text>
 
   <line x1="109" y1="244" x2="213" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
@@ -437,7 +451,7 @@ with hero_right:
   </circle>
   <text x="227" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">2</text>
-  <text x="227" y="263" text-anchor="middle" fill="#64748B"
+  <text x="227" y="275" text-anchor="middle" fill="#64748B"
         font-size="12" font-weight="600" font-family="Arial,sans-serif">Upload</text>
 
   <line x1="241" y1="244" x2="345" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
@@ -450,7 +464,7 @@ with hero_right:
   </circle>
   <text x="359" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">3</text>
-  <text x="359" y="263" text-anchor="middle" fill="#64748B"
+  <text x="359" y="275" text-anchor="middle" fill="#64748B"
         font-size="12" font-weight="600" font-family="Arial,sans-serif">AI</text>
 
   <line x1="373" y1="244" x2="476" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
@@ -463,7 +477,7 @@ with hero_right:
   </circle>
   <text x="490" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">4</text>
-  <text x="490" y="263" text-anchor="middle" fill="#64748B"
+  <text x="490" y="275" text-anchor="middle" fill="#64748B"
         font-size="12" font-weight="600" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
@@ -471,26 +485,35 @@ with hero_right:
 /* Resize the parent iframe to match the SVG's rendered height,
    eliminating blank space on tablet and mobile viewports. */
 (function () {
+  var svg = document.querySelector('svg');
+  if (!svg) return;
+
   function fitIframeToSvg() {
-    var svg = document.querySelector('svg');
-    if (!svg) return;
     var h = svg.getBoundingClientRect().height;
-    if (h <= 0) return; /* SVG not yet rendered — retry scheduled below */
+    if (h < 20) return; /* SVG not yet laid out — height unreliable below 20 px */
+    var targetH = Math.ceil(h) + 10; /* +10 px breathing room prevents a scrollbar */
+    /* Shrink document so scrollbar never appears inside the iframe */
+    document.documentElement.style.height = targetH + 'px';
+    document.body.style.height = targetH + 'px';
     try {
-      window.parent.document.querySelectorAll('iframe').forEach(function (f) {
-        if (f.contentWindow === window) {
-          f.style.height = (h + 12) + 'px';
+      var frames = window.parent.document.getElementsByTagName('iframe');
+      for (var i = 0; i < frames.length; i++) {
+        if (frames[i].contentWindow === window) {
+          frames[i].style.height = targetH + 'px';
+          frames[i].style.minHeight = '0';
+          break;
         }
-      });
+      }
     } catch (e) { /* cross-origin guard */ }
   }
+
   window.addEventListener('load', fitIframeToSvg);
   window.addEventListener('resize', fitIframeToSvg);
   /* Retry at increasing delays to handle slow/deferred SVG layout */
-  [100, 300, 600, 1200].forEach(function (t) { setTimeout(fitIframeToSvg, t); });
+  [50, 150, 300, 600, 1000, 2000].forEach(function (t) { setTimeout(fitIframeToSvg, t); });
 }());
 </script>
-""", height=305, scrolling=False)
+""", height=320, scrolling=False)
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
