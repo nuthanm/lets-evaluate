@@ -27,11 +27,19 @@ st.markdown("""
 /* ── Nav link base ── */
 [data-testid="stPageLink-NavLink"] {
   color: #64748B !important; font-size: 0.9rem !important;
-  font-weight: 500 !important; background: none !important;
-  border: none !important; padding: 0 !important;
-  text-decoration: none !important; transition: color .2s !important;
+  font-weight: 500 !important; border: none !important;
+  padding: 0 0 3px !important; text-decoration: none !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(#4F46E5, #4F46E5) !important;
+  background-size: 0% 2px !important;
+  background-repeat: no-repeat !important;
+  background-position: bottom left !important;
+  transition: color .2s, background-size .35s ease !important;
 }
-[data-testid="stPageLink-NavLink"]:hover { color: #4F46E5 !important; }
+[data-testid="stPageLink-NavLink"]:hover {
+  color: #4F46E5 !important;
+  background-size: 100% 2px !important;
+}
 
 /* ── Hero text ── */
 .hero-badge {
@@ -122,7 +130,7 @@ with hero_right:
     components.html("""
 <style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}</style>
 <div style="width:100%;display:flex;justify-content:center;padding:4px 0 0;">
-<svg viewBox="15 5 565 285" xmlns="http://www.w3.org/2000/svg"
+<svg viewBox="20 10 540 265" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;max-width:580px;height:auto;display:block;">
   <defs>
     <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -232,7 +240,7 @@ with hero_right:
           stroke-width="1.5" stroke-linecap="round"/>
   </g>
   <text x="95" y="200" text-anchor="middle" fill="#4F46E5"
-        font-size="10" font-weight="700" font-family="Arial,sans-serif">YOU</text>
+        font-size="13" font-weight="700" font-family="Arial,sans-serif">YOU</text>
 
   <!-- ═══════════════════════════════════
        FLYING RESUME DOCUMENT
@@ -333,7 +341,7 @@ with hero_right:
     <circle cx="336" cy="147" r="10" fill="#1A2870"/>
   </g>
   <text x="288" y="186" text-anchor="middle" fill="#4F46E5"
-        font-size="9" font-weight="700" font-family="Arial,sans-serif">AI PROCESSING</text>
+        font-size="12" font-weight="700" font-family="Arial,sans-serif">AI PROCESSING</text>
 
   <!-- ═══════════════════════════════════
        SPINNING GEARS — positioned to the right of robot
@@ -402,7 +410,7 @@ with hero_right:
     <rect x="452" y="188" width="55" height="4"   rx="2"   fill="#D1FAE5" opacity="0.4"/>
     <!-- label below card -->
     <text x="495" y="220" text-anchor="middle" fill="#059669"
-          font-size="10" font-weight="700" font-family="Arial,sans-serif">RESULT</text>
+          font-size="12" font-weight="700" font-family="Arial,sans-serif">RESULT</text>
   </g>
 
   <!-- ═══════════════════════════════════
@@ -417,7 +425,7 @@ with hero_right:
   <text x="95" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">1</text>
   <text x="95" y="263" text-anchor="middle" fill="#64748B"
-        font-size="10" font-family="Arial,sans-serif">You</text>
+        font-size="12" font-weight="600" font-family="Arial,sans-serif">You</text>
 
   <line x1="109" y1="244" x2="213" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
@@ -430,7 +438,7 @@ with hero_right:
   <text x="227" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">2</text>
   <text x="227" y="263" text-anchor="middle" fill="#64748B"
-        font-size="10" font-family="Arial,sans-serif">Upload</text>
+        font-size="12" font-weight="600" font-family="Arial,sans-serif">Upload</text>
 
   <line x1="241" y1="244" x2="345" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
@@ -443,7 +451,7 @@ with hero_right:
   <text x="359" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">3</text>
   <text x="359" y="263" text-anchor="middle" fill="#64748B"
-        font-size="10" font-family="Arial,sans-serif">AI</text>
+        font-size="12" font-weight="600" font-family="Arial,sans-serif">AI</text>
 
   <line x1="373" y1="244" x2="476" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
@@ -456,7 +464,7 @@ with hero_right:
   <text x="490" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">4</text>
   <text x="490" y="263" text-anchor="middle" fill="#64748B"
-        font-size="10" font-family="Arial,sans-serif">Result</text>
+        font-size="12" font-weight="600" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
 <script>
@@ -467,20 +475,22 @@ with hero_right:
     var svg = document.querySelector('svg');
     if (!svg) return;
     var h = svg.getBoundingClientRect().height;
+    if (h <= 0) return; /* SVG not yet rendered — retry scheduled below */
     try {
       window.parent.document.querySelectorAll('iframe').forEach(function (f) {
         if (f.contentWindow === window) {
-          f.style.height = (h + 10) + 'px';
+          f.style.height = (h + 12) + 'px';
         }
       });
     } catch (e) { /* cross-origin guard */ }
   }
   window.addEventListener('load', fitIframeToSvg);
   window.addEventListener('resize', fitIframeToSvg);
-  setTimeout(fitIframeToSvg, 100);
+  /* Retry at increasing delays to handle slow/deferred SVG layout */
+  [100, 300, 600, 1200].forEach(function (t) { setTimeout(fitIframeToSvg, t); });
 }());
 </script>
-""", height=320, scrolling=False)
+""", height=305, scrolling=False)
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
