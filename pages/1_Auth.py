@@ -29,6 +29,14 @@ if st.session_state.get("authenticated", False):
 inject_common_css()
 st.markdown("""
 <style>
+/* ── Auth page background gradient ── */
+[data-testid="stAppViewContainer"] {
+  background: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 55%, #EDE9FE 100%) !important;
+}
+[data-testid="stMain"] {
+  background: transparent !important;
+}
+
 /* ── Auth page layout ── */
 .auth-page-header {
   text-align: center;
@@ -53,10 +61,11 @@ st.markdown("""
 
 /* ── Column card styling ── */
 [data-testid="column"] > div:first-child > div:first-child {
-  background: #F8FAFC;
+  background: #FFFFFF;
   border: 1.5px solid #E2E8F0;
   border-radius: 16px;
   padding: 28px 24px;
+  box-shadow: 0 4px 24px rgba(79, 70, 229, 0.08);
 }
 
 /* ── Vertical divider ── */
@@ -212,12 +221,12 @@ if view == _VIEW_FORGOT:
 # LOGIN + REGISTER (two columns)
 # ===========================================================================
 else:
-    left, mid_col, right = st.columns([10, 1, 10], gap="small")
+    left, mid_col, right = st.columns([10, 1, 10], gap="medium")
 
     # ── LEFT: Login ────────────────────────────────────────────────────────
     with left:
         st.markdown('<div class="auth-title">👋 Welcome Back</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-sub">Sign in to your Let\'s Evaluate account</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-sub">Sign in to continue</div>', unsafe_allow_html=True)
 
         login_email = st.text_input("Email", key="login_email")
         login_pass = st.text_input("Password", type="password", key="login_pass")
@@ -259,7 +268,7 @@ else:
     # ── RIGHT: Register ────────────────────────────────────────────────────
     with right:
         st.markdown('<div class="auth-title">✨ Create Account</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-sub">Join Let\'s Evaluate and start hiring smarter</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-sub">New here? Get started</div>', unsafe_allow_html=True)
 
         reg_name = st.text_input("Full name", key="reg_name")
         reg_email = st.text_input("Email", key="reg_email")
