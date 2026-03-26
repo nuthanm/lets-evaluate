@@ -122,3 +122,56 @@ def render_authenticated_sidebar() -> None:
 def render_page_logo() -> None:
     """Render the brand logo link at the top of a page's main content area."""
     st.markdown(LOGO_HTML, unsafe_allow_html=True)
+
+
+@st.cache_resource
+def create_logo_favicon() -> "Image.Image":
+    """Return a PIL Image of the brand logo for use as a browser favicon.
+
+    Produces a 64×64 RGBA image: purple gradient rounded square (#4F46E5 →
+    #7C3AED at 135°) with the white scales icon centred inside — matching the
+    logo shown on every page.
+    """
+    from PIL import Image, ImageDraw
+
+    size = 64
+
+    # Build 135° diagonal gradient: top-left = #4F46E5, bottom-right = #7C3AED
+    r1, g1, b1 = 79, 70, 229    # #4F46E5
+    r2, g2, b2 = 124, 58, 237   # #7C3AED
+    data = []
+    denom = 2 * (size - 1)
+    for y in range(size):
+        for x in range(size):
+            t = (x + y) / denom
+            data.append((
+                int(r1 + (r2 - r1) * t),
+                int(g1 + (g2 - g1) * t),
+                int(b1 + (b2 - b1) * t),
+                255,
+            ))
+    img = Image.new("RGBA", (size, size))
+    img.putdata(data)
+
+    # Rounded corners — radius proportional to the logo's 9 px on 34 px ≈ 27 %
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [0, 0, size - 1, size - 1], radius=17, fill=255
+    )
+    img.putalpha(mask)
+
+    # Draw white scales icon — SVG viewBox 24×24, scaled ×2, offset +8 px
+    draw = ImageDraw.Draw(img)
+
+    def pt(x, y):
+        return (8 + x * 2, 8 + y * 2)
+
+    w, lw = (255, 255, 255, 255), 2
+    draw.line([pt(12, 3), pt(12, 21)], fill=w, width=lw)          # centre pole
+    draw.line([pt(3, 6), pt(12, 3)], fill=w, width=lw)            # top bar left
+    draw.line([pt(12, 3), pt(21, 6)], fill=w, width=lw)           # top bar right
+    draw.polygon([pt(6, 10), pt(3, 16), pt(9, 16)], fill=w)       # left bowl
+    draw.polygon([pt(18, 10), pt(15, 16), pt(21, 16)], fill=w)    # right bowl
+    draw.line([pt(9, 21), pt(15, 21)], fill=w, width=lw)          # base line
+
+    return img

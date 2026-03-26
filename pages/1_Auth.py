@@ -11,11 +11,11 @@ from utils.database import (
 )
 from utils.auth import hash_password, verify_password, login_user, require_auth, get_current_user
 from utils.email_utils import send_password_reset_email
-from utils.ui import inject_common_css, render_page_logo, LOGO_HTML
+from utils.ui import inject_common_css, render_page_logo, LOGO_HTML, create_logo_favicon
 
 st.set_page_config(
     page_title="Let's Evaluate – Auth",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     initial_sidebar_state="collapsed",
 )

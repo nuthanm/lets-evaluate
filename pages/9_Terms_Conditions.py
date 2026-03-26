@@ -1,12 +1,12 @@
 import streamlit as st
 from utils.database import init_db
 from utils.auth import logout_user
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
 
 _is_auth = st.session_state.get("authenticated", False)
 st.set_page_config(
     page_title="Terms & Conditions – Let's Evaluate",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     initial_sidebar_state="expanded" if _is_auth else "collapsed",
 )

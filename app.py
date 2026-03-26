@@ -2,13 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
 from utils.database import init_db
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, LOGO_HTML
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, LOGO_HTML, create_logo_favicon
 
 # ── Must be the very first Streamlit call ──────────────────────────────────
 _is_auth = st.session_state.get("authenticated", False)
 st.set_page_config(
     page_title="Let's Evaluate",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     # Expanded for authenticated users (eliminates the blinking >) — collapsed for guests
     initial_sidebar_state="expanded" if _is_auth else "collapsed",

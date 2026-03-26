@@ -8,7 +8,7 @@ from utils.database import (
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
 
 
 def _truncate(text: str, max_chars: int = 80) -> str:
@@ -21,7 +21,7 @@ def _truncate(text: str, max_chars: int = 80) -> str:
 
 st.set_page_config(
     page_title="Evaluate Candidate – Let's Evaluate",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     initial_sidebar_state="expanded",
 )
