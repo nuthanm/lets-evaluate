@@ -68,22 +68,27 @@ st.markdown("""
   min-height: 400px;
 }
 .auth-divider-line {
-  width: 1px;
+  width: 2px;
   height: 80%;
-  background: linear-gradient(to bottom, transparent, #CBD5E1, transparent);
-}
-.auth-divider-or {
-  position: absolute;
-  background: #fff;
-  color: #94A3B8;
-  font-size: 0.8rem;
-  padding: 6px 8px;
-  border-radius: 50%;
-  border: 1px solid #E2E8F0;
+  background: #CBD5E1;
+  margin: 0 auto;
 }
 
-.divider-text {
-  text-align: center; color: #94A3B8; font-size: 0.85rem; margin: 8px 0;
+/* ── Forgot password text link ── */
+.forgot-pw-link {
+  text-align: right;
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+.forgot-pw-link a {
+  color: #4F46E5;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.forgot-pw-link a:hover {
+  text-decoration: underline;
+  color: #3730A3;
 }
 
 /* ── CTA button ── */
@@ -95,6 +100,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Session state init ─────────────────────────────────────────────────────
+_VIEW_FORGOT = "forgot"
+
 if "auth_view" not in st.session_state:
     st.session_state["auth_view"] = "login"
 if "reset_email" not in st.session_state:
@@ -103,6 +110,14 @@ if "reset_step" not in st.session_state:
     st.session_state["reset_step"] = 1
 if "reset_user_id" not in st.session_state:
     st.session_state["reset_user_id"] = ""
+
+# Handle "Forgot password?" link click via query param
+_qp_view = st.query_params.get("view", "")
+if _qp_view == _VIEW_FORGOT:
+    st.session_state["auth_view"] = _VIEW_FORGOT
+    st.session_state["reset_step"] = 1
+    st.query_params.clear()
+    st.rerun()
 
 view = st.session_state["auth_view"]
 
@@ -117,7 +132,7 @@ st.markdown(f"""
 # ===========================================================================
 # FORGOT PASSWORD (full-width centred)
 # ===========================================================================
-if view == "forgot":
+if view == _VIEW_FORGOT:
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
         st.markdown('<div class="auth-title">🔑 Reset Password</div>', unsafe_allow_html=True)
@@ -198,9 +213,21 @@ else:
         login_email = st.text_input("Email", key="login_email")
         login_pass = st.text_input("Password", type="password", key="login_pass")
 
+        st.markdown(
+            '<div class="forgot-pw-link">'
+            '<a href="?view=forgot" aria-label="Forgot password? Reset your account password">'
+            'Forgot password?</a></div>',
+            unsafe_allow_html=True,
+        )
+
         if st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login"):
-            if not login_email or not login_pass:
-                st.error("Please fill in all fields.")
+            missing = []
+            if not login_email:
+                missing.append("Email")
+            if not login_pass:
+                missing.append("Password")
+            if missing:
+                st.error(f"Please fill in: {', '.join(missing)}")
             else:
                 user = get_user_by_email(login_email)
                 if not user or not verify_password(login_pass, user["password_hash"]):
@@ -211,19 +238,6 @@ else:
                     login_user(user)
                     st.success("Logged in!")
                     st.switch_page("pages/2_Dashboard.py")
-
-        st.markdown('<div class="divider-text">— or —</div>', unsafe_allow_html=True)
-
-        col_fp, col_reg = st.columns(2)
-        with col_fp:
-            if st.button("🔑 Forgot Password?", use_container_width=True, key="btn_forgot"):
-                st.session_state["auth_view"] = "forgot"
-                st.session_state["reset_step"] = 1
-                st.rerun()
-        with col_reg:
-            if st.button("📝 Register", use_container_width=True, key="btn_to_reg"):
-                st.session_state["auth_view"] = "register"
-                st.rerun()
 
     # ── MIDDLE: Vertical divider ───────────────────────────────────────────
     with mid_col:
@@ -245,8 +259,17 @@ else:
         reg_conf = st.text_input("Confirm password", type="password", key="reg_conf")
 
         if st.button("🎉 Create Account", use_container_width=True, type="primary", key="btn_register"):
-            if not all([reg_name, reg_email, reg_pass, reg_conf]):
-                st.error("Please fill in all fields.")
+            missing = []
+            if not reg_name:
+                missing.append("Full Name")
+            if not reg_email:
+                missing.append("Email")
+            if not reg_pass:
+                missing.append("Password")
+            if not reg_conf:
+                missing.append("Confirm Password")
+            if missing:
+                st.error(f"Please fill in: {', '.join(missing)}")
             elif reg_pass != reg_conf:
                 st.error("Passwords do not match.")
             elif len(reg_pass) < 8:
