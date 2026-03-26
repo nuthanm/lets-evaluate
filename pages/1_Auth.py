@@ -29,14 +29,6 @@ if st.session_state.get("authenticated", False):
 inject_common_css()
 st.markdown("""
 <style>
-/* ── Auth page background gradient ── */
-[data-testid="stAppViewContainer"] {
-  background: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 55%, #EDE9FE 100%) !important;
-}
-[data-testid="stMain"] {
-  background: transparent !important;
-}
-
 /* ── Auth page layout ── */
 .auth-page-header {
   text-align: center;

@@ -30,7 +30,7 @@ _SCALES_SVG_14 = (
 
 # Reusable logo HTML – navigates to home page on click
 LOGO_HTML = (
-    '<a href="/" style="cursor:pointer;display:inline-flex;align-items:center;'
+    '<a href="/" target="_self" style="cursor:pointer;display:inline-flex;align-items:center;'
     'gap:10px;text-decoration:none;">'
     '<span style="width:34px;height:34px;'
     'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
@@ -56,7 +56,7 @@ _SCALES_SVG_28 = (
 )
 
 LOGO_HTML_LARGE = (
-    '<a href="/" style="cursor:pointer;display:inline-flex;align-items:center;'
+    '<a href="/" target="_self" style="cursor:pointer;display:inline-flex;align-items:center;'
     'gap:14px;text-decoration:none;">'
     '<span style="width:52px;height:52px;'
     'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:13px;'
@@ -75,6 +75,14 @@ COMMON_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+/* Page background gradient */
+[data-testid="stAppViewContainer"] {
+  background: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 55%, #EDE9FE 100%) !important;
+}
+[data-testid="stMain"] {
+  background: transparent !important;
+}
 
 /* Remove Streamlit chrome */
 header[data-testid="stHeader"]            { display: none !important; }
