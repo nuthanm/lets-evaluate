@@ -183,11 +183,13 @@ else:
                 )
                 filename = f"eval_{safe_name}_{ev['id'][:8]}.pdf"
                 st.download_button(
-                    label="⬇ Download",
+                    label="⬇",
                     data=pdf_bytes,
                     file_name=filename,
                     mime="application/pdf",
                     key=f"dl_{ev['id']}",
+                    use_container_width=True,
+                    help="Download evaluation PDF",
                 )
         with c8:
             if st.button("🗑️", key=f"del_{ev['id']}", help="Delete evaluation"):
