@@ -185,11 +185,66 @@ def render_authenticated_sidebar() -> None:
 def render_page_logo() -> None:
     """Render the brand logo link at the top of a page's main content area.
 
-    When the user is authenticated the logo links to the Dashboard; otherwise
-    it links to the landing page.
+    When the user is authenticated the logo links to the Dashboard and a
+    Sign Out button is shown on the right; otherwise only the logo is shown.
+    The Sign Out button is rendered as a plain HTML link (not a Streamlit
+    button) so it is never affected by page-specific button CSS overrides.
+    Clicking it appends ``?action=signout`` to the URL, which is detected on
+    the next render and triggers ``logout_user()`` + redirect to the landing
+    page.
     """
-    href = "/Dashboard" if st.session_state.get("authenticated", False) else "/"
-    st.markdown(_make_logo_html(href), unsafe_allow_html=True)
+    is_auth = st.session_state.get("authenticated", False)
+
+    # Handle sign-out triggered by the header link
+    if is_auth and st.query_params.get("action") == "signout":
+        logout_user()
+        st.query_params.clear()
+        st.switch_page("app.py")
+
+    href = "/Dashboard" if is_auth else "/"
+
+    if is_auth:
+        col_logo, col_signout = st.columns([9, 2])
+        with col_logo:
+            st.markdown(_make_logo_html(href), unsafe_allow_html=True)
+        with col_signout:
+            st.markdown(
+                """
+                <style>
+                .signout-link {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    background: white;
+                    color: #64748B;
+                    border: 1.5px solid #E2E8F0;
+                    padding: 6px 14px;
+                    font-size: 0.82rem;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    cursor: pointer;
+                    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+                    white-space: nowrap;
+                    transition: border-color .2s, color .2s, background .2s;
+                }
+                .signout-link:hover {
+                    border-color: #4F46E5;
+                    color: #4F46E5;
+                    background: #EEF2FF;
+                }
+                </style>
+                <div style="display:flex;justify-content:flex-end;
+                            align-items:center;height:100%;padding-top:4px;">
+                  <a class="signout-link" href="?action=signout" target="_self">
+                    🚪 Sign Out
+                  </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(_make_logo_html(href), unsafe_allow_html=True)
 
 
 def render_policy_page_logo() -> None:
