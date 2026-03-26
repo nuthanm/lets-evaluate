@@ -26,158 +26,243 @@ render_authenticated_sidebar()
 
 st.markdown("""
 <style>
-.role-card {
-  background: #F8FAFC;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 12px;
-  transition: all .25s;
+.stButton > button[kind="secondary"] {
+  background: white !important;
+  color: #4F46E5 !important;
+  border: 1.5px solid #E2E8F0 !important;
+  padding: 4px 10px !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: all .2s !important;
 }
-.role-card:hover { border-color: #4F46E5; box-shadow: 0 4px 14px rgba(79,70,229,0.1); }
-.role-name { font-size: 1.05rem; font-weight: 700; color: #1E293B; }
-.role-project {
+.stButton > button[kind="secondary"]:hover {
+  border-color: #4F46E5 !important;
+  box-shadow: 0 2px 8px rgba(79,70,229,0.18) !important;
+  transform: none !important;
+}
+.tbl-col-hdr {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  padding: 0 0 8px 0;
+  border-bottom: 1.5px solid #E2E8F0;
+}
+.role-proj-badge {
   display: inline-block;
   background: #EEF2FF;
   color: #4F46E5;
   border-radius: 20px;
-  padding: 2px 10px;
-  font-size: 0.78rem;
+  padding: 2px 8px;
+  font-size: 0.72rem;
   font-weight: 600;
-  margin: 4px 0;
 }
-.role-desc { font-size: 0.88rem; color: #64748B; margin: 6px 0; }
-.stButton > button { border-radius: 8px !important; font-weight: 500 !important; }
+.form-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E293B;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid #EEF2FF;
+}
 </style>
 """, unsafe_allow_html=True)
 
+MAX_DESCRIPTION_PREVIEW_LENGTH = 70
+
+# Cycling gradient palette matching the app's indigo/violet brand
+ROW_GRADIENTS = [
+    "linear-gradient(135deg,#4F46E5,#6D28D9)",
+    "linear-gradient(135deg,#5B21B6,#7C3AED)",
+    "linear-gradient(135deg,#4338CA,#5B21B6)",
+    "linear-gradient(135deg,#2563EB,#4F46E5)",
+    "linear-gradient(135deg,#6D28D9,#9333EA)",
+    "linear-gradient(135deg,#3730A3,#4F46E5)",
+    "linear-gradient(135deg,#1D4ED8,#4338CA)",
+]
+
+# ── Session state ────────────────────────────────────────────────────────────
 if "edit_role_id" not in st.session_state:
     st.session_state["edit_role_id"] = None
 
+# ── Delete confirmation dialog ───────────────────────────────────────────────
+@st.dialog("🗑️ Confirm Delete")
+def _delete_role_dialog():
+    r = st.session_state["_pending_delete_role"]
+    questions = st.session_state.get("_all_questions_for_delete", [])
+    linked_qs = [q for q in questions if q["role_id"] == r["id"]]
+
+    st.markdown(f"Are you sure you want to delete role **{r['name']}**?")
+    if linked_qs:
+        st.warning(f"This role has **{len(linked_qs)} linked question(s)**. Deleting will remove all associations.")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🗑️ Delete", type="primary", use_container_width=True):
+            delete_role(r["id"])
+            del st.session_state["_pending_delete_role"]
+            st.session_state.pop("_all_questions_for_delete", None)
+            st.toast(f"Role '{r['name']}' deleted.", icon="🗑️")
+            st.rerun()
+    with c2:
+        if st.button("✖️ Cancel", use_container_width=True):
+            del st.session_state["_pending_delete_role"]
+            st.session_state.pop("_all_questions_for_delete", None)
+            st.rerun()
+
+# ── Load data ────────────────────────────────────────────────────────────────
 projects = get_projects_for_user(uid)
 project_options = {p["name"]: p["id"] for p in projects}
 project_id_to_name = {p["id"]: p["name"] for p in projects}
 
+roles = get_roles_for_user(uid)
+role_map = {r["id"]: r for r in roles}
+
+# ── Open delete dialog if one is pending ────────────────────────────────────
+if "_pending_delete_role" in st.session_state:
+    _delete_role_dialog()
+
+# ── Page header ──────────────────────────────────────────────────────────────
 render_page_logo()
 st.markdown("## 👥 Roles")
 
-# ── ADD NEW ROLE ────────────────────────────────────────────────────────────
-with st.expander("➕ Add New Role", expanded=False):
-    with st.form("form_add_role", clear_on_submit=True):
-        r_name = st.text_input("Role Name *", key="add_rname")
-        r_desc = st.text_area("Description", key="add_rdesc", height=70)
-        r_req = st.text_area("Requirements", key="add_rreq", height=100,
-                              placeholder="List key skills, years of experience, etc.")
-        proj_names = ["(None)"] + list(project_options.keys())
-        r_proj = st.selectbox("Link to Project (optional)", options=proj_names, key="add_rproj")
-        submitted = st.form_submit_button("✅ Create Role", type="primary")
-        if submitted:
-            if not r_name.strip():
-                st.error("Role name is required.")
-            else:
-                pid = project_options.get(r_proj) if r_proj != "(None)" else None
-                create_role(uid, r_name.strip(), r_desc.strip(), r_req.strip(), pid)
-                st.success(f"Role **{r_name}** created!")
-                st.rerun()
+# ── Two-column layout: table (left) + form (right) ──────────────────────────
+left_col, right_col = st.columns([6, 4], gap="large")
 
-st.divider()
+# ════════════════════════════════════════════════════════
+#  RIGHT COLUMN – Add / Edit form (always open)
+# ════════════════════════════════════════════════════════
+with right_col:
+    edit_id = st.session_state.get("edit_role_id")
+    er = role_map.get(edit_id) if edit_id else None
+    proj_names = ["(None)"] + list(project_options.keys())
 
-# ── ROLE LIST ───────────────────────────────────────────────────────────────
-roles = get_roles_for_user(uid)
-questions = get_questions_for_user(uid)
+    with st.container(border=True):
+        if er:
+            # ── EDIT MODE ───────────────────────────────────────────────
+            st.markdown(
+                f'<div class="form-section-title">✏️ Edit: {er["name"]}</div>',
+                unsafe_allow_html=True,
+            )
+            with st.form("form_role_edit", clear_on_submit=False):
+                er_name = st.text_input("Role Name *", value=er["name"])
+                er_desc = st.text_area("Description", value=er["description"] or "", height=70)
+                er_req = st.text_area("Requirements", value=er["requirements"] or "", height=100)
+                current_proj = project_id_to_name.get(er.get("project_id"), "(None)")
+                default_idx = proj_names.index(current_proj) if current_proj in proj_names else 0
+                er_proj = st.selectbox("Link to Project", options=proj_names, index=default_idx)
 
-if not roles:
-    st.info("No roles yet. Create your first role above.")
-else:
-    st.markdown(f"**{len(roles)} role(s)**")
-    for i in range(0, len(roles), 2):
-        cols = st.columns(2, gap="medium")
-        for j, col in enumerate(cols):
-            idx = i + j
-            if idx >= len(roles):
-                break
-            r = roles[idx]
+                c_save, c_cancel = st.columns(2)
+                with c_save:
+                    save = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                with c_cancel:
+                    cancel = st.form_submit_button("✖️ Cancel", use_container_width=True)
 
-            with col:
-                proj_badge = (
-                    f'<span class="role-project">📁 {r["project_name"]}</span>'
-                    if r.get("project_name") else ""
+                if save:
+                    if not er_name.strip():
+                        st.error("Role name is required.")
+                    else:
+                        pid = project_options.get(er_proj) if er_proj != "(None)" else None
+                        update_role(edit_id, er_name.strip(), er_desc.strip(), er_req.strip(), pid)
+                        st.session_state["edit_role_id"] = None
+                        st.toast("Role updated!", icon="✅")
+                        st.rerun()
+                if cancel:
+                    st.session_state["edit_role_id"] = None
+                    st.rerun()
+        else:
+            # ── ADD MODE ────────────────────────────────────────────────
+            st.markdown(
+                '<div class="form-section-title">➕ Add New Role</div>',
+                unsafe_allow_html=True,
+            )
+            with st.form("form_add_role", clear_on_submit=True):
+                r_name = st.text_input("Role Name *")
+                r_desc = st.text_area("Description", height=70)
+                r_req = st.text_area(
+                    "Requirements", height=100,
+                    placeholder="List key skills, years of experience, etc.",
                 )
+                r_proj = st.selectbox("Link to Project (optional)", options=proj_names)
+                submitted = st.form_submit_button(
+                    "✅ Create Role", type="primary", use_container_width=True
+                )
+                if submitted:
+                    if not r_name.strip():
+                        st.error("Role name is required.")
+                    else:
+                        pid = project_options.get(r_proj) if r_proj != "(None)" else None
+                        create_role(uid, r_name.strip(), r_desc.strip(), r_req.strip(), pid)
+                        st.success(f"Role **{r_name}** created!")
+                        st.rerun()
+
+# ════════════════════════════════════════════════════════
+#  LEFT COLUMN – Modern Table Layout
+# ════════════════════════════════════════════════════════
+with left_col:
+    if not roles:
+        st.info("No roles yet. Add your first role using the form →")
+    else:
+        st.markdown(f"**{len(roles)} role(s)**")
+
+        # Table header row
+        h1, h2, h3, h_act = st.columns([2.5, 2, 3.5, 1.5])
+        with h1:
+            st.markdown('<div class="tbl-col-hdr">Role</div>', unsafe_allow_html=True)
+        with h2:
+            st.markdown('<div class="tbl-col-hdr">Project</div>', unsafe_allow_html=True)
+        with h3:
+            st.markdown('<div class="tbl-col-hdr">Description</div>', unsafe_allow_html=True)
+        with h_act:
+            st.markdown('<div class="tbl-col-hdr">Actions</div>', unsafe_allow_html=True)
+
+        # Table data rows
+        for idx, r in enumerate(roles):
+            gradient = ROW_GRADIENTS[idx % len(ROW_GRADIENTS)]
+            c1, c2, c3, c_edit, c_del = st.columns([2.5, 2, 3.5, 0.75, 0.75])
+
+            with c1:
                 st.markdown(
-                    f'<div class="role-card">'
-                    f'<div class="role-name">{r["name"]}</div>'
-                    f'{proj_badge}'
-                    f'<div class="role-desc">{r["description"] or "No description"}</div>'
-                    f'</div>',
+                    f'<div style="background:{gradient};color:white;padding:8px 10px;'
+                    f'border-radius:8px;font-weight:600;font-size:0.88rem;line-height:1.3;'
+                    f'margin:4px 0 2px;">{r["name"]}</div>',
                     unsafe_allow_html=True,
                 )
-
-                b1, b2 = st.columns(2)
-                with b1:
-                    if st.button("✏️ Edit", key=f"edit_role_{r['id']}", use_container_width=True):
-                        st.session_state["edit_role_id"] = r["id"]
-                        st.rerun()
-                with b2:
-                    if st.button("🗑️ Delete", key=f"del_role_{r['id']}", use_container_width=True):
-                        st.session_state[f"confirm_del_role_{r['id']}"] = True
-                        st.rerun()
-
-                # ── Delete confirmation ─────────────────────────────────
-                if st.session_state.get(f"confirm_del_role_{r['id']}", False):
-                    linked_qs = [q for q in questions if q["role_id"] == r["id"]]
-                    if linked_qs:
-                        st.warning(f"⚠️ This role has **{len(linked_qs)} linked question(s)**.")
-                    confirm_text = st.text_input(
-                        "Type **Delete** to confirm",
-                        key=f"del_confirm_role_{r['id']}",
-                    )
-                    dc1, dc2 = st.columns(2)
-                    with dc1:
-                        if st.button("⚠️ Confirm Delete", key=f"do_del_role_{r['id']}", use_container_width=True):
-                            if confirm_text == "Delete":
-                                delete_role(r["id"])
-                                st.session_state.pop(f"confirm_del_role_{r['id']}", None)
-                                st.toast(f"Role '{r['name']}' deleted.", icon="🗑️")
-                                st.rerun()
-                            else:
-                                st.error("Type 'Delete' to confirm.")
-                    with dc2:
-                        if st.button("✖️ Cancel", key=f"cancel_del_role_{r['id']}", use_container_width=True):
-                            st.session_state.pop(f"confirm_del_role_{r['id']}", None)
-                            st.rerun()
-
-# ── EDIT FORM ───────────────────────────────────────────────────────────────
-edit_id = st.session_state.get("edit_role_id")
-if edit_id:
-    role_map = {r["id"]: r for r in roles}
-    er = role_map.get(edit_id)
-    if er:
-        st.divider()
-        st.markdown(f"### ✏️ Edit Role: *{er['name']}*")
-        with st.form("form_edit_role"):
-            er_name = st.text_input("Role Name *", value=er["name"])
-            er_desc = st.text_area("Description", value=er["description"], height=70)
-            er_req = st.text_area("Requirements", value=er["requirements"], height=100)
-            proj_names = ["(None)"] + list(project_options.keys())
-            current_proj = project_id_to_name.get(er.get("project_id"), "(None)")
-            default_idx = proj_names.index(current_proj) if current_proj in proj_names else 0
-            er_proj = st.selectbox("Link to Project", options=proj_names, index=default_idx)
-
-            c_save, c_cancel = st.columns(2)
-            with c_save:
-                save = st.form_submit_button("💾 Save Changes", type="primary")
-            with c_cancel:
-                cancel = st.form_submit_button("✖️ Cancel")
-
-            if save:
-                if not er_name.strip():
-                    st.error("Role name is required.")
-                else:
-                    pid = project_options.get(er_proj) if er_proj != "(None)" else None
-                    update_role(edit_id, er_name.strip(), er_desc.strip(), er_req.strip(), pid)
-                    st.session_state["edit_role_id"] = None
-                    st.toast("Role updated!", icon="✅")
+            with c2:
+                proj_html = (
+                    f'<span class="role-proj-badge">📁 {r["project_name"]}</span>'
+                    if r.get("project_name") else
+                    '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
+                )
+                st.markdown(
+                    f'<div style="padding:8px 4px 2px;">{proj_html}</div>',
+                    unsafe_allow_html=True,
+                )
+            with c3:
+                desc = (r["description"] or "—")
+                if len(desc) > MAX_DESCRIPTION_PREVIEW_LENGTH:
+                    desc = desc[:MAX_DESCRIPTION_PREVIEW_LENGTH] + "…"
+                st.markdown(
+                    f'<div style="font-size:0.84rem;color:#475569;padding:8px 4px 2px;">{desc}</div>',
+                    unsafe_allow_html=True,
+                )
+            with c_edit:
+                if st.button("✏️", key=f"edit_role_{r['id']}", help="Edit role",
+                             use_container_width=True):
+                    st.session_state["edit_role_id"] = r["id"]
                     st.rerun()
-            if cancel:
-                st.session_state["edit_role_id"] = None
-                st.rerun()
+            with c_del:
+                if st.button("🗑️", key=f"del_role_{r['id']}", help="Delete role",
+                             use_container_width=True):
+                    all_qs = get_questions_for_user(uid)
+                    st.session_state["_pending_delete_role"] = r
+                    st.session_state["_all_questions_for_delete"] = all_qs
+                    st.rerun()
+
+            st.markdown(
+                '<hr style="margin:4px 0 0;border:none;border-top:1px solid #F1F5F9;">',
+                unsafe_allow_html=True,
+            )
