@@ -131,8 +131,8 @@ with hero_right:
     # Person (left) → uploads Resume → AI Robot processes → Result (right)
     # 8-second looping animation with 4 phases highlighted in step indicators.
     components.html("""
-<div style="width:100%;max-width:580px;margin:4px auto 0;">
-<svg viewBox="0 0 580 285" xmlns="http://www.w3.org/2000/svg"
+<div style="width:100%;margin:4px auto 0;">
+<svg viewBox="15 5 565 285" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;height:auto;display:block;">
   <defs>
     <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -161,33 +161,85 @@ with hero_right:
   </circle>
 
   <!-- ═══════════════════════════════════
-       PERSON — left, gently floating
+       PERSON AT COMPUTER — left, gently floating
   ════════════════════════════════════ -->
   <g>
     <animateTransform attributeName="transform" type="translate"
-      values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/>
+      values="0 0;0 -4;0 0" dur="3s" repeatCount="indefinite"/>
+
+    <!-- chair back -->
+    <rect x="68" y="89" width="54" height="62" rx="10" fill="#CBD5E1"/>
+    <rect x="68" y="89" width="54" height="8"  rx="5"  fill="#94A3B8"/>
+
+    <!-- desk surface -->
+    <rect x="32" y="148" width="128" height="8" rx="3"
+          fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1"/>
+
+    <!-- keyboard -->
+    <rect x="48" y="156" width="98" height="7" rx="3"
+          fill="#F1F5F9" stroke="#CBD5E1" stroke-width="0.8"/>
+    <rect x="52"  y="158" width="40" height="1.5" rx="0.75" fill="#94A3B8" opacity="0.5"/>
+    <rect x="95"  y="158" width="12" height="1.5" rx="0.75" fill="#94A3B8" opacity="0.5"/>
+    <rect x="110" y="158" width="32" height="1.5" rx="0.75" fill="#94A3B8" opacity="0.5"/>
+    <rect x="52"  y="161" width="90" height="1.5" rx="0.75" fill="#94A3B8" opacity="0.4"/>
+
+    <!-- monitor stand + base -->
+    <rect x="91" y="134" width="8"  height="15" rx="3" fill="#64748B"/>
+    <rect x="80" y="147" width="30" height="4"  rx="2" fill="#64748B"/>
+
+    <!-- monitor outer frame -->
+    <rect x="56" y="76" width="78" height="60" rx="7"
+          fill="white" stroke="#334155" stroke-width="2"/>
+    <!-- monitor screen -->
+    <rect x="60" y="80" width="70" height="52" rx="5" fill="#1E293B"/>
+    <!-- screen content lines -->
+    <rect x="65" y="86"  width="38" height="3.5" rx="1.5" fill="#818CF8"/>
+    <rect x="65" y="92"  width="54" height="3"   rx="1.5" fill="#818CF8" opacity="0.75"/>
+    <rect x="65" y="98"  width="32" height="3"   rx="1.5" fill="#818CF8" opacity="0.55"/>
+    <rect x="65" y="104" width="48" height="3"   rx="1.5" fill="#818CF8" opacity="0.4"/>
+    <rect x="65" y="110" width="26" height="3"   rx="1.5" fill="#818CF8" opacity="0.3"/>
+    <!-- blinking cursor -->
+    <rect x="65" y="116" width="3" height="6" rx="1" fill="#818CF8">
+      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.2s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- torso (seated, visible behind/above desk) -->
+    <rect x="73" y="96" width="44" height="54" rx="9" fill="#4F46E5"/>
+    <path d="M91,96 L95,106 L99,96" fill="white" opacity="0.45"/>
+
+    <!-- left upper arm -->
+    <rect x="54" y="98" width="19" height="32" rx="9" fill="#4F46E5"/>
+    <!-- left forearm (reaching toward keyboard) -->
+    <rect x="42" y="124" width="28" height="12" rx="6" fill="#4F46E5"/>
+    <!-- left hand on keyboard -->
+    <ellipse cx="52" cy="154" rx="9" ry="6" fill="#FBBF24"/>
+
+    <!-- right upper arm -->
+    <rect x="117" y="98" width="19" height="32" rx="9" fill="#4F46E5"/>
+    <!-- right forearm (reaching toward keyboard) -->
+    <rect x="120" y="124" width="28" height="12" rx="6" fill="#4F46E5"/>
+    <!-- right hand on keyboard -->
+    <ellipse cx="136" cy="154" rx="9" ry="6" fill="#FBBF24"/>
+
+    <!-- neck -->
+    <rect x="91" y="79" width="8" height="18" rx="3" fill="#FBBF24"/>
+
     <!-- head -->
-    <circle cx="95" cy="72" r="22" fill="#FBBF24"/>
+    <circle cx="95" cy="62" r="20" fill="#FBBF24"/>
     <!-- hair -->
-    <ellipse cx="95" cy="60" rx="22" ry="11" fill="#2D3748"/>
-    <!-- eyes -->
-    <circle cx="88" cy="75" r="3.5" fill="#2D3748"/>
-    <circle cx="102" cy="75" r="3.5" fill="#2D3748"/>
+    <ellipse cx="95" cy="51" rx="20" ry="10" fill="#2D3748"/>
+    <rect x="75" y="48" width="40" height="7" fill="#2D3748"/>
+    <!-- eyes (looking at screen) -->
+    <circle cx="88"  cy="65" r="3.2" fill="#2D3748"/>
+    <circle cx="102" cy="65" r="3.2" fill="#2D3748"/>
+    <!-- eyebrows (focused) -->
+    <path d="M84.5,59.5 Q88,57.5 91.5,59.5" fill="none" stroke="#2D3748"
+          stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M98.5,59.5 Q102,57.5 105.5,59.5" fill="none" stroke="#2D3748"
+          stroke-width="1.5" stroke-linecap="round"/>
     <!-- smile -->
-    <path d="M88,84 Q95,92 102,84" fill="none" stroke="#2D3748"
-          stroke-width="2" stroke-linecap="round"/>
-    <!-- body / shirt -->
-    <rect x="71" y="94" width="48" height="50" rx="11" fill="#4F46E5"/>
-    <path d="M90,94 L95,104 L100,94" fill="white" opacity="0.5"/>
-    <!-- arms -->
-    <rect x="53" y="96" width="18" height="40" rx="9" fill="#4F46E5"/>
-    <rect x="119" y="96" width="18" height="40" rx="9" fill="#4F46E5"/>
-    <!-- hands -->
-    <circle cx="62"  cy="136" r="9" fill="#FBBF24"/>
-    <circle cx="128" cy="136" r="9" fill="#FBBF24"/>
-    <!-- legs -->
-    <rect x="77"  y="142" width="14" height="36" rx="7" fill="#1E3A5F"/>
-    <rect x="99"  y="142" width="14" height="36" rx="7" fill="#1E3A5F"/>
+    <path d="M88,74 Q95,79 102,74" fill="none" stroke="#2D3748"
+          stroke-width="1.5" stroke-linecap="round"/>
   </g>
   <text x="95" y="200" text-anchor="middle" fill="#4F46E5"
         font-size="10" font-weight="700" font-family="Arial,sans-serif">YOU</text>
@@ -202,7 +254,7 @@ with hero_right:
       keyTimes="0;0.06;0.12;0.32;0.44;0.48;0.55;1"
       dur="8s" repeatCount="indefinite"/>
     <animateTransform attributeName="transform" type="translate"
-      values="124 96;124 96;124 96;248 102;260 102;260 102;124 96;124 96"
+      values="128 82;128 82;128 82;248 100;260 100;260 100;128 82;128 82"
       keyTimes="0;0.06;0.12;0.44;0.48;0.55;0.56;1"
       dur="8s" calcMode="spline"
       keySplines="0 0 1 1;0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1"
@@ -403,21 +455,21 @@ with hero_right:
   <text x="293" y="263" text-anchor="middle" fill="#64748B"
         font-size="10" font-family="Arial,sans-serif">AI</text>
 
-  <line x1="307" y1="244" x2="396" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+  <line x1="307" y1="244" x2="476" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
   <!-- Step 4: RESULT (active 0.72 → 0.95) -->
-  <circle cx="410" cy="244" r="11">
+  <circle cx="490" cy="244" r="11">
     <animate attributeName="fill"
       values="#C7D2FE;#C7D2FE;#C7D2FE;#C7D2FE;#059669;#059669;#C7D2FE"
       keyTimes="0;0.6;0.65;0.72;0.78;0.95;1" dur="8s" repeatCount="indefinite"/>
   </circle>
-  <text x="410" y="248.5" text-anchor="middle" fill="white"
+  <text x="490" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">4</text>
-  <text x="410" y="263" text-anchor="middle" fill="#64748B"
+  <text x="490" y="263" text-anchor="middle" fill="#64748B"
         font-size="10" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
-""", height=310, scrolling=False)
+""", height=320, scrolling=False)
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
