@@ -104,7 +104,7 @@ with hcol3:
     st.page_link("pages/9_Terms_Conditions.py", label="Terms & Conditions")
 
 # ── Hero Section ───────────────────────────────────────────────────────────
-hero_left, hero_right = st.columns([11, 9], gap="large")
+hero_left, hero_right = st.columns([1, 1], gap="large")
 
 with hero_left:
     st.markdown("""
