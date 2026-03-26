@@ -43,6 +43,32 @@ LOGO_HTML = (
     '</a>'
 )
 
+# Larger logo variant for prominent page headers (e.g. auth page)
+_SCALES_SVG_28 = (
+    '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white"'
+    ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="12" y1="3" x2="12" y2="21"/>'
+    '<path d="M3 6l9-3 9 3"/>'
+    '<path d="M6 10l-3 6h6z"/>'
+    '<path d="M18 10l-3 6h6z"/>'
+    '<line x1="9" y1="21" x2="15" y2="21"/>'
+    '</svg>'
+)
+
+LOGO_HTML_LARGE = (
+    '<a href="/" target="_self" style="display:inline-flex;align-items:center;'
+    'gap:14px;text-decoration:none;">'
+    '<span style="width:52px;height:52px;'
+    'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:13px;'
+    'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
+    'box-shadow:0 4px 14px rgba(79,70,229,.35);">'
+    + _SCALES_SVG_28
+    + '</span>'
+    '<span style="font-size:2rem;font-weight:800;color:#1E293B;'
+    "letter-spacing:-.03em;line-height:1;\">Let's Evaluate</span>"
+    '</a>'
+)
+
 # ── CSS injected on every page ─────────────────────────────────────────────
 COMMON_CSS = """
 <style>
@@ -126,47 +152,12 @@ def render_page_logo() -> None:
 
 
 def render_policy_page_logo() -> None:
-    """Render the brand logo for policy pages using st.page_link for reliable navigation.
-
-    Splits the logo into two side-by-side columns: the gradient icon (HTML visual)
-    and the brand name rendered as a ``st.page_link`` so Streamlit's native router
-    handles the navigation to the home page instantly.
-    """
-    # Style the main-content page_link to look like the brand logo text
-    st.markdown("""
-<style>
-.block-container [data-testid="stPageLink-NavLink"] {
-  color: #1E293B !important;
-  font-size: 1.15rem !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.02em !important;
-  line-height: 1 !important;
-  background-image: none !important;
-  background-size: 0 !important;
-  border: none !important;
-  padding: 0 !important;
-  transition: color .2s !important;
-}
-.block-container [data-testid="stPageLink-NavLink"]:hover {
-  color: #4F46E5 !important;
-  background-image: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
-    _icon_col, _text_col, _ = st.columns([1, 3, 12])
-    with _icon_col:
-        st.markdown(
-            '<div style="padding-top:6px;">'
-            '<span style="width:34px;height:34px;'
-            'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
-            'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
-            'box-shadow:0 2px 8px rgba(79,70,229,.30);">'
-            + _SCALES_SVG_18
-            + '</span></div>',
-            unsafe_allow_html=True,
-        )
-    with _text_col:
-        st.page_link("app.py", label=BRAND)
+    """Render the brand logo centred at the top of a policy page."""
+    st.markdown(
+        f'<div style="display:flex;justify-content:center;padding:24px 0 16px;">'
+        f'{LOGO_HTML}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_resource
