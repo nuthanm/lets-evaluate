@@ -22,6 +22,7 @@ if _is_auth:
 inject_common_css()
 st.markdown("""
 <style>
+/* ── Nav link base ── */
 [data-testid="stPageLink-NavLink"] {
   color: #64748B !important; font-size: 0.9rem !important;
   font-weight: 500 !important; background: none !important;
@@ -29,26 +30,65 @@ st.markdown("""
   text-decoration: none !important; transition: color .2s !important;
 }
 [data-testid="stPageLink-NavLink"]:hover { color: #4F46E5 !important; }
+
+/* ── Brand logo — bigger & clearly recognizable ── */
 div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
-  font-size: 1.6rem !important; font-weight: 800 !important;
+  font-size: 2rem !important; font-weight: 800 !important;
   color: #4F46E5 !important; line-height: 2 !important;
 }
+
+/* ── Hero text ── */
 .hero-badge {
   display: inline-block; background: #EEF2FF; color: #4F46E5;
   border-radius: 20px; padding: 4px 14px; font-size: 0.8rem;
-  font-weight: 700; margin-bottom: 18px; letter-spacing: 0.03em;
+  font-weight: 700; margin-bottom: 14px; letter-spacing: 0.03em;
 }
 .hero-headline {
   font-size: 2.6rem; font-weight: 800; color: #1E293B;
-  line-height: 1.2; margin: 0 0 14px;
+  line-height: 1.2; margin: 0 0 12px;
 }
 .hero-sub {
   font-size: 1.05rem; color: #4F46E5; font-weight: 700;
-  letter-spacing: 0.04em; margin-bottom: 16px;
+  letter-spacing: 0.04em; margin-bottom: 12px;
 }
 .hero-desc {
   font-size: 1rem; color: #475569; line-height: 1.7;
-  margin-bottom: 28px; max-width: 480px;
+  margin-bottom: 22px; max-width: 480px;
+}
+
+/* ── Fit landing page in one viewport — no vertical scroll ── */
+.main .block-container {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0 !important;
+}
+[data-testid="stAppViewContainer"] {
+  overflow-y: hidden !important;
+}
+/* Re-enable scroll on very small screens where content may not fit */
+@media (max-height: 500px) {
+  [data-testid="stAppViewContainer"] {
+    overflow-y: auto !important;
+  }
+}
+
+/* ── Responsive — tablet ── */
+@media (max-width: 900px) {
+  div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
+    font-size: 1.6rem !important;
+  }
+  .hero-headline { font-size: 2.1rem !important; }
+  .hero-desc { max-width: 100% !important; }
+}
+
+/* ── Responsive — mobile ── */
+@media (max-width: 600px) {
+  div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
+    font-size: 1.3rem !important;
+  }
+  .hero-headline { font-size: 1.6rem !important; }
+  .hero-sub      { font-size: 0.9rem !important; }
+  .hero-badge    { font-size: 0.72rem !important; }
+  .hero-desc     { font-size: 0.9rem !important; margin-bottom: 14px !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -67,7 +107,7 @@ hero_left, hero_right = st.columns([11, 9], gap="large")
 
 with hero_left:
     st.markdown("""
-<div style="padding: 24px 0 20px;">
+<div style="padding: 14px 0 12px;">
   <div class="hero-badge">✨ AI-Assisted · Human-Driven</div>
   <div class="hero-headline">Interview Evaluation,<br>Done Smarter</div>
   <div class="hero-sub">Upload · AI Analyses · You Decide</div>
@@ -86,231 +126,302 @@ with hero_left:
             st.switch_page("pages/1_Auth.py")
 
 with hero_right:
-    # Man-and-Robot workplace animation
-    # Robot (left) + Person (right) at shared desk with laptops, three spinning
-    # gears in the centre representing AI processing, rotating dashed arcs, and
-    # a pulsing speech-bubble — mirroring the LottieFiles animation the user shared.
+    # Sequential workflow animation:
+    # Person (left) → uploads Resume → AI Robot processes → Result (right)
+    # 8-second looping animation with 4 phases highlighted in step indicators.
     st.markdown("""
-<div style="width:100%;max-width:580px;margin:8px auto 0;">
-<svg viewBox="0 0 580 340" xmlns="http://www.w3.org/2000/svg"
+<div style="width:100%;max-width:580px;margin:4px auto 0;">
+<svg viewBox="0 0 580 285" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;height:auto;display:block;">
   <defs>
-    <style>
-      @keyframes floatRobot  {0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)}}
-      @keyframes floatPerson {0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)}}
-    </style>
+    <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#818CF8"/>
+    </marker>
   </defs>
 
-  <!-- DASHED ROTATING ARCS -->
-  <circle cx="152" cy="205" r="87" fill="none" stroke="#BFDBFE" stroke-width="3.5" stroke-dasharray="12,8">
+  <!-- DASHED ORBIT RING — around person (active in phase 1) -->
+  <circle cx="95" cy="120" r="72" fill="none" stroke="#E0E7FF"
+          stroke-width="2.5" stroke-dasharray="8 6">
+    <animate attributeName="stroke"
+      values="#818CF8;#818CF8;#E0E7FF;#E0E7FF;#E0E7FF;#E0E7FF;#818CF8"
+      keyTimes="0;0.25;0.32;0.5;0.7;0.99;1" dur="8s" repeatCount="indefinite"/>
     <animateTransform attributeName="transform" type="rotate"
-      from="0 152 205" to="360 152 205" dur="16s" repeatCount="indefinite"/>
+      from="0 95 120" to="360 95 120" dur="20s" repeatCount="indefinite"/>
   </circle>
-  <circle cx="428" cy="205" r="87" fill="none" stroke="#BFDBFE" stroke-width="3.5" stroke-dasharray="12,8">
+
+  <!-- DASHED ORBIT RING — around robot (active in phase 3) -->
+  <circle cx="288" cy="115" r="80" fill="none" stroke="#E0E7FF"
+          stroke-width="2.5" stroke-dasharray="10 7">
+    <animate attributeName="stroke"
+      values="#E0E7FF;#E0E7FF;#E0E7FF;#818CF8;#818CF8;#E0E7FF;#E0E7FF"
+      keyTimes="0;0.35;0.5;0.55;0.72;0.78;1" dur="8s" repeatCount="indefinite"/>
     <animateTransform attributeName="transform" type="rotate"
-      from="0 428 205" to="-360 428 205" dur="13s" repeatCount="indefinite"/>
+      from="0 288 115" to="-360 288 115" dur="15s" repeatCount="indefinite"/>
   </circle>
 
-  <!-- ROBOT (gently floating) -->
-  <g style="animation:floatRobot 4s ease-in-out infinite;transform-origin:152px 220px;">
-    <rect x="150" y="119" width="4"  height="20" rx="2"  fill="#1A2870"/>
-    <circle cx="152" cy="115" r="7" fill="#1A2870"/>
-    <rect x="120" y="139" width="64" height="53" rx="12" fill="white" stroke="#1A2870" stroke-width="2"/>
-    <rect x="126" y="145" width="52" height="41" rx="8"  fill="#1A2870"/>
-    <circle cx="141" cy="168" r="9" fill="#F5C518"/>
-    <circle cx="163" cy="168" r="9" fill="#F5C518"/>
-    <circle cx="141" cy="168" r="5" fill="#1A2870"/>
-    <circle cx="163" cy="168" r="5" fill="#1A2870"/>
-    <circle cx="139" cy="165" r="2.5" fill="white" opacity="0.75"/>
-    <circle cx="161" cy="165" r="2.5" fill="white" opacity="0.75"/>
-    <rect x="146" y="192" width="12" height="12" rx="4" fill="#CBD5E1"/>
-    <rect x="110" y="204" width="84" height="63" rx="12" fill="white" stroke="#1A2870" stroke-width="1.5"/>
-    <rect x="119" y="212" width="66" height="47" rx="6"  fill="#EEF2FF"/>
-    <rect x="127" y="220" width="50" height="9"  rx="4"  fill="#C7D2FE"/>
-    <rect x="132" y="234" width="40" height="7"  rx="3"  fill="#C7D2FE" opacity="0.7"/>
-    <rect x="137" y="246" width="30" height="6"  rx="3"  fill="#C7D2FE" opacity="0.5"/>
-    <rect x="86"  y="206" width="24" height="44" rx="11" fill="white" stroke="#1A2870" stroke-width="1.5"/>
-    <circle cx="98"  cy="250" r="10" fill="#1A2870"/>
-    <rect x="194" y="212" width="24" height="36" rx="11" fill="white" stroke="#1A2870" stroke-width="1.5"/>
-    <circle cx="206" cy="248" r="10" fill="#1A2870"/>
-  </g>
-
-  <!-- PERSON (floating, offset phase) -->
-  <g style="animation:floatPerson 4s ease-in-out 2s infinite;transform-origin:428px 220px;">
-    <ellipse cx="428" cy="162" rx="31" ry="19" fill="#1A2870"/>
-    <circle  cx="428" cy="179" r="27" fill="#F5A07A"/>
-    <rect x="399" y="149" width="58" height="26" rx="11" fill="#1A2870"/>
-    <circle  cx="401" cy="180" r="9"  fill="#F5A07A"/>
-    <rect x="418" y="205" width="20" height="15" rx="5" fill="#F5A07A"/>
-    <path d="M385,224 C384,218 406,214 428,214 C450,214 472,218 471,224 L474,287 L382,287 Z" fill="#D94FC4"/>
-    <path d="M415,214 Q428,224 441,214" fill="none" stroke="#C030AA" stroke-width="2.5"/>
-    <path d="M385,233 C377,251 375,269 379,284 L404,284" stroke="#D94FC4" stroke-width="16" stroke-linecap="round" fill="none"/>
-    <path d="M471,233 C479,251 481,269 477,284 L452,284" stroke="#D94FC4" stroke-width="16" stroke-linecap="round" fill="none"/>
-    <ellipse cx="382" cy="282" rx="13" ry="9" fill="#F5A07A"/>
-    <ellipse cx="474" cy="282" rx="13" ry="9" fill="#F5A07A"/>
-  </g>
-
-  <!-- LAPTOP SCREENS (in front of characters) -->
-  <g transform="translate(215,256) rotate(-14) translate(-32,-43)">
-    <rect x="0" y="0" width="64" height="46" rx="4" fill="#2D3A9E"/>
-    <rect x="3" y="3" width="58" height="40" rx="3" fill="#14183C"/>
-    <rect x="8" y="11" width="46" height="5"  rx="2.5" fill="#5B82D9" opacity="0.85"/>
-    <rect x="8" y="20" width="34" height="4"  rx="2"   fill="#5B82D9" opacity="0.65"/>
-    <rect x="8" y="28" width="42" height="4"  rx="2"   fill="#5B82D9" opacity="0.5"/>
-  </g>
-  <g transform="translate(416,256) rotate(13) translate(-46,-47)">
-    <rect x="0" y="0" width="92" height="53" rx="4" fill="#2D3A9E"/>
-    <rect x="3" y="3" width="86" height="47" rx="3" fill="#14183C"/>
-    <rect x="9" y="12" width="68" height="6"  rx="3"   fill="#5B82D9" opacity="0.85"/>
-    <rect x="9" y="22" width="52" height="5"  rx="2.5" fill="#5B82D9" opacity="0.65"/>
-    <rect x="9" y="31" width="62" height="5"  rx="2.5" fill="#5B82D9" opacity="0.5"/>
-  </g>
-
-  <!-- SPINNING GEARS — large (dark navy, CCW) -->
+  <!-- ═══════════════════════════════════
+       PERSON — left, gently floating
+  ════════════════════════════════════ -->
   <g>
-    <animateTransform attributeName="transform" type="rotate"
-      from="0 318 228" to="-360 318 228" dur="10s" repeatCount="indefinite"/>
-    <polygon points="311.6,194.6 314.8,184.1 321.2,184.1 324.4,194.6 329.1,195.9 337.2,188.4 342.7,191.6 340.2,202.3 343.7,205.8 354.4,203.3 357.6,208.8 350.1,216.9 351.4,221.6 361.9,224.8 361.9,231.2 351.4,234.4 350.1,239.1 357.6,247.2 354.4,252.7 343.7,250.2 340.2,253.7 342.7,264.4 337.2,267.6 329.1,260.1 324.4,261.4 321.2,271.9 314.8,271.9 311.6,261.4 306.9,260.1 298.8,267.6 293.3,264.4 295.8,253.7 292.3,250.2 281.6,252.7 278.4,247.2 285.9,239.1 284.6,234.4 274.1,231.2 274.1,224.8 284.6,221.6 285.9,216.9 278.4,208.8 281.6,203.3 292.3,205.8 295.8,202.3 293.3,191.6 298.8,188.4 306.9,195.9"
-          fill="#3547B4"/>
-    <circle cx="318" cy="228" r="19" fill="white"/>
-    <circle cx="318" cy="228" r="7"  fill="#3547B4"/>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/>
+    <!-- head -->
+    <circle cx="95" cy="72" r="22" fill="#FBBF24"/>
+    <!-- hair -->
+    <ellipse cx="95" cy="60" rx="22" ry="11" fill="#2D3748"/>
+    <!-- eyes -->
+    <circle cx="88" cy="75" r="3.5" fill="#2D3748"/>
+    <circle cx="102" cy="75" r="3.5" fill="#2D3748"/>
+    <!-- smile -->
+    <path d="M88,84 Q95,92 102,84" fill="none" stroke="#2D3748"
+          stroke-width="2" stroke-linecap="round"/>
+    <!-- body / shirt -->
+    <rect x="71" y="94" width="48" height="50" rx="11" fill="#4F46E5"/>
+    <path d="M90,94 L95,104 L100,94" fill="white" opacity="0.5"/>
+    <!-- arms -->
+    <rect x="53" y="96" width="18" height="40" rx="9" fill="#4F46E5"/>
+    <rect x="119" y="96" width="18" height="40" rx="9" fill="#4F46E5"/>
+    <!-- hands -->
+    <circle cx="62"  cy="136" r="9" fill="#FBBF24"/>
+    <circle cx="128" cy="136" r="9" fill="#FBBF24"/>
+    <!-- legs -->
+    <rect x="77"  y="142" width="14" height="36" rx="7" fill="#1E3A5F"/>
+    <rect x="99"  y="142" width="14" height="36" rx="7" fill="#1E3A5F"/>
   </g>
-  <!-- medium (blue, CW) -->
-  <g>
-    <animateTransform attributeName="transform" type="rotate"
-      from="0 258 205" to="360 258 205" dur="8.3s" repeatCount="indefinite"/>
-    <polygon points="252.6,181.6 255.2,173.1 260.8,173.1 263.4,181.6 267.4,182.9 274.5,177.6 279.0,180.8 276.1,189.3 278.6,192.6 287.5,192.5 289.2,197.8 281.9,202.9 281.9,207.1 289.2,212.2 287.5,217.5 278.6,217.4 276.1,220.7 279.0,229.2 274.5,232.4 267.4,227.1 263.4,228.4 260.8,236.9 255.2,236.9 252.6,228.4 248.6,227.1 241.5,232.4 237.0,229.2 239.9,220.7 237.4,217.4 228.5,217.5 226.8,212.2 234.1,207.1 234.1,202.9 226.8,197.8 228.5,192.5 237.4,192.6 239.9,189.3 237.0,180.8 241.5,177.6 248.6,182.9"
-          fill="#5B82D9"/>
-    <circle cx="258" cy="205" r="14" fill="white"/>
-    <circle cx="258" cy="205" r="5"  fill="#5B82D9"/>
-  </g>
-  <!-- small (red, CCW) -->
-  <g>
-    <animateTransform attributeName="transform" type="rotate"
-      from="0 281 172" to="-360 281 172" dur="6.5s" repeatCount="indefinite"/>
-    <polygon points="275.9,154.7 278.4,148.1 283.6,148.1 286.1,154.7 289.6,156.2 296.0,153.3 299.7,157.0 296.8,163.4 298.3,166.9 304.9,169.4 304.9,174.6 298.3,177.1 296.8,180.6 299.7,187.0 296.0,190.7 289.6,187.8 286.1,189.3 283.6,195.9 278.4,195.9 275.9,189.3 272.4,187.8 266.0,190.7 262.3,187.0 265.2,180.6 263.7,177.1 257.1,174.6 257.1,169.4 263.7,166.9 265.2,163.4 262.3,157.0 266.0,153.3 272.4,156.2"
-          fill="#E05050"/>
-    <circle cx="281" cy="172" r="10" fill="white"/>
-    <circle cx="281" cy="172" r="4"  fill="#E05050"/>
-  </g>
+  <text x="95" y="200" text-anchor="middle" fill="#4F46E5"
+        font-size="10" font-weight="700" font-family="Arial,sans-serif">YOU</text>
 
-  <!-- SPEECH BUBBLE (pulses in and out above person) -->
+  <!-- ═══════════════════════════════════
+       FLYING RESUME DOCUMENT
+       Phase 1→2: appears near person's hand, then flies to robot
+  ════════════════════════════════════ -->
   <g>
     <animate attributeName="opacity"
-      values="0;0;1;1;1;1;0;0" keyTimes="0;0.1;0.2;0.5;0.75;0.85;0.95;1"
-      dur="5s" repeatCount="indefinite"/>
-    <rect x="368" y="88" width="148" height="78" rx="13" fill="#5B6EC4"/>
-    <polygon points="396,166 380,194 424,166" fill="#5B6EC4"/>
-    <rect x="383" y="105" width="118" height="8" rx="4" fill="white" opacity="0.9"/>
-    <rect x="383" y="121" width="94"  height="8" rx="4" fill="white" opacity="0.9"/>
-    <rect x="383" y="137" width="110" height="8" rx="4" fill="white" opacity="0.9"/>
+      values="0;0;1;1;1;0.3;0;0"
+      keyTimes="0;0.06;0.12;0.32;0.44;0.48;0.55;1"
+      dur="8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="translate"
+      values="124 96;124 96;124 96;248 102;260 102;260 102;124 96;124 96"
+      keyTimes="0;0.06;0.12;0.44;0.48;0.55;0.56;1"
+      dur="8s" calcMode="spline"
+      keySplines="0 0 1 1;0.42 0 0.58 1;0.42 0 0.58 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1"
+      repeatCount="indefinite"/>
+    <!-- document shape (drawn at local 0,0) -->
+    <rect x="0" y="0" width="48" height="60" rx="5"
+          fill="white" stroke="#4F46E5" stroke-width="2"/>
+    <path d="M36,0 L48,12 L36,12 Z" fill="#C7D2FE"/>
+    <line x1="36" y1="0"  x2="36" y2="12" stroke="#4F46E5" stroke-width="1.5"/>
+    <line x1="36" y1="12" x2="48" y2="12" stroke="#4F46E5" stroke-width="1.5"/>
+    <rect x="3" y="3" width="31" height="9" rx="2" fill="#4F46E5"/>
+    <text x="18.5" y="9.5" text-anchor="middle" fill="white"
+          font-size="5.5" font-weight="700" font-family="Arial,sans-serif">RESUME</text>
+    <rect x="3" y="17" width="42" height="4"   rx="2"   fill="#C7D2FE"/>
+    <rect x="3" y="25" width="34" height="3.5" rx="1.5" fill="#DDE3FA" opacity="0.85"/>
+    <rect x="3" y="32" width="40" height="3.5" rx="1.5" fill="#DDE3FA" opacity="0.7"/>
+    <rect x="3" y="39" width="28" height="3.5" rx="1.5" fill="#DDE3FA" opacity="0.6"/>
+    <rect x="3" y="46" width="36" height="3.5" rx="1.5" fill="#DDE3FA" opacity="0.5"/>
+    <rect x="3" y="53" width="24" height="3.5" rx="1.5" fill="#DDE3FA" opacity="0.4"/>
   </g>
 
-  <!-- LAPTOP BASES -->
-  <rect x="183" y="281" width="74" height="8" rx="3" fill="#1A2870"/>
-  <rect x="372" y="282" width="88" height="7" rx="3" fill="#1A2870"/>
+  <!-- DASHED ARROW 1: Person → Robot (active in phase 2) -->
+  <line x1="170" y1="130" x2="224" y2="130" stroke="#818CF8"
+        stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowHead)">
+    <animate attributeName="opacity"
+      values="0.25;0.25;0.9;0.9;0.25;0.25;0.25"
+      keyTimes="0;0.1;0.15;0.5;0.55;0.7;1" dur="8s" repeatCount="indefinite"/>
+  </line>
 
-  <!-- SHARED DESK BAR -->
-  <rect x="40"  y="288" width="500" height="25" rx="12" fill="#2D3A9E"/>
-  <rect x="50"  y="290" width="480" height="9"  rx="4"  fill="#5B82D9" opacity="0.28"/>
+  <!-- ═══════════════════════════════════
+       AI ROBOT — center, offset float
+  ════════════════════════════════════ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;0 -5;0 0" dur="3s" begin="1s" repeatCount="indefinite"/>
+    <!-- antenna -->
+    <rect x="285" y="26" width="6" height="17" rx="3" fill="#1A2870"/>
+    <circle cx="288" cy="23" r="7" fill="#1A2870"/>
+    <!-- head outer -->
+    <rect x="258" y="43" width="60" height="52" rx="12" fill="white" stroke="#1A2870" stroke-width="2"/>
+    <!-- head inner screen -->
+    <rect x="263" y="48" width="50" height="42" rx="8" fill="#1A2870"/>
+    <!-- eyes -->
+    <circle cx="276" cy="72" r="9" fill="#F5C518"/>
+    <circle cx="300" cy="72" r="9" fill="#F5C518"/>
+    <circle cx="276" cy="72" r="5" fill="#1A2870"/>
+    <circle cx="300" cy="72" r="5" fill="#1A2870"/>
+    <!-- eye shine -->
+    <circle cx="274" cy="69" r="2.5" fill="white" opacity="0.75"/>
+    <circle cx="298" cy="69" r="2.5" fill="white" opacity="0.75"/>
+    <!-- processing blink overlay (covers eyes briefly during phase 3) -->
+    <rect x="263" y="48" width="50" height="42" rx="8" fill="#1A2870" opacity="0">
+      <animate attributeName="opacity"
+        values="0;0;0;0;0;1;0;1;0;0;0;0"
+        keyTimes="0;0.4;0.45;0.5;0.52;0.53;0.54;0.55;0.57;0.65;0.8;1"
+        dur="8s" repeatCount="indefinite"/>
+    </rect>
+    <!-- mouth LED (changes colour during processing) -->
+    <rect x="278" y="84" width="20" height="4" rx="2" fill="#4ADE80">
+      <animate attributeName="fill"
+        values="#4ADE80;#4ADE80;#4ADE80;#FCD34D;#F87171;#FCD34D;#4ADE80;#4ADE80"
+        keyTimes="0;0.4;0.5;0.55;0.6;0.65;0.7;1" dur="8s" repeatCount="indefinite"/>
+    </rect>
+    <!-- neck -->
+    <rect x="285" y="95" width="6" height="10" rx="3" fill="#CBD5E1"/>
+    <!-- body outer -->
+    <rect x="250" y="105" width="76" height="62" rx="12"
+          fill="white" stroke="#1A2870" stroke-width="1.5"/>
+    <!-- body inner panel -->
+    <rect x="256" y="111" width="64" height="50" rx="7" fill="#EEF2FF"/>
+    <!-- body screen content (line shortens then extends during processing) -->
+    <rect x="263" y="118" width="50" height="6" rx="3" fill="#C7D2FE">
+      <animate attributeName="width"
+        values="50;50;50;50;18;50;50;50;50"
+        keyTimes="0;0.4;0.45;0.5;0.56;0.62;0.7;0.9;1" dur="8s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="263" y="128" width="38" height="5" rx="2.5" fill="#C7D2FE" opacity="0.7"/>
+    <rect x="263" y="137" width="46" height="5" rx="2.5" fill="#C7D2FE" opacity="0.5"/>
+    <rect x="263" y="146" width="30" height="4" rx="2"   fill="#C7D2FE" opacity="0.4"/>
+    <!-- arms -->
+    <rect x="230" y="107" width="21" height="40" rx="10"
+          fill="white" stroke="#1A2870" stroke-width="1.5"/>
+    <circle cx="240" cy="147" r="10" fill="#1A2870"/>
+    <rect x="326" y="107" width="21" height="40" rx="10"
+          fill="white" stroke="#1A2870" stroke-width="1.5"/>
+    <circle cx="336" cy="147" r="10" fill="#1A2870"/>
+  </g>
+  <text x="288" y="186" text-anchor="middle" fill="#4F46E5"
+        font-size="9" font-weight="700" font-family="Arial,sans-serif">AI PROCESSING</text>
+
+  <!-- ═══════════════════════════════════
+       SPINNING GEARS — positioned to the right of robot
+  ════════════════════════════════════ -->
+  <!-- large gear (dark navy, CCW) — center (355, 148) -->
+  <g>
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 355 148" to="-360 355 148" dur="9s" repeatCount="indefinite"/>
+    <polygon points="350.8,126.3 352.9,119.5 357.1,119.5 359.2,126.3 362.2,127.1 367.5,122.3 371.1,124.3 369.4,131.3 371.7,133.6 378.7,131.9 380.7,135.5 375.9,140.8 376.7,143.8 383.5,145.9 383.5,150.1 376.7,152.2 375.9,155.2 380.7,160.5 378.7,164.1 371.7,162.4 369.4,164.7 371.1,171.7 367.5,173.7 362.2,168.9 359.2,169.7 357.1,176.5 352.9,176.5 350.8,169.7 347.8,168.9 342.5,173.7 338.9,171.7 340.6,164.7 338.3,162.4 331.3,164.1 329.3,160.5 334.1,155.2 333.3,152.2 326.5,150.1 326.5,145.9 333.3,143.8 334.1,140.8 329.3,135.5 331.3,131.9 338.3,133.6 340.6,131.3 338.9,124.3 342.5,122.3 347.8,127.1"
+          fill="#3547B4"/>
+    <circle cx="355" cy="148" r="17" fill="white"/>
+    <circle cx="355" cy="148" r="7"  fill="#3547B4"/>
+  </g>
+  <!-- small gear (red, CW) — center (337, 118) -->
+  <g>
+    <animateTransform attributeName="transform" type="rotate"
+      from="0 337 118" to="360 337 118" dur="6s" repeatCount="indefinite"/>
+    <polygon points="334.0,105.1 335.5,100.5 338.5,100.5 340.0,105.1 342.2,105.8 346.1,102.9 348.6,104.7 347.0,109.4 348.3,111.2 353.2,111.1 354.2,114.0 350.1,116.8 350.1,119.2 354.2,122.0 353.2,124.9 348.3,124.8 347.0,126.6 348.6,131.3 346.1,133.1 342.2,130.2 340.0,130.9 338.5,135.5 335.5,135.5 334.0,130.9 331.8,130.2 327.9,133.1 325.4,131.3 327.0,126.6 325.7,124.8 320.8,124.9 319.8,122.0 323.9,119.2 323.9,116.8 319.8,114.0 320.8,111.1 325.7,111.2 327.0,109.4 325.4,104.7 327.9,102.9 331.8,105.8"
+          fill="#E05050"/>
+    <circle cx="337" cy="118" r="10" fill="white"/>
+    <circle cx="337" cy="118" r="4"  fill="#E05050"/>
+  </g>
+
+  <!-- DASHED ARROW 2: Robot → Result (active in phase 4) -->
+  <line x1="395" y1="130" x2="436" y2="130" stroke="#818CF8"
+        stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowHead)">
+    <animate attributeName="opacity"
+      values="0.25;0.25;0.25;0.25;0.9;0.9;0.25"
+      keyTimes="0;0.1;0.5;0.62;0.68;0.88;1" dur="8s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- ═══════════════════════════════════
+       RESULT CARD — slides in from right in phase 4
+  ════════════════════════════════════ -->
+  <g>
+    <animate attributeName="opacity"
+      values="0;0;0;0;0;0.96;0.96;0"
+      keyTimes="0;0.1;0.5;0.65;0.72;0.78;0.9;1" dur="8s" repeatCount="indefinite"/>
+    <animateTransform attributeName="transform" type="translate"
+      values="16 0;16 0;16 0;16 0;8 0;0 0;0 0;16 0"
+      keyTimes="0;0.1;0.5;0.65;0.72;0.78;0.9;1" dur="8s" repeatCount="indefinite"/>
+    <!-- card shadow -->
+    <rect x="443" y="73" width="110" height="134" rx="12" fill="#0F172A" opacity="0.06"/>
+    <!-- card body -->
+    <rect x="440" y="70" width="110" height="134" rx="12"
+          fill="white" stroke="#059669" stroke-width="2.5"/>
+    <!-- green header -->
+    <rect x="440" y="70" width="110" height="36" rx="12" fill="#059669"/>
+    <rect x="440" y="90"  width="110" height="16"  fill="#059669"/>
+    <!-- check icon -->
+    <circle cx="463" cy="88" r="11" fill="white" opacity="0.9"/>
+    <text x="463" y="92.5" text-anchor="middle" fill="#059669"
+          font-size="12" font-weight="800" font-family="Arial,sans-serif">✓</text>
+    <!-- RESULT label in header -->
+    <text x="505" y="93" text-anchor="middle" fill="white"
+          font-size="11" font-weight="800" font-family="Arial,sans-serif">RESULT</text>
+    <!-- match score -->
+    <text x="495" y="133" text-anchor="middle" fill="#059669"
+          font-size="28" font-weight="800" font-family="Arial,sans-serif">87%</text>
+    <text x="495" y="149" text-anchor="middle" fill="#64748B"
+          font-size="9" font-family="Arial,sans-serif">Match Score</text>
+    <!-- detail bars -->
+    <rect x="452" y="160" width="88" height="6"   rx="3"   fill="#D1FAE5"/>
+    <rect x="452" y="170" width="68" height="5"   rx="2.5" fill="#D1FAE5" opacity="0.75"/>
+    <rect x="452" y="179" width="80" height="5"   rx="2.5" fill="#D1FAE5" opacity="0.55"/>
+    <rect x="452" y="188" width="55" height="4"   rx="2"   fill="#D1FAE5" opacity="0.4"/>
+    <!-- label below card -->
+    <text x="495" y="220" text-anchor="middle" fill="#059669"
+          font-size="10" font-weight="700" font-family="Arial,sans-serif">RESULT</text>
+  </g>
+
+  <!-- ═══════════════════════════════════
+       STEP INDICATORS — bottom row
+  ════════════════════════════════════ -->
+  <!-- Step 1: YOU (active 0 → 0.25) -->
+  <circle cx="95" cy="244" r="11">
+    <animate attributeName="fill"
+      values="#4F46E5;#4F46E5;#C7D2FE;#C7D2FE;#C7D2FE;#C7D2FE;#4F46E5"
+      keyTimes="0;0.25;0.32;0.5;0.7;0.99;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="95" y="248.5" text-anchor="middle" fill="white"
+        font-size="11" font-weight="700" font-family="Arial,sans-serif">1</text>
+  <text x="95" y="263" text-anchor="middle" fill="#64748B"
+        font-size="10" font-family="Arial,sans-serif">You</text>
+
+  <line x1="109" y1="244" x2="176" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+
+  <!-- Step 2: UPLOAD (active 0.12 → 0.48) -->
+  <circle cx="190" cy="244" r="11">
+    <animate attributeName="fill"
+      values="#C7D2FE;#C7D2FE;#4F46E5;#4F46E5;#C7D2FE;#C7D2FE;#C7D2FE"
+      keyTimes="0;0.1;0.15;0.47;0.52;0.7;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="190" y="248.5" text-anchor="middle" fill="white"
+        font-size="11" font-weight="700" font-family="Arial,sans-serif">2</text>
+  <text x="190" y="263" text-anchor="middle" fill="#64748B"
+        font-size="10" font-family="Arial,sans-serif">Upload</text>
+
+  <line x1="204" y1="244" x2="279" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+
+  <!-- Step 3: AI (active 0.5 → 0.72) -->
+  <circle cx="293" cy="244" r="11">
+    <animate attributeName="fill"
+      values="#C7D2FE;#C7D2FE;#C7D2FE;#4F46E5;#4F46E5;#C7D2FE;#C7D2FE"
+      keyTimes="0;0.42;0.5;0.55;0.72;0.78;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="293" y="248.5" text-anchor="middle" fill="white"
+        font-size="11" font-weight="700" font-family="Arial,sans-serif">3</text>
+  <text x="293" y="263" text-anchor="middle" fill="#64748B"
+        font-size="10" font-family="Arial,sans-serif">AI</text>
+
+  <line x1="307" y1="244" x2="396" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+
+  <!-- Step 4: RESULT (active 0.72 → 0.95) -->
+  <circle cx="410" cy="244" r="11">
+    <animate attributeName="fill"
+      values="#C7D2FE;#C7D2FE;#C7D2FE;#C7D2FE;#059669;#059669;#C7D2FE"
+      keyTimes="0;0.6;0.65;0.72;0.78;0.95;1" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="410" y="248.5" text-anchor="middle" fill="white"
+        font-size="11" font-weight="700" font-family="Arial,sans-serif">4</text>
+  <text x="410" y="263" text-anchor="middle" fill="#64748B"
+        font-size="10" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
 """, unsafe_allow_html=True)
 
-# ── How It Works ───────────────────────────────────────────────────────────
-st.markdown("<br>", unsafe_allow_html=True)
-st.divider()
-st.markdown("### ⚙️ How It Works")
-
-st.html("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
-*, *::before, *::after { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-@keyframes archNodeIn {
-  0%   { opacity: 0; transform: translateX(-14px) scale(0.94); }
-  100% { opacity: 1; transform: translateX(0)     scale(1);    }
-}
-@keyframes archGlow {
-  0%, 100% { box-shadow: 0 4px 20px rgba(79,70,229,0.2); }
-  50%       { box-shadow: 0 4px 32px rgba(79,70,229,0.5); }
-}
-.arch-wrap { width:100%; padding:8px; box-sizing:border-box; }
-.arch-flow {
-  display:flex; flex-direction:row; align-items:center; justify-content:center;
-  gap:6px; flex-wrap:nowrap; overflow-x:auto; padding:4px 0 12px;
-}
-.arch-card {
-  background:white; border:2px solid #4F46E5; border-radius:14px; padding:14px 16px;
-  display:flex; flex-direction:column; align-items:center; gap:5px;
-  animation:archNodeIn .5s ease forwards; opacity:0;
-  box-shadow:0 4px 14px rgba(0,0,0,.07); transition:transform .2s,box-shadow .2s;
-  min-width:120px; flex-shrink:0; text-align:center;
-}
-.arch-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(79,70,229,.2);}
-.arch-hero-card{background:linear-gradient(135deg,#EEF2FF,#F5F3FF);animation:archNodeIn .5s ease .05s forwards,archGlow 3s ease .6s infinite;min-width:140px;}
-.arch-card-icon{font-size:1.7rem;line-height:1;}
-.arch-card-title{font-size:.9rem;font-weight:700;color:#1E293B;}
-.arch-card-sub{font-size:.7rem;color:#64748B;text-align:center;}
-.arch-card-badge{font-size:.74rem;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:2px;letter-spacing:.03em;}
-.arch-card-items{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:100%;}
-.arch-card-items span{font-size:.72rem;color:#475569;background:#F8FAFC;border-radius:6px;padding:3px 10px;text-align:center;}
-.arch-h-arrow{font-size:1.5rem;color:#4F46E5;flex-shrink:0;animation:archNodeIn .4s ease forwards;opacity:0;padding:0 2px;line-height:1;}
-.arch-footer-row{display:flex;justify-content:center;margin-top:18px;}
-.arch-card-auth{border-color:#7C3AED;} .arch-card-dash{border-color:#2563EB;}
-.arch-card-setup{border-color:#0891B2;} .arch-card-eval{border-color:#7C3AED;}
-.arch-card-output{border-color:#059669;}
-.arch-card-principle{border-color:#4F46E5;background:linear-gradient(135deg,#EEF2FF,#F5F3FF);min-width:400px;}
-</style>
-<div class="arch-wrap">
-  <div class="arch-flow">
-    <div class="arch-card arch-hero-card" style="animation-delay:.05s">
-      <div class="arch-card-icon">⚖️</div>
-      <div class="arch-card-title">Let's Evaluate</div>
-      <div class="arch-card-sub">AI Hiring Platform</div>
-    </div>
-    <div class="arch-h-arrow" style="animation-delay:.2s">→</div>
-    <div class="arch-card arch-card-auth" style="animation-delay:.25s">
-      <div class="arch-card-icon">🔐</div>
-      <div class="arch-card-title">Authentication</div>
-      <div class="arch-card-items"><span>Login</span><span>Register</span><span>Password Reset</span></div>
-    </div>
-    <div class="arch-h-arrow" style="animation-delay:.4s">→</div>
-    <div class="arch-card arch-card-dash" style="animation-delay:.45s">
-      <div class="arch-card-icon">📊</div>
-      <div class="arch-card-title">Dashboard</div>
-      <div class="arch-card-items"><span>Metrics</span><span>Quick Access</span></div>
-    </div>
-    <div class="arch-h-arrow" style="animation-delay:.6s">→</div>
-    <div class="arch-card arch-card-setup" style="animation-delay:.65s">
-      <div class="arch-card-badge" style="background:#EFF6FF;color:#0891B2">📋 Setup</div>
-      <div class="arch-card-items"><span>📁 Projects</span><span>👥 Roles</span><span>❓ Questions</span></div>
-    </div>
-    <div class="arch-h-arrow" style="animation-delay:.8s">→</div>
-    <div class="arch-card arch-card-eval" style="animation-delay:.85s">
-      <div class="arch-card-badge" style="background:#F5F3FF;color:#7C3AED">🤖 Evaluate</div>
-      <div class="arch-card-items"><span>📄 Resume Upload</span><span>🤖 AI Analysis</span><span>🧑‍💼 Evaluation</span></div>
-    </div>
-    <div class="arch-h-arrow" style="animation-delay:1.0s">→</div>
-    <div class="arch-card arch-card-output" style="animation-delay:1.05s">
-      <div class="arch-card-badge" style="background:#F0FDF4;color:#059669">📤 Output</div>
-      <div class="arch-card-items"><span>📋 PDF Reports</span><span>📂 Archives</span></div>
-    </div>
-  </div>
-  <div class="arch-footer-row">
-    <div class="arch-card arch-card-principle" style="animation-delay:1.2s">
-      <div class="arch-card-icon">🧠</div>
-      <div class="arch-card-title">AI Assists · Humans Decide</div>
-      <div class="arch-card-sub">OpenAI GPT-4o-mini · Privacy-first · Transparent · Accountable</div>
-    </div>
-  </div>
-</div>
-""")
-
 # ── Footer ─────────────────────────────────────────────────────────────────
-st.markdown("<br>", unsafe_allow_html=True)
 st.markdown(
-    '<p style="text-align:center;color:#94A3B8;font-size:0.8rem;'
-    'border-top:1px solid #E2E8F0;padding-top:20px;margin-top:48px;">'
+    '<p style="text-align:center;color:#94A3B8;font-size:0.75rem;'
+    'border-top:1px solid #E2E8F0;padding-top:10px;margin-top:18px;">'
     "© 2025 Let's Evaluate · AI assists; humans decide.</p>",
     unsafe_allow_html=True,
 )
