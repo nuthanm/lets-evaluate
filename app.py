@@ -2,23 +2,21 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
 from utils.database import init_db
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, LOGO_HTML, create_logo_favicon
+from utils.ui import inject_common_css, render_page_logo, LOGO_HTML, create_logo_favicon
 
 # ── Must be the very first Streamlit call ──────────────────────────────────
-_is_auth = st.session_state.get("authenticated", False)
 st.set_page_config(
     page_title="Let's Evaluate",
     page_icon=create_logo_favicon(),
     layout="wide",
-    # Expanded for authenticated users (eliminates the blinking >) — collapsed for guests
-    initial_sidebar_state="expanded" if _is_auth else "collapsed",
+    initial_sidebar_state="collapsed",
 )
 
 init_db()
 
-# ── Sidebar (authenticated users only) ────────────────────────────────────
-if _is_auth:
-    render_authenticated_sidebar()
+# Redirect authenticated users straight to Dashboard (logo / direct URL visit)
+if st.session_state.get("authenticated", False):
+    st.switch_page("pages/2_Dashboard.py")
 
 # ── Common CSS + page-specific overrides ──────────────────────────────────
 inject_common_css()
@@ -143,11 +141,7 @@ with hero_left:
   </div>
 </div>
 """, unsafe_allow_html=True)
-    if _is_auth:
-        if st.button("Go to Dashboard →", use_container_width=False):
-            st.switch_page("pages/2_Dashboard.py")
-    else:
-        if st.button("Start Evaluating →", use_container_width=False):
+    if st.button("Start Evaluating →", use_container_width=False):
             st.switch_page("pages/1_Auth.py")
 
 with hero_right:
