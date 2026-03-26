@@ -11,7 +11,7 @@ from utils.database import (
 )
 from utils.auth import hash_password, verify_password, login_user, require_auth, get_current_user
 from utils.email_utils import send_password_reset_email
-from utils.ui import inject_common_css, render_page_logo, LOGO_HTML, create_logo_favicon
+from utils.ui import inject_common_css, render_page_logo, LOGO_HTML, LOGO_HTML_LARGE, create_logo_favicon
 
 st.set_page_config(
     page_title="Let's Evaluate – Auth",
@@ -35,9 +35,11 @@ st.markdown("""
   padding: 32px 0 24px;
 }
 .auth-tagline {
-  color: #64748B;
-  font-size: 0.95rem;
-  margin-top: 8px;
+  color: #4F46E5;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 10px;
+  letter-spacing: 0.01em;
 }
 
 /* ── Auth card ── */
@@ -47,7 +49,7 @@ st.markdown("""
   color: #1E293B;
   margin-bottom: 4px;
 }
-.auth-sub { color: #64748B; font-size: 0.9rem; margin-bottom: 20px; }
+.auth-sub { color: #4F46E5; font-size: 0.9rem; font-weight: 500; margin-bottom: 20px; }
 
 /* ── Column card styling ── */
 [data-testid="column"] > div:first-child > div:first-child {
@@ -107,7 +109,7 @@ view = st.session_state["auth_view"]
 # ── Brand header ────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="auth-page-header">
-  <div style="display:flex;justify-content:center;">{LOGO_HTML}</div>
+  <div style="display:flex;justify-content:center;">{LOGO_HTML_LARGE}</div>
   <div class="auth-tagline">AI-assisted · Human-driven · Interview platform</div>
 </div>
 """, unsafe_allow_html=True)
@@ -256,8 +258,3 @@ else:
                 login_user({**new_user, "email": reg_email, "name": reg_name})
                 st.success("Account created! Redirecting…")
                 st.switch_page("pages/2_Dashboard.py")
-
-        st.markdown('<div class="divider-text">Already have an account?</div>', unsafe_allow_html=True)
-        if st.button("← Back to Sign In", use_container_width=True, key="btn_to_login"):
-            st.session_state["auth_view"] = "login"
-            st.rerun()
