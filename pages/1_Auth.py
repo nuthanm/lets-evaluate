@@ -11,7 +11,7 @@ from utils.database import (
 )
 from utils.auth import hash_password, verify_password, login_user, require_auth, get_current_user
 from utils.email_utils import send_password_reset_email
-from utils.ui import inject_common_css, render_page_logo
+from utils.ui import inject_common_css, render_page_logo, LOGO_HTML
 
 st.set_page_config(
     page_title="Let's Evaluate – Auth",
@@ -34,15 +34,10 @@ st.markdown("""
   text-align: center;
   padding: 32px 0 24px;
 }
-.auth-brand {
-  font-size: 2rem;
-  font-weight: 800;
-  color: #4F46E5;
-  margin-bottom: 6px;
-}
 .auth-tagline {
   color: #64748B;
   font-size: 0.95rem;
+  margin-top: 8px;
 }
 
 /* ── Auth card ── */
@@ -110,9 +105,9 @@ if "reset_user_id" not in st.session_state:
 view = st.session_state["auth_view"]
 
 # ── Brand header ────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div class="auth-page-header">
-  <div class="auth-brand">⚖️ Let's Evaluate</div>
+  <div style="display:flex;justify-content:center;">{LOGO_HTML}</div>
   <div class="auth-tagline">AI-assisted · Human-driven · Interview platform</div>
 </div>
 """, unsafe_allow_html=True)

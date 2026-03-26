@@ -1,7 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from datetime import datetime
 from utils.database import init_db
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, BRAND
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, LOGO_HTML
 
 # ── Must be the very first Streamlit call ──────────────────────────────────
 _is_auth = st.session_state.get("authenticated", False)
@@ -31,12 +32,6 @@ st.markdown("""
   text-decoration: none !important; transition: color .2s !important;
 }
 [data-testid="stPageLink-NavLink"]:hover { color: #4F46E5 !important; }
-
-/* ── Brand logo — bigger & clearly recognizable ── */
-div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
-  font-size: 2rem !important; font-weight: 800 !important;
-  color: #4F46E5 !important; line-height: 2 !important;
-}
 
 /* ── Hero text ── */
 .hero-badge {
@@ -74,18 +69,12 @@ div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
 
 /* ── Responsive — tablet ── */
 @media (max-width: 900px) {
-  div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
-    font-size: 1.6rem !important;
-  }
   .hero-headline { font-size: 2.1rem !important; }
   .hero-desc { max-width: 100% !important; }
 }
 
 /* ── Responsive — mobile ── */
 @media (max-width: 600px) {
-  div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
-    font-size: 1.3rem !important;
-  }
   .hero-headline { font-size: 1.6rem !important; }
   .hero-sub      { font-size: 0.9rem !important; }
   .hero-badge    { font-size: 0.72rem !important; }
@@ -97,7 +86,7 @@ div[data-testid="column"]:first-child [data-testid="stPageLink-NavLink"] {
 # ── Page Header ────────────────────────────────────────────────────────────
 hcol1, hcol2, hcol3 = st.columns([4, 1, 1])
 with hcol1:
-    st.page_link("app.py", label="⚖️ Let's Evaluate")
+    st.markdown(LOGO_HTML, unsafe_allow_html=True)
 with hcol2:
     st.page_link("pages/8_Privacy_Policy.py", label="Privacy Policy")
 with hcol3:
@@ -131,9 +120,10 @@ with hero_right:
     # Person (left) → uploads Resume → AI Robot processes → Result (right)
     # 8-second looping animation with 4 phases highlighted in step indicators.
     components.html("""
-<div style="width:100%;margin:4px auto 0;">
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}</style>
+<div style="width:100%;display:flex;justify-content:center;padding:4px 0 0;">
 <svg viewBox="15 5 565 285" xmlns="http://www.w3.org/2000/svg"
-     style="width:100%;height:auto;display:block;">
+     style="width:100%;max-width:580px;height:auto;display:block;">
   <defs>
     <marker id="arrowHead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
       <polygon points="0 0, 8 3, 0 6" fill="#818CF8"/>
@@ -429,33 +419,33 @@ with hero_right:
   <text x="95" y="263" text-anchor="middle" fill="#64748B"
         font-size="10" font-family="Arial,sans-serif">You</text>
 
-  <line x1="109" y1="244" x2="176" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+  <line x1="109" y1="244" x2="213" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
   <!-- Step 2: UPLOAD (active 0.12 → 0.48) -->
-  <circle cx="190" cy="244" r="11">
+  <circle cx="227" cy="244" r="11">
     <animate attributeName="fill"
       values="#C7D2FE;#C7D2FE;#4F46E5;#4F46E5;#C7D2FE;#C7D2FE;#C7D2FE"
       keyTimes="0;0.1;0.15;0.47;0.52;0.7;1" dur="8s" repeatCount="indefinite"/>
   </circle>
-  <text x="190" y="248.5" text-anchor="middle" fill="white"
+  <text x="227" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">2</text>
-  <text x="190" y="263" text-anchor="middle" fill="#64748B"
+  <text x="227" y="263" text-anchor="middle" fill="#64748B"
         font-size="10" font-family="Arial,sans-serif">Upload</text>
 
-  <line x1="204" y1="244" x2="279" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+  <line x1="241" y1="244" x2="345" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
   <!-- Step 3: AI (active 0.5 → 0.72) -->
-  <circle cx="293" cy="244" r="11">
+  <circle cx="359" cy="244" r="11">
     <animate attributeName="fill"
       values="#C7D2FE;#C7D2FE;#C7D2FE;#4F46E5;#4F46E5;#C7D2FE;#C7D2FE"
       keyTimes="0;0.42;0.5;0.55;0.72;0.78;1" dur="8s" repeatCount="indefinite"/>
   </circle>
-  <text x="293" y="248.5" text-anchor="middle" fill="white"
+  <text x="359" y="248.5" text-anchor="middle" fill="white"
         font-size="11" font-weight="700" font-family="Arial,sans-serif">3</text>
-  <text x="293" y="263" text-anchor="middle" fill="#64748B"
+  <text x="359" y="263" text-anchor="middle" fill="#64748B"
         font-size="10" font-family="Arial,sans-serif">AI</text>
 
-  <line x1="307" y1="244" x2="476" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
+  <line x1="373" y1="244" x2="476" y2="244" stroke="#C7D2FE" stroke-width="1.5"/>
 
   <!-- Step 4: RESULT (active 0.72 → 0.95) -->
   <circle cx="490" cy="244" r="11">
@@ -469,12 +459,33 @@ with hero_right:
         font-size="10" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
+<script>
+/* Resize the parent iframe to match the SVG's rendered height,
+   eliminating blank space on tablet and mobile viewports. */
+(function () {
+  function fitIframeToSvg() {
+    var svg = document.querySelector('svg');
+    if (!svg) return;
+    var h = svg.getBoundingClientRect().height;
+    try {
+      window.parent.document.querySelectorAll('iframe').forEach(function (f) {
+        if (f.contentWindow === window) {
+          f.style.height = (h + 10) + 'px';
+        }
+      });
+    } catch (e) { /* cross-origin guard */ }
+  }
+  window.addEventListener('load', fitIframeToSvg);
+  window.addEventListener('resize', fitIframeToSvg);
+  setTimeout(fitIframeToSvg, 100);
+}());
+</script>
 """, height=320, scrolling=False)
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
-    '<p style="text-align:center;color:#94A3B8;font-size:0.75rem;'
+    f'<p style="text-align:center;color:#94A3B8;font-size:0.75rem;'
     'border-top:1px solid #E2E8F0;padding-top:10px;margin-top:18px;">'
-    "© 2025 Let's Evaluate · AI assists; humans decide.</p>",
+    f"© {datetime.now().year} Let's Evaluate · AI assists; humans decide.</p>",
     unsafe_allow_html=True,
 )
