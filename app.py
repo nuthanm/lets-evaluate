@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from utils.database import init_db
 from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, BRAND
 
@@ -129,7 +130,7 @@ with hero_right:
     # Sequential workflow animation:
     # Person (left) → uploads Resume → AI Robot processes → Result (right)
     # 8-second looping animation with 4 phases highlighted in step indicators.
-    st.markdown("""
+    components.html("""
 <div style="width:100%;max-width:580px;margin:4px auto 0;">
 <svg viewBox="0 0 580 285" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;height:auto;display:block;">
@@ -416,7 +417,7 @@ with hero_right:
         font-size="10" font-family="Arial,sans-serif">Result</text>
 </svg>
 </div>
-""", unsafe_allow_html=True)
+""", height=310, scrolling=False)
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
