@@ -3,7 +3,45 @@
 import streamlit as st
 from utils.auth import logout_user
 
-BRAND = "⚖️ Let's Evaluate"
+BRAND = "Let's Evaluate"
+
+# ── Brand logo components ──────────────────────────────────────────────────
+_SCALES_SVG_18 = (
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white"'
+    ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="12" y1="3" x2="12" y2="21"/>'
+    '<path d="M3 6l9-3 9 3"/>'
+    '<path d="M6 10l-3 6h6z"/>'
+    '<path d="M18 10l-3 6h6z"/>'
+    '<line x1="9" y1="21" x2="15" y2="21"/>'
+    '</svg>'
+)
+
+_SCALES_SVG_14 = (
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white"'
+    ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="12" y1="3" x2="12" y2="21"/>'
+    '<path d="M3 6l9-3 9 3"/>'
+    '<path d="M6 10l-3 6h6z"/>'
+    '<path d="M18 10l-3 6h6z"/>'
+    '<line x1="9" y1="21" x2="15" y2="21"/>'
+    '</svg>'
+)
+
+# Reusable logo HTML – navigates to home page on click
+LOGO_HTML = (
+    '<a href="/" target="_self" style="display:inline-flex;align-items:center;'
+    'gap:10px;text-decoration:none;">'
+    '<span style="width:34px;height:34px;'
+    'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:9px;'
+    'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;'
+    'box-shadow:0 2px 8px rgba(79,70,229,.30);">'
+    + _SCALES_SVG_18
+    + '</span>'
+    '<span style="font-size:1.2rem;font-weight:800;color:#1E293B;'
+    "letter-spacing:-.02em;line-height:1;\">Let's Evaluate</span>"
+    '</a>'
+)
 
 # ── CSS injected on every page ─────────────────────────────────────────────
 COMMON_CSS = """
@@ -29,18 +67,6 @@ footer                                     { display: none !important; }
 [data-testid="collapsedControl"],
 section[data-testid="stSidebar"] > div:first-child button,
 button[kind="header"]                     { display: none !important; }
-
-/* Brand logo page-link style */
-.brand-logo-wrap [data-testid="stPageLink-NavLink"] {
-  font-size: 1.4rem !important;
-  font-weight: 800 !important;
-  color: #4F46E5 !important;
-  text-decoration: none !important;
-  line-height: 1.8 !important;
-  background: none !important;
-  border: none !important;
-  padding: 0 !important;
-}
 
 /* Primary action buttons */
 .stButton > button {
@@ -69,7 +95,17 @@ def inject_common_css() -> None:
 def render_authenticated_sidebar() -> None:
     """Render the standard authenticated navigation sidebar."""
     with st.sidebar:
-        st.markdown(f"### {BRAND}")
+        st.markdown(
+            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 10px;">'
+            '<span style="width:28px;height:28px;'
+            'background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:7px;'
+            'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">'
+            + _SCALES_SVG_14
+            + '</span>'
+            '<span style="font-weight:800;font-size:0.95rem;color:#1E293B;">'
+            "Let's Evaluate</span></div>",
+            unsafe_allow_html=True,
+        )
         st.page_link("app.py", label="🏠 Home")
         st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
         st.page_link("pages/3_Projects.py", label="📁 Projects")
@@ -85,6 +121,4 @@ def render_authenticated_sidebar() -> None:
 
 def render_page_logo() -> None:
     """Render the brand logo link at the top of a page's main content area."""
-    st.markdown('<div class="brand-logo-wrap">', unsafe_allow_html=True)
-    st.page_link("app.py", label=BRAND)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(LOGO_HTML, unsafe_allow_html=True)
