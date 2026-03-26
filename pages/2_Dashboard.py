@@ -4,35 +4,26 @@ from utils.database import (
     get_questions_for_user, get_evaluations_for_user,
 )
 from utils.auth import require_auth, get_current_user, logout_user
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
 
-st.set_page_config(page_title="Dashboard – Let's Evaluate", page_icon="🎯", layout="wide")
+st.set_page_config(
+    page_title="Dashboard – Let's Evaluate",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 init_db()
 require_auth()
 
 user = get_current_user()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🎯 Let's Evaluate")
-    st.page_link("app.py", label="🏠 Home")
-    st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
-    st.page_link("pages/3_Projects.py", label="📁 Projects")
-    st.page_link("pages/4_Roles.py", label="👥 Roles")
-    st.page_link("pages/5_Questions.py", label="❓ Questions")
-    st.page_link("pages/6_Evaluate_Candidate.py", label="🤖 Evaluate Candidate")
-    st.page_link("pages/7_Archives.py", label="📂 Archives")
-    st.divider()
-    if st.button("🚪 Logout", use_container_width=True):
-        logout_user()
-        st.switch_page("app.py")
+render_authenticated_sidebar()
 
 # ── CSS ────────────────────────────────────────────────────────────────────
+inject_common_css()
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none !important; }
-[data-testid="StyledLinkIconContainer"] { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-.stHeadingActionButton { display: none !important; }
 .metric-card {
   background: #F8FAFC;
   border: 1.5px solid #E2E8F0;
@@ -86,7 +77,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Welcome ────────────────────────────────────────────────────────────────
+# ── Page logo + Welcome ────────────────────────────────────────────────────
+render_page_logo()
 st.markdown(f"## 👋 Welcome back, **{user['name']}**!")
 st.caption(f"Signed in as {user['email']}")
 st.divider()

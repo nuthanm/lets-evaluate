@@ -1,42 +1,25 @@
 import streamlit as st
 from utils.database import init_db
 from utils.auth import logout_user
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
 
-st.set_page_config(page_title="Privacy Policy – Let's Evaluate", page_icon="🔒", layout="wide")
+_is_auth = st.session_state.get("authenticated", False)
+st.set_page_config(
+    page_title="Privacy Policy – Let's Evaluate",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded" if _is_auth else "collapsed",
+)
 init_db()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
-if st.session_state.get("authenticated", False):
-    with st.sidebar:
-        st.markdown("### 🎯 Let's Evaluate")
-        st.page_link("app.py", label="🏠 Home")
-        st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
-        st.page_link("pages/3_Projects.py", label="📁 Projects")
-        st.page_link("pages/4_Roles.py", label="👥 Roles")
-        st.page_link("pages/5_Questions.py", label="❓ Questions")
-        st.page_link("pages/6_Evaluate_Candidate.py", label="🤖 Evaluate Candidate")
-        st.page_link("pages/7_Archives.py", label="📂 Archives")
-        st.divider()
-        if st.button("🚪 Logout", use_container_width=True):
-            logout_user()
-            st.switch_page("app.py")
-else:
-    with st.sidebar:
-        st.page_link("app.py", label="🏠 Home")
+if _is_auth:
+    render_authenticated_sidebar()
 
 # ── CSS ────────────────────────────────────────────────────────────────────
+inject_common_css()
 st.markdown("""
 <style>
-[data-testid="stSidebarNav"] { display: none !important; }
-[data-testid="StyledLinkIconContainer"] { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-.stHeadingActionButton { display: none !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-header[data-testid="stHeader"] { display: none !important; }
-#MainMenu { display: none !important; }
-footer { display: none !important; }
-.block-container { padding-top: 0.6rem !important; }
-
 .policy-section {
   background: #F8FAFC;
   border: 1.5px solid #E2E8F0;
@@ -67,7 +50,7 @@ footer { display: none !important; }
 """, unsafe_allow_html=True)
 
 # ── Logo header ─────────────────────────────────────────────────────────────
-st.page_link("app.py", label="⚖️ Let's Evaluate")
+render_page_logo()
 
 # ── Header ─────────────────────────────────────────────────────────────────
 st.markdown("# 🔒 Privacy Policy")
