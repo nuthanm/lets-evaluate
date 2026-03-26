@@ -552,12 +552,17 @@ elif st.session_state["eval_step"] == 4:
                 st.session_state["eval_refined_notes"] = refined
                 st.rerun()
     with btn_copy:
-        # JavaScript-based clipboard copy
-        safe_text = comments.replace("`", "\\`").replace("\\", "\\\\")
+        # Use base64 to safely transfer the text to JavaScript without injection risk
+        import base64 as _b64
+        encoded_text = _b64.b64encode(comments.encode("utf-8")).decode("ascii")
         st.components.v1.html(
-            f"""<button onclick="navigator.clipboard.writeText(`{safe_text}`).then(function(){{
-                this.innerText='✅ Copied!';setTimeout(()=>this.innerText='📋 Copy',2000);
-            }}.bind(this)).catch(()=>this.innerText='❌ Failed')"
+            f"""<button onclick="
+                var text=atob('{encoded_text}');
+                navigator.clipboard.writeText(text).then(function(){{
+                    this.innerText='✅ Copied!';
+                    setTimeout(function(){{document.getElementById('cpbtn').innerText='📋 Copy';}},2000);
+                }}.bind(this)).catch(function(){{this.innerText='❌ Failed';}}.bind(this));
+            " id="cpbtn"
             style="background:#4F46E5;color:white;border:none;padding:6px 16px;
                    border-radius:8px;cursor:pointer;font-weight:600;font-size:0.88rem;
                    margin-top:4px;">📋 Copy</button>""",

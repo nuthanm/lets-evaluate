@@ -5,7 +5,7 @@ import threading
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
-    Text, ForeignKey,
+    Text, ForeignKey, text as sa_text,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
@@ -171,10 +171,10 @@ def init_db():
         engine = _get_engine()
         with engine.connect() as conn:
             cols = [row[1] for row in conn.execute(
-                __import__("sqlalchemy").text("PRAGMA table_info(evaluations)")
+                sa_text("PRAGMA table_info(evaluations)")
             )]
             if "interviewer_name" not in cols:
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(sa_text(
                     "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
                 ))
                 conn.commit()

@@ -138,7 +138,7 @@ else:
         col.markdown(f'<div class="arch-hdr">{hdr}</div>', unsafe_allow_html=True)
 
     for ev in filtered:
-        c1, c2, c3, c4, c5, c7, c6, c8 = st.columns([2.5, 1.5, 1.5, 1.5, 2, 2, 0.8, 0.7])
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2.5, 1.5, 1.5, 1.5, 2, 2, 0.8, 0.7])
 
         with c1:
             st.markdown(f"**{ev['candidate_name']}**")
@@ -160,7 +160,7 @@ else:
                 f'<span class="status-badge {cls}">{icon} {ev["status"]}</span>',
                 unsafe_allow_html=True,
             )
-        with c7:
+        with c6:
             cur_status = ev["status"] if ev["status"] in STATUS_OPTIONS else "Pending"
             new_status = st.selectbox(
                 "Status",
@@ -173,7 +173,7 @@ else:
                 update_evaluation(ev["id"], status=new_status)
                 st.toast(f"Status updated to {new_status}", icon="✅")
                 st.rerun()
-        with c6:
+        with c7:
             if st.button("📥", key=f"pdf_{ev['id']}", help="Download PDF"):
                 with st.spinner("Generating PDF…"):
                     pdf_bytes = generate_evaluation_pdf(ev)
