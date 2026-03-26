@@ -99,11 +99,18 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
   background: transparent !important;
 }
 
-/* Remove Streamlit chrome */
+/* Remove Streamlit chrome — header, menu, footer, toolbar */
 header[data-testid="stHeader"]            { display: none !important; }
 #MainMenu                                  { display: none !important; }
 footer                                     { display: none !important; }
+[data-testid="stToolbar"]                 { display: none !important; }
+[data-testid="stToolbarActions"]          { display: none !important; }
+[data-testid="stStatusWidget"]            { display: none !important; }
 .block-container { padding-top: 0.6rem !important; padding-bottom: 0 !important; }
+
+/* Hide sidebar toggle buttons (> and <<) */
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+[data-testid="stSidebarCollapseButton"]   { display: none !important; }
 
 /* Hide auto sidebar nav, anchor buttons, top decoration */
 [data-testid="stSidebarNav"]              { display: none !important; }

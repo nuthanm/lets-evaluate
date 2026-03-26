@@ -16,6 +16,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 init_db()
+
+# ── CSS injected early so chrome is hidden even on auth redirect ───────────
+inject_common_css()
 require_auth()
 
 user = get_current_user()
@@ -24,8 +27,6 @@ uid = user["id"]
 # ── Sidebar ────────────────────────────────────────────────────────────────
 render_authenticated_sidebar()
 
-# ── CSS ────────────────────────────────────────────────────────────────────
-inject_common_css()
 st.markdown("""
 <style>
 .status-badge {

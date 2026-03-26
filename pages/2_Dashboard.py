@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_user,
     get_questions_for_user, get_evaluations_for_user,
@@ -13,60 +14,58 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 init_db()
+
+# ── CSS injected early so chrome is hidden even on auth redirect ───────────
+inject_common_css()
 require_auth()
 
 user = get_current_user()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
 render_authenticated_sidebar()
-
-# ── CSS ────────────────────────────────────────────────────────────────────
-inject_common_css()
 st.markdown("""
 <style>
+.dash-welcome {
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+  border-radius: 18px;
+  padding: 28px 32px;
+  color: white;
+  margin-bottom: 20px;
+}
+.dash-welcome h2 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 800; }
+.dash-welcome p  { margin: 0; opacity: .85; font-size: 0.9rem; }
 .metric-card {
-  background: #F8FAFC;
+  background: white;
   border: 1.5px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 22px 20px;
+  border-radius: 16px;
+  padding: 24px 20px;
   text-align: center;
   transition: all .25s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 .metric-card:hover {
   border-color: #4F46E5;
-  box-shadow: 0 6px 18px rgba(79,70,229,0.12);
+  box-shadow: 0 8px 24px rgba(79,70,229,0.14);
   transform: translateY(-3px);
 }
-.metric-icon { font-size: 2rem; margin-bottom: 8px; }
+.metric-icon { font-size: 2.2rem; margin-bottom: 8px; }
 .metric-value {
-  font-size: 2.4rem;
+  font-size: 2.6rem;
   font-weight: 800;
-  color: #4F46E5;
+  background: linear-gradient(135deg, #4F46E5, #7C3AED);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   line-height: 1;
 }
 .metric-label {
   font-size: 0.85rem;
   color: #64748B;
-  margin-top: 4px;
-  font-weight: 500;
+  margin-top: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.nav-card {
-  background: linear-gradient(135deg, #4F46E5, #7C3AED);
-  border-radius: 16px;
-  padding: 28px 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all .3s ease;
-  color: white;
-  height: 100%;
-}
-.nav-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 30px rgba(79,70,229,0.35);
-}
-.nav-card-icon { font-size: 2.4rem; margin-bottom: 10px; }
-.nav-card-title { font-size: 1rem; font-weight: 700; }
-.nav-card-desc { font-size: 0.82rem; opacity: 0.85; margin-top: 4px; }
 .stButton > button {
   background: linear-gradient(135deg, #4F46E5, #7C3AED) !important;
   color: white !important;
@@ -74,14 +73,35 @@ st.markdown("""
   border-radius: 10px !important;
   font-weight: 600 !important;
 }
+.recent-table th {
+  background: #F1F5F9;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.recent-table td {
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: #1E293B;
+  border-bottom: 1px solid #F1F5F9;
+}
+.recent-table tr:last-child td { border-bottom: none; }
+.recent-table { width: 100%; border-collapse: collapse; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Page logo + Welcome ────────────────────────────────────────────────────
+# ── Page logo + Welcome banner ─────────────────────────────────────────────
 render_page_logo()
-st.markdown(f"## 👋 Welcome back, **{user['name']}**!")
-st.caption(f"Signed in as {user['email']}")
-st.divider()
+st.markdown(
+    f'<div class="dash-welcome">'
+    f'<h2>👋 Welcome back, {user["name"]}!</h2>'
+    f'<p>Signed in as {user["email"]}</p>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
 # ── Stats ──────────────────────────────────────────────────────────────────
 uid = user["id"]
@@ -109,7 +129,7 @@ for col, icon, val, label in stats:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Quick navigation cards ──────────────────────────────────────────────────
-st.markdown("### Quick Access")
+st.markdown("### 🚀 Quick Access")
 nav_cols = st.columns(5)
 nav_items = [
     ("📁", "Projects", "Manage your projects", "pages/3_Projects.py"),
@@ -129,15 +149,16 @@ if evaluations:
     st.divider()
     st.markdown("### 🕐 Recent Evaluations")
     recent = evaluations[:5]
-    cols_h = st.columns([3, 2, 2, 2, 1])
-    headers = ["Candidate", "Project", "Role", "Date", "Status"]
-    for col, h in zip(cols_h, headers):
-        col.markdown(f"**{h}**")
-    for ev in recent:
-        c1, c2, c3, c4, c5 = st.columns([3, 2, 2, 2, 1])
-        c1.write(ev["candidate_name"])
-        c2.write(ev.get("project_name") or "—")
-        c3.write(ev.get("role_name") or "—")
-        c4.write(ev["created_at"].strftime("%d %b %Y") if ev.get("created_at") else "—")
-        status_colors = {"Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Pending": "⚪"}
-        c5.write(f"{status_colors.get(ev['status'], '⚪')} {ev['status']}")
+    status_icons = {"Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Pending": "⚪"}
+    rows = [
+        {
+            "Candidate": ev["candidate_name"],
+            "Project": ev.get("project_name") or "—",
+            "Role": ev.get("role_name") or "—",
+            "Date": ev["created_at"].strftime("%d %b %Y") if ev.get("created_at") else "—",
+            "Status": f"{status_icons.get(ev['status'], '⚪')} {ev['status']}",
+        }
+        for ev in recent
+    ]
+    df_recent = pd.DataFrame(rows)
+    st.dataframe(df_recent, use_container_width=True, hide_index=True)
