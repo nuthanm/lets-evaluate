@@ -1,5 +1,6 @@
 import io
 import streamlit as st
+import pandas as pd
 import pdfplumber
 
 from utils.database import (
@@ -26,6 +27,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 init_db()
+
+# ── CSS injected early so chrome is hidden even on auth redirect ───────────
+inject_common_css()
 require_auth()
 
 user = get_current_user()
@@ -34,8 +38,6 @@ uid = user["id"]
 # ── Sidebar ────────────────────────────────────────────────────────────────
 render_authenticated_sidebar()
 
-# ── CSS ────────────────────────────────────────────────────────────────────
-inject_common_css()
 st.markdown("""
 <style>
 .step-header {
@@ -236,46 +238,139 @@ elif st.session_state["eval_step"] == 2:
 
     metrics = st.session_state["eval_metrics"]
 
-    # Metrics cards
-    c1, c2, c3, c4 = st.columns(4)
+    # ── Summary metric cards ────────────────────────────────────────────────
     score = metrics.get("tech_match_score", 0)
     exp = metrics.get("experience_level", "—")
     rec = metrics.get("recommendation", "—")
     rec_cls = {"Proceed": "rec-proceed", "Hold": "rec-hold", "Reject": "rec-reject"}.get(rec, "")
+    matched_count = len(metrics.get("matched_technologies", []))
+    missing_count = len(metrics.get("missing_technologies", []))
+    emp_status = "✅ Currently Employed" if metrics.get("is_currently_employed") else "🔴 Not Currently Employed"
+    current_employer = metrics.get("current_employer", "")
 
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Match</div><div class="metric-value">{score}/100</div></div>', unsafe_allow_html=True)
         st.progress(score / 100)
     with c2:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Experience</div><div class="metric-value">{exp}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Level</div><div class="metric-value">{exp}</div></div>', unsafe_allow_html=True)
     with c3:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Recommendation</div><div class="metric-value {rec_cls}">{rec}</div></div>', unsafe_allow_html=True)
     with c4:
-        matched = len(metrics.get("matched_technologies", []))
-        missing = len(metrics.get("missing_technologies", []))
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Coverage</div><div class="metric-value">✅{matched} / ❌{missing}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Coverage</div><div class="metric-value">✅ {matched_count} / ❌ {missing_count}</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── 1. Tech Stack Comparison Table ─────────────────────────────────────
+    st.markdown("### 🔬 Tech Stack Comparison")
+    tech_comparison = metrics.get("tech_comparison", [])
+    if tech_comparison:
+        tc_rows = []
+        for item in tech_comparison:
+            tech = item.get("technology", "")
+            status = item.get("status", "Unknown")
+            status_display = "✅ Matched" if status == "Matched" else "❌ Unmatched"
+            tc_rows.append({"Technology": tech, "Required": "✅", "Status": status_display})
+        df_tc = pd.DataFrame(tc_rows)
+        st.dataframe(
+            df_tc,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Technology": st.column_config.TextColumn("Technology", width="medium"),
+                "Required": st.column_config.TextColumn("Required", width="small"),
+                "Status": st.column_config.TextColumn("Status", width="medium"),
+            },
+        )
+    else:
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("**✅ Matched Technologies**")
+            chips = " ".join(f'<span class="tech-chip chip-match">{t}</span>' for t in metrics.get("matched_technologies", []))
+            st.markdown(chips or "_None_", unsafe_allow_html=True)
+        with col_r:
+            st.markdown("**❌ Missing Technologies**")
+            chips = " ".join(f'<span class="tech-chip chip-missing">{t}</span>' for t in metrics.get("missing_technologies", []))
+            st.markdown(chips or "_None_", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 2. Experience Details ───────────────────────────────────────────────
+    st.markdown("### 📅 Experience Details")
+    exp_col1, exp_col2, exp_col3 = st.columns(3)
+    with exp_col1:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Mentioned</div><div class="metric-value" style="font-size:1rem;">{metrics.get("total_experience_mentioned", "Unknown")}</div></div>', unsafe_allow_html=True)
+    with exp_col2:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Calculated Experience</div><div class="metric-value" style="font-size:1rem;">{metrics.get("total_experience_calculated", "Unknown")}</div></div>', unsafe_allow_html=True)
+    with exp_col3:
+        emp_color = "#16A34A" if metrics.get("is_currently_employed") else "#DC2626"
+        emp_label = f'<span style="color:{emp_color};font-size:0.95rem;font-weight:700;">{emp_status}</span>'
+        employer_line = f'<div style="font-size:0.82rem;color:#64748B;margin-top:4px;">{current_employer}</div>' if current_employer else ""
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Employment Status</div>{emp_label}{employer_line}</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 3. Strengths & Concerns ─────────────────────────────────────────────
     col_l, col_r = st.columns(2)
     with col_l:
-        st.markdown("**✅ Matched Technologies**")
-        chips = " ".join(f'<span class="tech-chip chip-match">{t}</span>' for t in metrics.get("matched_technologies", []))
-        st.markdown(chips or "_None_", unsafe_allow_html=True)
-
         st.markdown("**💪 Strengths**")
         for s in metrics.get("strengths", []):
             st.markdown(f"• {s}")
-
     with col_r:
-        st.markdown("**❌ Missing Technologies**")
-        chips = " ".join(f'<span class="tech-chip chip-missing">{t}</span>' for t in metrics.get("missing_technologies", []))
-        st.markdown(chips or "_None_", unsafe_allow_html=True)
-
         st.markdown("**⚠️ Concerns**")
         for c in metrics.get("concerns", []):
             st.markdown(f"• {c}")
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 4. Certifications ──────────────────────────────────────────────────
+    certifications = metrics.get("certifications", [])
+    if certifications:
+        st.markdown("### 🏆 Certifications")
+        cert_html = "".join(
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:#FEF9C3;border:1px solid #FDE68A;color:#92400E;'
+            f'border-radius:8px;padding:6px 14px;margin:4px 6px 4px 0;'
+            f'font-size:0.85rem;font-weight:600;">🏅 {cert}</div>'
+            for cert in certifications
+        )
+        st.markdown(cert_html, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 5. Career Timeline (newest at top → oldest at bottom) ─────────────
+    career_history = metrics.get("career_history", [])
+    if career_history:
+        st.markdown("### 🗓️ Career Timeline")
+        # Display from newest (top) to oldest (bottom)
+        for i, role_item in enumerate(reversed(career_history)):
+            title = role_item.get("title", "Unknown Role")
+            company = role_item.get("company", "")
+            start = role_item.get("start", "")
+            end = role_item.get("end", "")
+            duration = role_item.get("duration", "")
+            is_current = role_item.get("is_current", False)
+
+            dot_color = "#4F46E5" if is_current else "#94A3B8"
+            badge = '<span style="background:#DCFCE7;color:#16A34A;border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:700;margin-left:8px;">Current</span>' if is_current else ""
+            period = f"{start} – {end}" if start else end
+            dur_text = f" · {duration}" if duration else ""
+            connector = "" if i == len(career_history) - 1 else (
+                '<div style="width:2px;height:24px;background:#E2E8F0;margin-left:9px;"></div>'
+            )
+            st.markdown(
+                f'<div style="display:flex;align-items:flex-start;gap:12px;">'
+                f'<div style="width:20px;height:20px;border-radius:50%;background:{dot_color};'
+                f'flex-shrink:0;margin-top:3px;box-shadow:0 0 0 3px rgba(79,70,229,0.15);"></div>'
+                f'<div style="padding-bottom:4px;">'
+                f'<div style="font-weight:700;color:#1E293B;font-size:0.95rem;">{title}{badge}</div>'
+                f'<div style="color:#64748B;font-size:0.85rem;">{company}</div>'
+                f'<div style="color:#94A3B8;font-size:0.8rem;">{period}{dur_text}</div>'
+                f'</div></div>{connector}',
+                unsafe_allow_html=True,
+            )
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Summary ─────────────────────────────────────────────────────────────
     st.info(f"📝 **Summary:** {metrics.get('summary', '')}")
 
     st.markdown("<br>", unsafe_allow_html=True)

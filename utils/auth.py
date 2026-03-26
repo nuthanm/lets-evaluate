@@ -27,8 +27,7 @@ def logout_user():
 
 def require_auth():
     if not st.session_state.get("authenticated", False):
-        st.warning("⚠️ Please log in to access this page.")
-        st.stop()
+        st.switch_page("pages/1_Auth.py")
 
 
 def get_current_user() -> dict:

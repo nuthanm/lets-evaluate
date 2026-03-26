@@ -44,10 +44,17 @@ def analyze_resume(
             "experience_level": "Unknown",
             "matched_technologies": [],
             "missing_technologies": project_tech_stack,
+            "tech_comparison": [{"technology": t, "status": "Unmatched"} for t in project_tech_stack],
             "strengths": [],
             "concerns": ["OpenAI API key not configured"],
             "recommendation": "Hold",
             "summary": "OpenAI API key is not configured. Please set OPENAI_API_KEY in your .env file.",
+            "certifications": [],
+            "career_history": [],
+            "total_experience_mentioned": "Unknown",
+            "total_experience_calculated": "Unknown",
+            "is_currently_employed": False,
+            "current_employer": "",
         }
 
     try:
@@ -68,14 +75,46 @@ Return ONLY a valid JSON object (no markdown) with exactly these keys:
   "experience_level": "<Junior|Mid-level|Senior|Lead>",
   "matched_technologies": ["<tech>", ...],
   "missing_technologies": ["<tech>", ...],
+  "tech_comparison": [{{"technology": "<tech>", "status": "<Matched|Unmatched>"}}],
   "strengths": ["<strength>", ...],
   "concerns": ["<concern>", ...],
   "recommendation": "<Proceed|Hold|Reject>",
-  "summary": "<2-3 sentence summary>"
-}}"""
+  "summary": "<2-3 sentence summary>",
+  "certifications": ["<certification name>", ...],
+  "career_history": [
+    {{
+      "title": "<job title>",
+      "company": "<company name>",
+      "start": "<start date, e.g. Jan 2020>",
+      "end": "<end date or Present>",
+      "is_current": <true|false>,
+      "duration": "<e.g. 2 years 3 months>"
+    }}
+  ],
+  "total_experience_mentioned": "<years/months the candidate stated, or Unknown>",
+  "total_experience_calculated": "<total calculated from career history, e.g. 5 years 2 months>",
+  "is_currently_employed": <true|false>,
+  "current_employer": "<current employer name or empty string>"
+}}
+
+Notes:
+- tech_comparison must include ALL technologies from the Required Tech Stack with their match status.
+- career_history must be sorted chronologically from OLDEST to NEWEST entry.
+- certifications should be an empty list if none found in the resume."""
 
         response = llm.invoke(prompt)
         result = _parse_json_response(response.content)
+        # Ensure required keys exist with safe defaults
+        result.setdefault("tech_comparison", [
+            {"technology": t, "status": "Matched" if t in result.get("matched_technologies", []) else "Unmatched"}
+            for t in project_tech_stack
+        ])
+        result.setdefault("certifications", [])
+        result.setdefault("career_history", [])
+        result.setdefault("total_experience_mentioned", "Unknown")
+        result.setdefault("total_experience_calculated", "Unknown")
+        result.setdefault("is_currently_employed", False)
+        result.setdefault("current_employer", "")
         return result
     except Exception as exc:
         return {
@@ -83,10 +122,17 @@ Return ONLY a valid JSON object (no markdown) with exactly these keys:
             "experience_level": "Unknown",
             "matched_technologies": [],
             "missing_technologies": [],
+            "tech_comparison": [{"technology": t, "status": "Unmatched"} for t in project_tech_stack],
             "strengths": [],
             "concerns": [f"AI analysis failed: {exc}"],
             "recommendation": "Hold",
             "summary": f"Analysis could not be completed: {exc}",
+            "certifications": [],
+            "career_history": [],
+            "total_experience_mentioned": "Unknown",
+            "total_experience_calculated": "Unknown",
+            "is_currently_employed": False,
+            "current_employer": "",
         }
 
 
