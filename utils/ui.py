@@ -60,6 +60,7 @@ footer                                     { display: none !important; }
 [data-testid="stSidebarNav"]              { display: none !important; }
 [data-testid="StyledLinkIconContainer"]   { display: none !important; }
 [data-testid="stDecoration"]              { display: none !important; }
+[data-testid="stHeadingWithActionElements"] button { display: none !important; }
 .stHeadingActionButton                    { display: none !important; }
 
 /* Always hide the sidebar collapse/expand toggle (stops the > blinking) */

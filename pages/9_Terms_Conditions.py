@@ -21,11 +21,8 @@ inject_common_css()
 st.markdown("""
 <style>
 .policy-section {
-  background: #F8FAFC;
-  border: 1.5px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 24px 28px;
   margin-bottom: 20px;
+  padding: 0 0 8px 0;
 }
 .policy-section h3 {
   color: #4F46E5;
@@ -38,6 +35,7 @@ st.markdown("""
   font-size: 0.92rem;
   line-height: 1.7;
   margin: 0;
+  text-align: justify;
 }
 .policy-section ul { padding-left: 20px; }
 .policy-section li { margin-bottom: 4px; }
