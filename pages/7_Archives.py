@@ -7,11 +7,11 @@ from utils.database import (
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.pdf_utils import generate_evaluation_pdf
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
 
 st.set_page_config(
     page_title="Archives – Let's Evaluate",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     initial_sidebar_state="expanded",
 )

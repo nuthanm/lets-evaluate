@@ -4,11 +4,11 @@ from utils.database import (
     get_questions_for_user, get_evaluations_for_user,
 )
 from utils.auth import require_auth, get_current_user, logout_user
-from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo
+from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
 
 st.set_page_config(
     page_title="Dashboard – Let's Evaluate",
-    page_icon="⚖️",
+    page_icon=create_logo_favicon(),
     layout="wide",
     initial_sidebar_state="expanded",
 )
