@@ -80,15 +80,24 @@ st.markdown("""
   margin-top: -8px;
   margin-bottom: 8px;
 }
-.forgot-pw-link a {
-  color: #4F46E5;
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-decoration: none;
+.forgot-pw-link button {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #4F46E5 !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  float: right;
 }
-.forgot-pw-link a:hover {
-  text-decoration: underline;
-  color: #3730A3;
+.forgot-pw-link button:hover {
+  text-decoration: underline !important;
+  color: #3730A3 !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* ── CTA button ── */
@@ -213,12 +222,12 @@ else:
         login_email = st.text_input("Email", key="login_email")
         login_pass = st.text_input("Password", type="password", key="login_pass")
 
-        st.markdown(
-            '<div class="forgot-pw-link">'
-            '<a href="?view=forgot" aria-label="Forgot password? Reset your account password">'
-            'Forgot password?</a></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="forgot-pw-link">', unsafe_allow_html=True)
+        if st.button("Forgot password?", key="btn_forgot_pw"):
+            st.session_state["auth_view"] = _VIEW_FORGOT
+            st.session_state["reset_step"] = 1
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login"):
             missing = []
