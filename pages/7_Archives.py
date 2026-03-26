@@ -36,18 +36,49 @@ st.markdown("""
   font-size: 0.78rem;
   font-weight: 700;
 }
-.s-pending  { background: #F1F5F9; color: #475569; }
-.s-selected { background: #DCFCE7; color: #16A34A; }
-.s-rejected { background: #FEE2E2; color: #DC2626; }
-.s-hold     { background: #FEF9C3; color: #CA8A04; }
+.s-pending      { background: #F1F5F9; color: #475569; }
+.s-shortlisted  { background: #EEF2FF; color: #4F46E5; }
+.s-selected     { background: #DCFCE7; color: #16A34A; }
+.s-rejected     { background: #FEE2E2; color: #DC2626; }
+.s-hold         { background: #FEF9C3; color: #CA8A04; }
 .stButton > button { border-radius: 8px !important; font-weight: 500 !important; }
+/* Archive table header */
+.arch-hdr {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #E2E8F0;
+}
+/* Remove box from icon-only delete button */
+[data-testid="stHorizontalBlock"] .stButton > button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #64748B !important;
+  font-size: 1.1rem !important;
+  padding: 4px 6px !important;
+}
+[data-testid="stHorizontalBlock"] .stButton > button:hover {
+  color: #DC2626 !important;
+  background: #FEE2E2 !important;
+  border-radius: 6px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 render_page_logo()
-STATUS_OPTIONS = ["Pending", "Selected", "Rejected", "Hold"]
-STATUS_CLS = {"Pending": "s-pending", "Selected": "s-selected", "Rejected": "s-rejected", "Hold": "s-hold"}
-STATUS_ICON = {"Pending": "⚪", "Selected": "🟢", "Rejected": "🔴", "Hold": "🟡"}
+STATUS_OPTIONS = ["Pending", "Shortlisted", "Selected", "Rejected", "Hold"]
+STATUS_CLS = {
+    "Pending": "s-pending",
+    "Shortlisted": "s-shortlisted",
+    "Selected": "s-selected",
+    "Rejected": "s-rejected",
+    "Hold": "s-hold",
+}
+STATUS_ICON = {"Pending": "⚪", "Shortlisted": "🔵", "Selected": "🟢", "Rejected": "🔴", "Hold": "🟡"}
 
 st.markdown("## 📂 Evaluation Archives")
 
@@ -101,17 +132,20 @@ if not filtered:
     st.info("No evaluations match your filters.")
 else:
     # ── TABLE HEADER ────────────────────────────────────────────────────────
-    hc = st.columns([3, 2, 2, 2, 2, 1, 1, 1])
-    for col, hdr in zip(hc, ["Candidate", "Project", "Role", "Date", "Status", "PDF", "Status↑", "Delete"]):
-        col.markdown(f"**{hdr}**")
+    hc = st.columns([2.5, 1.5, 1.5, 1.5, 2, 2, 0.8, 0.7])
+    headers = ["Candidate", "Project", "Role", "Date", "Status", "Technical Status", "PDF", "Del"]
+    for col, hdr in zip(hc, headers):
+        col.markdown(f'<div class="arch-hdr">{hdr}</div>', unsafe_allow_html=True)
 
     for ev in filtered:
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([3, 2, 2, 2, 2, 1, 1, 1])
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2.5, 1.5, 1.5, 1.5, 2, 2, 0.8, 0.7])
 
         with c1:
-            st.write(ev["candidate_name"])
+            st.markdown(f"**{ev['candidate_name']}**")
             if ev.get("candidate_email"):
                 st.caption(ev["candidate_email"])
+            if ev.get("interviewer_name"):
+                st.caption(f"👤 {ev['interviewer_name']}")
         with c2:
             st.write(ev.get("project_name") or "—")
         with c3:
@@ -127,6 +161,19 @@ else:
                 unsafe_allow_html=True,
             )
         with c6:
+            cur_status = ev["status"] if ev["status"] in STATUS_OPTIONS else "Pending"
+            new_status = st.selectbox(
+                "Status",
+                STATUS_OPTIONS,
+                index=STATUS_OPTIONS.index(cur_status),
+                key=f"status_{ev['id']}",
+                label_visibility="collapsed",
+            )
+            if new_status != ev["status"]:
+                update_evaluation(ev["id"], status=new_status)
+                st.toast(f"Status updated to {new_status}", icon="✅")
+                st.rerun()
+        with c7:
             if st.button("📥", key=f"pdf_{ev['id']}", help="Download PDF"):
                 with st.spinner("Generating PDF…"):
                     pdf_bytes = generate_evaluation_pdf(ev)
@@ -142,18 +189,6 @@ else:
                     mime="application/pdf",
                     key=f"dl_{ev['id']}",
                 )
-        with c7:
-            new_status = st.selectbox(
-                "Status",
-                STATUS_OPTIONS,
-                index=STATUS_OPTIONS.index(ev["status"]) if ev["status"] in STATUS_OPTIONS else 0,
-                key=f"status_{ev['id']}",
-                label_visibility="collapsed",
-            )
-            if new_status != ev["status"]:
-                update_evaluation(ev["id"], status=new_status)
-                st.toast(f"Status updated to {new_status}", icon="✅")
-                st.rerun()
         with c8:
             if st.button("🗑️", key=f"del_{ev['id']}", help="Delete evaluation"):
                 st.session_state[f"confirm_del_ev_{ev['id']}"] = True

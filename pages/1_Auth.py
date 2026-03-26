@@ -223,14 +223,16 @@ else:
         login_email = st.text_input("Email", key="login_email")
         login_pass = st.text_input("Password", type="password", key="login_pass")
 
-        st.markdown('<div class="forgot-pw-link">', unsafe_allow_html=True)
-        if st.button("Forgot password?", key="btn_forgot_pw"):
-            st.session_state["auth_view"] = _VIEW_FORGOT
-            st.session_state["reset_step"] = 1
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        col_signin, col_forgot = st.columns([3, 2])
+        with col_signin:
+            do_login = st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login")
+        with col_forgot:
+            if st.button("Forgot password?", key="btn_forgot_pw", use_container_width=True):
+                st.session_state["auth_view"] = _VIEW_FORGOT
+                st.session_state["reset_step"] = 1
+                st.rerun()
 
-        if st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login"):
+        if do_login:
             missing = []
             if not login_email:
                 missing.append("Email")

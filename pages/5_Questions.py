@@ -43,6 +43,17 @@ st.markdown("""
   box-shadow: 0 2px 8px rgba(79,70,229,0.18) !important;
   transform: none !important;
 }
+/* Icon-only action buttons (edit/delete) */
+button[data-testid^="baseButton-"][title="Edit question"],
+button[data-testid^="baseButton-"][title="Delete question"],
+div[data-testid="column"] button[kind="secondary"][data-icon-only="true"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 2px 6px !important;
+  font-size: 1.05rem !important;
+  min-height: unset !important;
+}
 .tbl-col-hdr {
   font-size: 0.72rem;
   font-weight: 700;
@@ -72,6 +83,22 @@ st.markdown("""
   padding-bottom: 10px;
   margin-bottom: 4px;
   border-bottom: 2px solid #EEF2FF;
+}
+/* Remove box from icon-only buttons in question rows */
+[data-testid="stHorizontalBlock"] .stButton > button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #64748B !important;
+  padding: 4px 6px !important;
+  font-size: 1.1rem !important;
+  min-height: unset !important;
+  transition: color .15s !important;
+}
+[data-testid="stHorizontalBlock"] .stButton > button:hover {
+  color: #4F46E5 !important;
+  background: #EEF2FF !important;
+  border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
