@@ -134,6 +134,18 @@ def _postprocess_metrics(result: dict, project_tech_stack: list) -> dict:
                 break
     result["current_employer"] = employer
 
+    # ── Auto-detect current employment from career_history ───────────────────
+    # Override is_currently_employed if any role has end="present" or is_current=True
+    if not result.get("is_currently_employed"):
+        for item in cleaned_history:
+            end_raw = (item.get("end", "") or "").strip().lower()
+            if end_raw == "present" or item.get("is_current"):
+                result["is_currently_employed"] = True
+                if not employer and item.get("company"):
+                    employer = item["company"]
+                    result["current_employer"] = employer
+                break
+
     # ── Normalise total_experience_calculated ────────────────────────────────
     calc_exp = result.get("total_experience_calculated", "") or ""
     if _is_unknown(calc_exp) and cleaned_history:
@@ -195,7 +207,7 @@ Return ONLY a valid JSON object (no markdown) with exactly these keys:
   "strengths": ["<strength>", ...],
   "concerns": ["<concern>", ...],
   "recommendation": "<Proceed|Hold|Reject>",
-  "summary": "<2-3 sentence summary>",
+  "summary": "<2-3 sentence summary strictly based on the tech stack comparison above: mention which required technologies are matched (strengths) and which are missing (gaps), plus the experience level. Do NOT invent skills not mentioned in the resume or required tech stack.>",
   "certifications": ["<certification name>", ...],
   "career_history": [
     {{
