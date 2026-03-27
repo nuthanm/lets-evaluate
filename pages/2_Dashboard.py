@@ -3,6 +3,7 @@ import pandas as pd
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_user,
     get_questions_for_user, get_evaluations_for_user,
+    get_drafts_for_user, delete_draft, create_evaluation,
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
@@ -109,6 +110,7 @@ projects = get_projects_for_user(uid)
 roles = get_roles_for_user(uid)
 questions = get_questions_for_user(uid)
 evaluations = get_evaluations_for_user(uid)
+drafts = get_drafts_for_user(uid)
 
 c1, c2, c3, c4 = st.columns(4)
 stats = [
@@ -144,12 +146,96 @@ for col, (icon, title, desc, page) in zip(nav_cols, nav_items):
             st.switch_page(page)
         st.caption(desc)
 
+# ── Resume The Process ─────────────────────────────────────────────────────
+if drafts:
+    st.divider()
+    st.markdown("### ▶️ Resume The Process")
+    st.caption("Saved evaluation drafts — pick up where you left off.")
+
+    STEP_LABELS = {"1": "Setup", "2": "AI Analysis", "3": "Questions", "4": "Submit"}
+
+    for draft in drafts:
+        with st.container():
+            dc1, dc2, dc3, dc4, dc5 = st.columns([2.5, 1.5, 1.5, 1.5, 1])
+            with dc1:
+                st.markdown(f"**{draft['candidate_name'] or 'Unnamed'}**")
+                updated = draft.get("updated_at")
+                if updated:
+                    st.caption(f"Last saved: {updated.strftime('%d %b %Y, %H:%M')}")
+            with dc2:
+                st.write(draft.get("project_name") or "—")
+            with dc3:
+                st.write(draft.get("role_name") or "—")
+            with dc4:
+                step_label = STEP_LABELS.get(str(draft["step"]), draft["step"])
+                st.markdown(
+                    f'<span style="background:#EEF2FF;color:#4F46E5;border-radius:20px;padding:3px 10px;font-size:0.8rem;font-weight:700;">Step {draft["step"]}: {step_label}</span>',
+                    unsafe_allow_html=True,
+                )
+            with dc5:
+                rb1, rb2 = st.columns(2)
+                with rb1:
+                    if st.button("▶", key=f"resume_{draft['id']}", help="Resume from left over", use_container_width=True):
+                        st.query_params["draft_id"] = draft["id"]
+                        st.switch_page("pages/6_Evaluate_Candidate.py")
+                with rb2:
+                    if st.button("🗑", key=f"del_draft_{draft['id']}", help="Delete this draft", use_container_width=True):
+                        st.session_state[f"del_draft_confirm_{draft['id']}"] = True
+                        st.rerun()
+
+        # Delete confirmation with mandatory comment
+        if st.session_state.get(f"del_draft_confirm_{draft['id']}", False):
+            with st.form(key=f"del_draft_form_{draft['id']}"):
+                st.warning(f"⚠️ Delete draft for **{draft['candidate_name'] or 'Unnamed'}**?")
+                del_comment = st.text_area(
+                    "Reason for deletion (required) *",
+                    placeholder="Enter a reason for deleting this draft…",
+                    key=f"del_draft_comment_{draft['id']}",
+                )
+                cf1, cf2 = st.columns(2)
+                with cf1:
+                    submitted = st.form_submit_button("✅ Confirm Delete", type="primary", use_container_width=True)
+                with cf2:
+                    cancelled = st.form_submit_button("✖️ Cancel", use_container_width=True)
+
+                if submitted:
+                    if not del_comment.strip():
+                        st.error("A deletion reason is required.")
+                    else:
+                        # Archive the draft as a cancelled evaluation
+                        eval_data = draft.get("eval_data", {})
+                        create_evaluation(
+                            user_id=uid,
+                            candidate_name=draft["candidate_name"] or "Unnamed",
+                            candidate_email=eval_data.get("eval_candidate_email", ""),
+                            resume_filename=eval_data.get("eval_resume_filename", ""),
+                            project_id=draft.get("project_id"),
+                            role_id=draft.get("role_id"),
+                            initial_metrics=eval_data.get("eval_metrics", {}),
+                            standard_questions=eval_data.get("eval_std_questions", []),
+                            resume_questions=eval_data.get("eval_resume_questions", []),
+                            role_questions=eval_data.get("eval_role_questions", []),
+                            q_satisfaction=eval_data.get("eval_q_satisfaction", {}),
+                            comments=f"[Draft Deleted] {del_comment}",
+                            status="Cancelled",
+                            interviewer_name=eval_data.get("eval_interviewer_name", ""),
+                        )
+                        delete_draft(draft["id"])
+                        st.session_state.pop(f"del_draft_confirm_{draft['id']}", None)
+                        st.toast("Draft deleted and archived.", icon="🗑️")
+                        st.rerun()
+                if cancelled:
+                    st.session_state.pop(f"del_draft_confirm_{draft['id']}", None)
+                    st.rerun()
+
+        st.divider()
+
 # ── Recent evaluations ─────────────────────────────────────────────────────
 if evaluations:
     st.divider()
     st.markdown("### 🕐 Recent Evaluations")
     recent = evaluations[:5]
-    status_icons = {"Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Pending": "⚪"}
+    status_icons = {"Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Pending": "⚪", "Shortlisted": "🔵", "Cancelled": "⛔"}
     rows = [
         {
             "Candidate": ev["candidate_name"],

@@ -337,7 +337,7 @@ def refine_evaluation_notes(notes: str) -> str:
 
     try:
         llm = _get_llm()
-        prompt = f"""You are an expert HR professional. Refine and improve the following candidate evaluation notes to be clear, professional, and well-structured. Keep the core content and sentiment but improve formatting, grammar, and clarity. Use bullet points where appropriate. Return only the refined text without any additional explanation or preamble.
+        prompt = f"""Act as an interviewer evaluator for giving feedback. Refine and improve the following candidate evaluation notes to be clear, professional, and well-structured. Keep the core content and sentiment but improve formatting, grammar, and clarity. Use bullet points where appropriate. Return only the refined text without any additional explanation or preamble.
 
 Evaluation notes:
 {notes[:_MAX_NOTES_CHARS]}"""
