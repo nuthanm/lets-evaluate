@@ -1,7 +1,6 @@
 import io
 import streamlit as st
 import pandas as pd
-import pdfplumber
 
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_project, get_questions_for_role,
@@ -112,6 +111,7 @@ def _reset_eval():
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
     try:
+        import pdfplumber
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             return "\n".join(page.extract_text() or "" for page in pdf.pages)
     except Exception:
