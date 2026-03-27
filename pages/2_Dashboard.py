@@ -129,6 +129,7 @@ for col, icon, val, label in stats:
         </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
+st.info("📂 **All your completed interview evaluations can be found in the Archives section.** Use the Archives page to review past evaluations, download reports, and track candidate decisions.")
 
 # ── Quick navigation cards ──────────────────────────────────────────────────
 st.markdown("### 🚀 Quick Access")

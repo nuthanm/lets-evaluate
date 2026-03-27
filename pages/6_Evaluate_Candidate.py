@@ -1,4 +1,6 @@
 import io
+import time
+import base64 as _b64
 import streamlit as st
 import pandas as pd
 
@@ -98,6 +100,7 @@ defaults = {
     "eval_q_satisfaction": {},   # {key: {"level": str, "comment": str}}
     "eval_refined_notes": "",
     "eval_draft_id": None,       # ID of the current in-progress draft
+    "eval_max_step": 1,          # Highest step reached (enables back/forward navigation)
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -107,6 +110,9 @@ for k, v in defaults.items():
 def _reset_eval():
     for k, v in defaults.items():
         st.session_state[k] = v
+    # Also clear widget-key session state entries that are not in defaults
+    for k in ("eval_comments", "eval_comments_pending"):
+        st.session_state.pop(k, None)
 
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -164,6 +170,14 @@ if _draft_id_param and st.session_state.get("eval_draft_id") != _draft_id_param:
             else:
                 st.session_state[k] = v
         st.session_state["eval_draft_id"] = _draft_id_param
+        # Ensure the comments text area widget will reflect the restored notes
+        # on the next render of Step 4 (must be set before the widget is created)
+        _saved_notes = _data.get("eval_refined_notes", "")
+        if _saved_notes:
+            st.session_state["eval_comments_pending"] = _saved_notes
+        else:
+            # Clear any stale widget value so it starts fresh
+            st.session_state.pop("eval_comments", None)
         st.query_params.clear()
         st.rerun()
 
@@ -176,6 +190,7 @@ projects = get_projects_for_user(uid)
 # ── STEP INDICATOR ──────────────────────────────────────────────────────────
 step_labels = ["1 Setup", "2 AI Analysis", "3 Questions", "4 Submit"]
 current_step = st.session_state["eval_step"]
+max_step = st.session_state.get("eval_max_step", current_step)
 step_cols = st.columns(4)
 for i, (col, label) in enumerate(zip(step_cols, step_labels), 1):
     with col:
@@ -184,9 +199,9 @@ for i, (col, label) in enumerate(zip(step_cols, step_labels), 1):
                 f'<div style="background:#4F46E5;color:white;border-radius:8px;padding:8px;text-align:center;font-weight:700;">{label}</div>',
                 unsafe_allow_html=True,
             )
-        elif i < current_step:
-            # Completed step — clickable to go back
-            if st.button(label, key=f"step_nav_{i}", use_container_width=True, help=f"Go back to {label}"):
+        elif i <= max_step:
+            # Previously visited step — clickable (back or forward)
+            if st.button(label, key=f"step_nav_{i}", use_container_width=True, help=f"Go to {label}"):
                 st.session_state["eval_step"] = i
                 st.rerun()
         else:
@@ -253,7 +268,20 @@ if st.session_state["eval_step"] == 1:
             st.session_state["eval_role_id"] = selected_role_id
             st.session_state["eval_candidate_name"] = cand_name.strip()
             st.session_state["eval_candidate_email"] = cand_email.strip()
+            # Process the uploaded file now (if any) so it's included in the save
+            if uploaded is not None:
+                _file_bytes = uploaded.read()
+                if uploaded.name.lower().endswith(".pdf"):
+                    _resume_text = _extract_text_from_pdf(_file_bytes)
+                else:
+                    _resume_text = _extract_text_from_docx(_file_bytes)
+                if _resume_text.strip():
+                    if uploaded.name != st.session_state.get("eval_resume_filename"):
+                        st.session_state["eval_metrics"] = {}
+                    st.session_state["eval_resume_text"] = _resume_text
+                    st.session_state["eval_resume_filename"] = uploaded.name
             _save_progress()
+            st.rerun()
     with b_next:
         if st.button("▶ Next: Analyse Resume", type="primary", use_container_width=True):
             if not cand_name.strip():
@@ -283,6 +311,7 @@ if st.session_state["eval_step"] == 1:
                 st.session_state["eval_candidate_email"] = cand_email.strip()
                 st.session_state["eval_role_questions"] = role_qs
                 st.session_state["eval_step"] = 2
+                st.session_state["eval_max_step"] = max(st.session_state.get("eval_max_step", 1), 2)
                 st.rerun()
 
 # ===========================================================================
@@ -326,7 +355,9 @@ elif st.session_state["eval_step"] == 2:
     else:
         matched_count = len(metrics.get("matched_technologies", []))
         missing_count = len(metrics.get("missing_technologies", []))
+        total_tc = matched_count + missing_count
         score = metrics.get("tech_match_score", 0)
+    coverage_pct = round((matched_count / total_tc) * 100) if total_tc > 0 else 0
     emp_status = "✅ Currently Employed" if metrics.get("is_currently_employed") else "🔴 Not Currently Employed"
     current_employer = metrics.get("current_employer", "") or ""
     # Don't display literal "Unknown" as the employer name
@@ -337,12 +368,16 @@ elif st.session_state["eval_step"] == 2:
     with c1:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Match</div><div class="metric-value">{score}/100</div></div>', unsafe_allow_html=True)
         st.progress(score / 100)
+        st.caption(f"Formula: {matched_count} matched ÷ {total_tc} required × 100 = **{score}**")
     with c2:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Level</div><div class="metric-value">{exp}</div></div>', unsafe_allow_html=True)
+        st.caption("Determined by AI from years of experience and seniority indicators in the resume.")
     with c3:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Recommendation</div><div class="metric-value {rec_cls}">{rec}</div></div>', unsafe_allow_html=True)
+        st.caption("Based on tech match score, experience level, and alignment with role requirements.")
     with c4:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Coverage</div><div class="metric-value">✅ {matched_count} / ❌ {missing_count}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Tech Coverage</div><div class="metric-value">✅ {matched_count} / {total_tc}</div><div style="font-size:0.85rem;color:#16A34A;font-weight:700;">{coverage_pct}% match rate</div></div>', unsafe_allow_html=True)
+        st.caption(f"{matched_count} matched, {missing_count} missing out of {total_tc} required technologies.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -350,28 +385,36 @@ elif st.session_state["eval_step"] == 2:
     st.markdown("### 🔬 Tech Stack Comparison")
     tech_comparison = metrics.get("tech_comparison", [])
     if tech_comparison:
-        tc_rows = []
+        html_rows = ""
         for item in tech_comparison:
             tech = item.get("technology", "")
             status = item.get("status", "Unknown")
-            resume_tech = tech if status == "Matched" else "Not matched"
-            match_label = "Matched" if status == "Matched" else "Un Matched"
-            tc_rows.append({
-                "Project Tech Stack": tech,
-                "Resume Tech Stack": resume_tech,
-                "Match/Unmatch": match_label,
-            })
-        df_tc = pd.DataFrame(tc_rows)
-        st.dataframe(
-            df_tc,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Project Tech Stack": st.column_config.TextColumn("Project Tech Stack", width="medium"),
-                "Resume Tech Stack": st.column_config.TextColumn("Resume Tech Stack", width="medium"),
-                "Match/Unmatch": st.column_config.TextColumn("Match/Unmatch", width="medium"),
-            },
+            is_matched = status == "Matched"
+            bg_color = "#DCFCE7" if is_matched else "#FEE2E2"
+            text_color = "#16A34A" if is_matched else "#DC2626"
+            icon = "✅" if is_matched else "❌"
+            resume_tech = tech if is_matched else "Not found in resume"
+            status_label = "Matched" if is_matched else "Unmatched"
+            html_rows += (
+                f'<tr>'
+                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;">{tech}</td>'
+                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;">{resume_tech}</td>'
+                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;background:{bg_color};'
+                f'color:{text_color};font-weight:700;">{icon} {status_label}</td>'
+                f'</tr>'
+            )
+        table_html = (
+            '<table style="width:100%;border-collapse:collapse;">'
+            '<thead><tr style="background:#F1F5F9;">'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
+            'text-transform:uppercase;letter-spacing:0.05em;">Project Tech Stack</th>'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
+            'text-transform:uppercase;letter-spacing:0.05em;">Resume Tech Stack</th>'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
+            'text-transform:uppercase;letter-spacing:0.05em;">Match Status</th>'
+            f'</tr></thead><tbody>{html_rows}</tbody></table>'
         )
+        st.markdown(table_html, unsafe_allow_html=True)
     else:
         col_l, col_r = st.columns(2)
         with col_l:
@@ -398,11 +441,13 @@ elif st.session_state["eval_step"] == 2:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Mentioned</div><div class="metric-value" style="font-size:1rem;">{exp_mentioned}</div></div>', unsafe_allow_html=True)
     with exp_col2:
         st.markdown(f'<div class="metric-card"><div class="metric-label">Calculated Experience</div><div class="metric-value" style="font-size:1rem;">{exp_calculated}</div></div>', unsafe_allow_html=True)
+        st.caption("Sum of all roles in career history: each role's (end date − start date) is totalled.")
     with exp_col3:
         emp_color = "#16A34A" if metrics.get("is_currently_employed") else "#DC2626"
         emp_label = f'<span style="color:{emp_color};font-size:0.95rem;font-weight:700;">{emp_status}</span>'
         employer_line = f'<div style="font-size:0.82rem;color:#64748B;margin-top:4px;">{current_employer}</div>' if current_employer else ""
         st.markdown(f'<div class="metric-card"><div class="metric-label">Employment Status</div>{emp_label}{employer_line}</div>', unsafe_allow_html=True)
+        st.caption('Detected from resume: any role with end date "Present" or marked as current is considered active employment.')
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -480,7 +525,7 @@ elif st.session_state["eval_step"] == 2:
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Summary ─────────────────────────────────────────────────────────────
-    st.info(f"📝 **Summary:** {metrics.get('summary', '')}")
+    st.info(f"📝 **Summary (based on project tech stack vs resume comparison):** {metrics.get('summary', '')}")
 
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2, b3 = st.columns([1, 1, 1])
@@ -491,9 +536,11 @@ elif st.session_state["eval_step"] == 2:
     with b2:
         if st.button("💾 Save Progress", use_container_width=True):
             _save_progress()
+            st.rerun()
     with b3:
         if st.button("▶ Generate Questions", type="primary", use_container_width=True):
             st.session_state["eval_step"] = 3
+            st.session_state["eval_max_step"] = max(st.session_state.get("eval_max_step", 1), 3)
             st.rerun()
 
 # ===========================================================================
@@ -614,9 +661,11 @@ elif st.session_state["eval_step"] == 3:
     with b2:
         if st.button("💾 Save Progress", use_container_width=True):
             _save_progress()
+            st.rerun()
     with b3:
         if st.button("▶ Continue to Submit", type="primary", use_container_width=True):
             st.session_state["eval_step"] = 4
+            st.session_state["eval_max_step"] = max(st.session_state.get("eval_max_step", 1), 4)
             st.rerun()
 
 # ===========================================================================
@@ -639,16 +688,22 @@ elif st.session_state["eval_step"] == 4:
 
     # Evaluation notes with AI-refine and copy
     st.markdown("**Evaluator Comments * (required)**")
-    notes_val = st.session_state.get("eval_refined_notes") or ""
+
+    # Apply any pending AI-refined content BEFORE creating the text_area widget
+    # (setting a widget's session-state key must happen before the widget is rendered)
+    if "eval_comments_pending" in st.session_state:
+        st.session_state["eval_comments"] = st.session_state.pop("eval_comments_pending")
+    elif "eval_comments" not in st.session_state:
+        # Seed with refined notes if present (e.g. after loading a draft)
+        st.session_state["eval_comments"] = st.session_state.get("eval_refined_notes") or ""
 
     comments = st.text_area(
         "Add your evaluation notes…",
-        value=notes_val,
         height=150,
         placeholder="Overall impression, cultural fit, red flags, recommendations…",
         key="eval_comments",
     )
-    # Sync refined notes back
+    # Keep eval_refined_notes in sync so it's saved correctly
     st.session_state["eval_refined_notes"] = comments
 
     btn_ai, btn_copy = st.columns([2, 1])
@@ -660,12 +715,11 @@ elif st.session_state["eval_step"] == 4:
                 with st.spinner("Refining with AI…"):
                     refined = refine_evaluation_notes(comments)
                 st.session_state["eval_refined_notes"] = refined
-                # Update the widget state so the text area shows refined content
-                st.session_state["eval_comments"] = refined
+                # Store as pending so it's applied BEFORE the widget on the next run
+                st.session_state["eval_comments_pending"] = refined
                 st.rerun()
     with btn_copy:
         # Use base64 to safely transfer the text to JavaScript without injection risk
-        import base64 as _b64
         encoded_text = _b64.b64encode(comments.encode("utf-8")).decode("ascii")
         st.components.v1.html(
             f"""<button onclick="
@@ -699,6 +753,7 @@ elif st.session_state["eval_step"] == 4:
             st.session_state["eval_refined_notes"] = comments
             st.session_state["eval_interviewer_name"] = interviewer_name
             _save_progress()
+            st.rerun()
     with b3:
         if st.button("✅ Submit Evaluation", type="primary", use_container_width=True):
             if not interviewer_name.strip():
@@ -726,8 +781,8 @@ elif st.session_state["eval_step"] == 4:
                 draft_id = st.session_state.get("eval_draft_id")
                 if draft_id:
                     delete_draft(draft_id)
-                st.success(f"✅ Evaluation saved! ID: {result['id']}")
+                st.success("✅ Evaluation submitted successfully! Redirecting to dashboard…")
                 st.balloons()
                 _reset_eval()
-                if st.button("View in Archives"):
-                    st.switch_page("pages/7_Archives.py")
+                time.sleep(3)
+                st.switch_page("pages/2_Dashboard.py")
