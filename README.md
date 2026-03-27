@@ -13,7 +13,10 @@
 | 👥 Roles | Define roles linked to projects |
 | ❓ Questions | Build a reusable question bank linked to roles |
 | 🤖 AI Evaluation | Upload resume → AI analysis → question generation → submit |
+| 💾 Save Draft | Auto-save & resume evaluation progress at any step |
 | 📂 Archives | Browse past evaluations, update status, download PDF reports |
+| 🔒 Privacy Policy | Transparent data usage and privacy information |
+| 📋 Terms & Conditions | Usage terms and acceptable use policy |
 
 ---
 
@@ -55,18 +58,18 @@ Copy `.env.example` to `.env` and fill in the values:
 
 ```env
 # ── OpenAI ────────────────────────────────────────────────────────────────────
-OPENAI_API_KEY=sk-...your-key-here...
+OPENAI_API_KEY=your_openai_api_key_here
 
 # ── Email (SMTP) ───────────────────────────────────────────────────────────────
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
 SMTP_USERNAME=your_email@gmail.com
 SMTP_PASSWORD=your_app_password_here   # NOT your regular password — see below
 EMAIL_FROM=your_email@gmail.com
 
-# ── Optional overrides ─────────────────────────────────────────────────────────
-# SMTP_HOST=smtp.gmail.com            # auto-selected based on provider in UI
-# SMTP_PORT=587
-# DATABASE_URL=sqlite:///./lets_evaluate.db
-# APP_SECRET_KEY=change-me
+# ── App ────────────────────────────────────────────────────────────────────────
+APP_SECRET_KEY=your_secret_key_here_change_this
+DATABASE_URL=sqlite:///./lets_evaluate.db
 ```
 
 ### 📧 Email Setup — Getting an App Password
@@ -173,6 +176,7 @@ CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0"]
 lets-evaluate/
 ├── app.py                         # Landing page (animated workflow)
 ├── requirements.txt
+├── runtime.txt                    # Python version pin (python-3.12)
 ├── .env.example                   # Environment variable template
 ├── .streamlit/
 │   └── config.toml                # Theme & upload size config
@@ -182,14 +186,17 @@ lets-evaluate/
 │   ├── 3_Projects.py              # Projects CRUD
 │   ├── 4_Roles.py                 # Roles CRUD
 │   ├── 5_Questions.py             # Questions CRUD
-│   ├── 6_Evaluate_Candidate.py    # 4-step AI evaluation wizard
-│   └── 7_Archives.py              # Evaluation archive + PDF download
+│   ├── 6_Evaluate_Candidate.py    # 4-step AI evaluation wizard (with draft save)
+│   ├── 7_Archives.py              # Evaluation archive + PDF download
+│   ├── 8_Privacy_Policy.py        # Privacy policy page
+│   └── 9_Terms_Conditions.py      # Terms & conditions page
 └── utils/
     ├── database.py                # SQLAlchemy models & CRUD helpers
     ├── auth.py                    # bcrypt auth + session helpers
     ├── email_utils.py             # SMTP email (Gmail/Outlook/Yahoo)
     ├── ai_utils.py                # OpenAI/LangChain integration
-    └── pdf_utils.py               # ReportLab PDF generation
+    ├── pdf_utils.py               # ReportLab PDF generation
+    └── ui.py                      # Shared UI components (logo, sidebar, CSS)
 ```
 
 ---
@@ -199,13 +206,12 @@ lets-evaluate/
 | Library | Purpose |
 |---|---|
 | `streamlit` | Web UI framework |
-| `pdfplumber` | PDF resume text extraction |
-| `langchain` + `langchain-openai` | LLM orchestration |
+| `langchain` + `langchain-openai` + `langchain-core` | LLM orchestration |
 | `openai` | GPT-4o-mini API |
-| `faiss-cpu` + `tiktoken` | Token management & vector search |
 | `sqlalchemy` | Database ORM |
 | `bcrypt` | Password hashing |
 | `reportlab` | PDF report generation |
+| `pillow` | Image processing (logo/favicon) |
 | `python-dotenv` | Environment variable loading |
 
 ---
@@ -248,8 +254,16 @@ Filterable question bank (by role, category, difficulty). Questions can be linke
 3. Generate standard questions (AI) + resume-based questions (AI)
 4. Add evaluator notes, set status, submit
 
+**Save Draft**: Progress is saved automatically at any step via the 💾 Save Progress button. Drafts can be resumed from the Dashboard or by returning to the page with the `draft_id` query parameter.
+
 ### Archives (`/7_Archives`)
 Full evaluation history with filters. Update status per evaluation (Pending / Selected / Rejected / Hold). Download evaluation as a professional PDF.
+
+### Privacy Policy (`/8_Privacy_Policy`)
+Describes what data is collected, how it is used, stored, and protected. Accessible to both authenticated and unauthenticated users.
+
+### Terms & Conditions (`/9_Terms_Conditions`)
+Outlines the acceptable use policy, user responsibilities, and limitations of liability. Accessible to both authenticated and unauthenticated users.
 
 ---
 
