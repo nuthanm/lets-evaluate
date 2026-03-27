@@ -1,5 +1,7 @@
 import os
+import re
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,6 +34,119 @@ def _parse_json_response(text: str) -> dict | list:
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
     return json.loads(text)
+
+
+_UNKNOWN_LITERALS = {"unknown", "n/a", "-", "none", ""}
+
+
+def _is_unknown(value: str) -> bool:
+    """Return True if a string value represents a missing / unknown entry."""
+    return (value or "").strip().lower() in _UNKNOWN_LITERALS
+
+
+def _parse_date(s: str) -> datetime | None:
+    """Parse a human-readable date string into a datetime (day=1)."""
+    if not s:
+        return None
+    s = s.strip().lower()
+    if _is_unknown(s):
+        return None
+    if s == "present":
+        return datetime.now()
+    _MONTH_MAP = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    }
+    # "Jan 2020" / "January 2020"
+    parts = s.split()
+    if len(parts) == 2:
+        mk = parts[0][:3]
+        if mk in _MONTH_MAP:
+            try:
+                return datetime(int(parts[1]), _MONTH_MAP[mk], 1)
+            except ValueError:
+                pass
+    # "2020"
+    if re.fullmatch(r"\d{4}", s):
+        return datetime(int(s), 1, 1)
+    # "2020-01" or "01/2020"
+    m = re.match(r"(\d{4})[/-](\d{1,2})", s) or re.match(r"(\d{1,2})[/-](\d{4})", s)
+    if m:
+        try:
+            g1, g2 = m.group(1), m.group(2)
+            year = int(g1) if len(g1) == 4 else int(g2)
+            month = int(g2) if len(g1) == 4 else int(g1)
+            return datetime(year, month, 1)
+        except ValueError:
+            pass
+    return None
+
+
+def _calculate_experience_from_history(career_history: list) -> str:
+    """Calculate total years/months of experience from career_history dates."""
+    now = datetime.now()
+    total_months = 0
+    for item in career_history:
+        start_dt = _parse_date(item.get("start", ""))
+        end_raw = (item.get("end", "") or "").strip().lower()
+        if end_raw == "present" or item.get("is_current"):
+            end_dt = now
+        else:
+            end_dt = _parse_date(item.get("end", ""))
+        if start_dt is None or end_dt is None:
+            continue
+        if end_dt > start_dt:
+            total_months += (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+    if total_months <= 0:
+        return ""
+    years, months = divmod(total_months, 12)
+    if years > 0 and months > 0:
+        return f"{years} year{'s' if years != 1 else ''} {months} month{'s' if months != 1 else ''}"
+    if years > 0:
+        return f"{years} year{'s' if years != 1 else ''}"
+    return f"{months} month{'s' if months != 1 else ''}"
+
+
+def _postprocess_metrics(result: dict, project_tech_stack: list) -> dict:
+    """Normalise AI output: clean up 'Unknown' literals, fix counts & score."""
+    # ── Normalise career_history ─────────────────────────────────────────────
+    cleaned_history = []
+    for item in result.get("career_history", []):
+        cleaned_history.append({
+            "title": item.get("title", "") or "",
+            "company": "" if _is_unknown(item.get("company", "")) else (item.get("company") or ""),
+            "start": "" if _is_unknown(item.get("start", "")) else (item.get("start") or ""),
+            "end": "" if _is_unknown(item.get("end", "")) else (item.get("end") or ""),
+            "duration": "" if _is_unknown(item.get("duration", "")) else (item.get("duration") or ""),
+            "is_current": bool(item.get("is_current", False)),
+        })
+    result["career_history"] = cleaned_history
+
+    # ── Normalise current_employer ───────────────────────────────────────────
+    employer = result.get("current_employer", "") or ""
+    if _is_unknown(employer):
+        employer = ""
+    if not employer and result.get("is_currently_employed"):
+        # Try to extract from career_history
+        for item in cleaned_history:
+            if item.get("is_current") and item.get("company"):
+                employer = item["company"]
+                break
+    result["current_employer"] = employer
+
+    # ── Normalise total_experience_calculated ────────────────────────────────
+    calc_exp = result.get("total_experience_calculated", "") or ""
+    if _is_unknown(calc_exp) and cleaned_history:
+        calc_exp = _calculate_experience_from_history(cleaned_history)
+    result["total_experience_calculated"] = "" if _is_unknown(calc_exp) else calc_exp
+
+    # ── Recompute tech_match_score from tech_comparison for consistency ──────
+    tc = result.get("tech_comparison", [])
+    if tc:
+        matched_tc = sum(1 for t in tc if t.get("status") == "Matched")
+        result["tech_match_score"] = round((matched_tc / len(tc)) * 100)
+
+    return result
 
 
 def analyze_resume(
@@ -85,23 +200,26 @@ Return ONLY a valid JSON object (no markdown) with exactly these keys:
   "career_history": [
     {{
       "title": "<job title>",
-      "company": "<company name>",
-      "start": "<start date, e.g. Jan 2020>",
-      "end": "<end date or Present>",
+      "company": "<exact company name from resume, or empty string if not stated>",
+      "start": "<start date e.g. Jan 2020, or empty string if not stated>",
+      "end": "<end date e.g. Mar 2023 or Present, or empty string if not stated>",
       "is_current": <true|false>,
-      "duration": "<e.g. 2 years 3 months>"
+      "duration": "<calculated duration e.g. 2 years 3 months, or empty string if dates unavailable>"
     }}
   ],
-  "total_experience_mentioned": "<years/months the candidate stated, or Unknown>",
-  "total_experience_calculated": "<total calculated from career history, e.g. 5 years 2 months>",
+  "total_experience_mentioned": "<years/months the candidate explicitly stated, or empty string if not stated>",
+  "total_experience_calculated": "<sum of all career_history durations e.g. 8 years 4 months, or empty string if dates are insufficient>",
   "is_currently_employed": <true|false>,
-  "current_employer": "<current employer name or empty string>"
+  "current_employer": "<exact current employer name from resume, or empty string if not stated>"
 }}
 
-Notes:
-- tech_comparison must include ALL technologies from the Required Tech Stack with their match status.
+Rules:
+- tech_comparison MUST include ALL technologies from the Required Tech Stack — every one must have status "Matched" or "Unmatched".
+- matched_technologies and missing_technologies must be consistent with tech_comparison.
 - career_history must be sorted chronologically from OLDEST to NEWEST entry.
-- certifications should be an empty list if none found in the resume."""
+- Use empty string "" (never the word "Unknown") for any field whose value is not present in the resume.
+- certifications should be an empty list if none found in the resume.
+- total_experience_calculated must be calculated from the career_history start/end dates, not estimated."""
 
         response = llm.invoke(prompt)
         result = _parse_json_response(response.content)
@@ -112,11 +230,11 @@ Notes:
         ])
         result.setdefault("certifications", [])
         result.setdefault("career_history", [])
-        result.setdefault("total_experience_mentioned", "Unknown")
-        result.setdefault("total_experience_calculated", "Unknown")
+        result.setdefault("total_experience_mentioned", "")
+        result.setdefault("total_experience_calculated", "")
         result.setdefault("is_currently_employed", False)
         result.setdefault("current_employer", "")
-        return result
+        return _postprocess_metrics(result, project_tech_stack)
     except Exception as exc:
         return {
             "tech_match_score": 0,

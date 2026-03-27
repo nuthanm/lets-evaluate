@@ -242,14 +242,25 @@ elif st.session_state["eval_step"] == 2:
     metrics = st.session_state["eval_metrics"]
 
     # ── Summary metric cards ────────────────────────────────────────────────
-    score = metrics.get("tech_match_score", 0)
     exp = metrics.get("experience_level", "—")
     rec = metrics.get("recommendation", "—")
     rec_cls = {"Proceed": "rec-proceed", "Hold": "rec-hold", "Reject": "rec-reject"}.get(rec, "")
-    matched_count = len(metrics.get("matched_technologies", []))
-    missing_count = len(metrics.get("missing_technologies", []))
+    # Derive matched/missing counts from tech_comparison (consistent with the table)
+    tech_comparison_raw = metrics.get("tech_comparison", [])
+    if tech_comparison_raw:
+        matched_count = sum(1 for t in tech_comparison_raw if t.get("status") == "Matched")
+        missing_count = len(tech_comparison_raw) - matched_count
+        total_tc = len(tech_comparison_raw)
+        score = round((matched_count / total_tc) * 100) if total_tc > 0 else metrics.get("tech_match_score", 0)
+    else:
+        matched_count = len(metrics.get("matched_technologies", []))
+        missing_count = len(metrics.get("missing_technologies", []))
+        score = metrics.get("tech_match_score", 0)
     emp_status = "✅ Currently Employed" if metrics.get("is_currently_employed") else "🔴 Not Currently Employed"
-    current_employer = metrics.get("current_employer", "")
+    current_employer = metrics.get("current_employer", "") or ""
+    # Don't display literal "Unknown" as the employer name
+    if current_employer.strip().lower() in ("unknown", "n/a", "-"):
+        current_employer = ""
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -300,11 +311,17 @@ elif st.session_state["eval_step"] == 2:
 
     # ── 2. Experience Details ───────────────────────────────────────────────
     st.markdown("### 📅 Experience Details")
+    exp_mentioned = metrics.get("total_experience_mentioned", "") or ""
+    if exp_mentioned.strip().lower() in ("unknown", "n/a", "-", "none", ""):
+        exp_mentioned = "—"
+    exp_calculated = metrics.get("total_experience_calculated", "") or ""
+    if exp_calculated.strip().lower() in ("unknown", "n/a", "-", "none", ""):
+        exp_calculated = "—"
     exp_col1, exp_col2, exp_col3 = st.columns(3)
     with exp_col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Mentioned</div><div class="metric-value" style="font-size:1rem;">{metrics.get("total_experience_mentioned", "Unknown")}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Experience Mentioned</div><div class="metric-value" style="font-size:1rem;">{exp_mentioned}</div></div>', unsafe_allow_html=True)
     with exp_col2:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Calculated Experience</div><div class="metric-value" style="font-size:1rem;">{metrics.get("total_experience_calculated", "Unknown")}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Calculated Experience</div><div class="metric-value" style="font-size:1rem;">{exp_calculated}</div></div>', unsafe_allow_html=True)
     with exp_col3:
         emp_color = "#16A34A" if metrics.get("is_currently_employed") else "#DC2626"
         emp_label = f'<span style="color:{emp_color};font-size:0.95rem;font-weight:700;">{emp_status}</span>'
@@ -344,19 +361,33 @@ elif st.session_state["eval_step"] == 2:
     career_history = metrics.get("career_history", [])
     if career_history:
         st.markdown("### 🗓️ Career Timeline")
+        _unknown_vals = {"unknown", "n/a", "-", "none"}
         # Display from newest (top) to oldest (bottom)
         for i, role_item in enumerate(reversed(career_history)):
-            title = role_item.get("title", "Unknown Role")
-            company = role_item.get("company", "")
-            start = role_item.get("start", "")
-            end = role_item.get("end", "")
-            duration = role_item.get("duration", "")
+            title = role_item.get("title", "") or "—"
+            company_raw = (role_item.get("company", "") or "").strip()
+            company = "" if company_raw.lower() in _unknown_vals else company_raw
+            start_raw = (role_item.get("start", "") or "").strip()
+            start = "" if start_raw.lower() in _unknown_vals else start_raw
+            end_raw = (role_item.get("end", "") or "").strip()
+            end = "" if end_raw.lower() in _unknown_vals else end_raw
+            duration_raw = (role_item.get("duration", "") or "").strip()
+            duration = "" if duration_raw.lower() in _unknown_vals else duration_raw
             is_current = role_item.get("is_current", False)
 
             dot_color = "#4F46E5" if is_current else "#94A3B8"
             badge = '<span style="background:#DCFCE7;color:#16A34A;border-radius:20px;padding:2px 8px;font-size:0.72rem;font-weight:700;margin-left:8px;">Current</span>' if is_current else ""
-            period = f"{start} – {end}" if start else end
+            if start and end:
+                period = f"{start} – {end}"
+            elif end:
+                period = end
+            elif start:
+                period = f"{start} – Present" if is_current else start
+            else:
+                period = ""
             dur_text = f" · {duration}" if duration else ""
+            company_line = f'<div style="color:#64748B;font-size:0.85rem;">{company}</div>' if company else ""
+            period_line = f'<div style="color:#94A3B8;font-size:0.8rem;">{period}{dur_text}</div>' if (period or dur_text) else ""
             connector = "" if i == len(career_history) - 1 else (
                 '<div style="width:2px;height:24px;background:#E2E8F0;margin-left:9px;"></div>'
             )
@@ -366,8 +397,7 @@ elif st.session_state["eval_step"] == 2:
                 f'flex-shrink:0;margin-top:3px;box-shadow:0 0 0 3px rgba(79,70,229,0.15);"></div>'
                 f'<div style="padding-bottom:4px;">'
                 f'<div style="font-weight:700;color:#1E293B;font-size:0.95rem;">{title}{badge}</div>'
-                f'<div style="color:#64748B;font-size:0.85rem;">{company}</div>'
-                f'<div style="color:#94A3B8;font-size:0.8rem;">{period}{dur_text}</div>'
+                f'{company_line}{period_line}'
                 f'</div></div>{connector}',
                 unsafe_allow_html=True,
             )
