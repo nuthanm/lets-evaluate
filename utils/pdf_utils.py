@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import datetime, timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -61,6 +62,40 @@ def _styles():
         spaceAfter=6, leftIndent=16,
     )
     return custom
+
+
+def _markdown_to_flowables(text: str, styles: dict) -> list:
+    """Convert simple markdown text (** bold, - bullets, *italic*) to ReportLab flowables."""
+    if not text:
+        return []
+
+    bullet_style = ParagraphStyle(
+        "bullet_item", parent=styles["body"], leftIndent=16, spaceAfter=3, leading=14,
+    )
+
+    def _convert_inline(raw: str) -> str:
+        # Escape XML special characters first
+        escaped = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # Convert **text** → <b>text</b>
+        escaped = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+        # Convert *text* → <i>text</i> (single asterisk, not preceded/followed by another)
+        escaped = re.sub(r"(?<!\*)\*([^*]+?)\*(?!\*)", r"<i>\1</i>", escaped)
+        return escaped
+
+    flowables = []
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            flowables.append(Spacer(1, 4))
+            continue
+        if stripped.startswith("- ") or stripped.startswith("• "):
+            content = _convert_inline(stripped[2:])
+            flowables.append(Paragraph(f"&#x2022;&nbsp;{content}", bullet_style))
+        else:
+            flowables.append(Paragraph(_convert_inline(stripped), styles["body"]))
+
+    return flowables
 
 
 def generate_evaluation_pdf(evaluation_data: dict) -> bytes:
@@ -311,7 +346,7 @@ def generate_evaluation_pdf(evaluation_data: dict) -> bytes:
         story.append(Paragraph("Evaluator Comments", styles["section"]))
         story.append(HRFlowable(width="100%", thickness=1, color=INDIGO_LIGHT))
         story.append(Spacer(1, 4))
-        story.append(Paragraph(comments, styles["body"]))
+        story.extend(_markdown_to_flowables(comments, styles))
         story.append(Spacer(1, 8))
 
     # ── Footer ─────────────────────────────────────────────────────────────
