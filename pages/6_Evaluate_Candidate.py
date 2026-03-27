@@ -5,7 +5,8 @@ import pdfplumber
 
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_project, get_questions_for_role,
-    create_evaluation, create_question,
+    create_evaluation, create_question, create_draft, update_draft, get_drafts_for_user,
+    delete_draft,
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions, refine_evaluation_notes
@@ -97,6 +98,7 @@ defaults = {
     "eval_interviewer_name": "",
     "eval_q_satisfaction": {},   # {key: {"level": str, "comment": str}}
     "eval_refined_notes": "",
+    "eval_draft_id": None,       # ID of the current in-progress draft
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -131,6 +133,41 @@ def _extract_text_from_docx(file_bytes: bytes) -> str:
         return ""
 
 
+def _save_progress():
+    """Persist current evaluation session state as a draft."""
+    eval_data = {k: st.session_state[k] for k in defaults if k != "eval_draft_id"}
+    candidate_name = st.session_state.get("eval_candidate_name") or "Unnamed"
+    project_id = st.session_state.get("eval_project_id")
+    role_id = st.session_state.get("eval_role_id")
+    step = str(st.session_state.get("eval_step", 1))
+    draft_id = st.session_state.get("eval_draft_id")
+    if draft_id:
+        update_draft(draft_id, candidate_name, project_id, role_id, step, eval_data)
+    else:
+        result = create_draft(uid, candidate_name, project_id, role_id, step, eval_data)
+        st.session_state["eval_draft_id"] = result["id"]
+    st.toast("✅ Progress saved!", icon="💾")
+
+
+# ── Load draft from query params ────────────────────────────────────────────
+_qp = st.query_params
+_draft_id_param = _qp.get("draft_id", None)
+if _draft_id_param and st.session_state.get("eval_draft_id") != _draft_id_param:
+    # Load the draft and restore session state
+    drafts = get_drafts_for_user(uid)
+    _draft = next((d for d in drafts if d["id"] == _draft_id_param), None)
+    if _draft:
+        _data = _draft["eval_data"]
+        for k, v in defaults.items():
+            if k in _data:
+                st.session_state[k] = _data[k]
+            else:
+                st.session_state[k] = v
+        st.session_state["eval_draft_id"] = _draft_id_param
+        st.query_params.clear()
+        st.rerun()
+
+
 render_page_logo()
 st.markdown("## 🤖 Evaluate Candidate")
 
@@ -138,16 +175,25 @@ projects = get_projects_for_user(uid)
 
 # ── STEP INDICATOR ──────────────────────────────────────────────────────────
 step_labels = ["1 Setup", "2 AI Analysis", "3 Questions", "4 Submit"]
+current_step = st.session_state["eval_step"]
 step_cols = st.columns(4)
 for i, (col, label) in enumerate(zip(step_cols, step_labels), 1):
     with col:
-        active = st.session_state["eval_step"] == i
-        bg = "#4F46E5" if active else "#E2E8F0"
-        fg = "white" if active else "#64748B"
-        st.markdown(
-            f'<div style="background:{bg};color:{fg};border-radius:8px;padding:8px;text-align:center;font-weight:700;">{label}</div>',
-            unsafe_allow_html=True,
-        )
+        if i == current_step:
+            st.markdown(
+                f'<div style="background:#4F46E5;color:white;border-radius:8px;padding:8px;text-align:center;font-weight:700;">{label}</div>',
+                unsafe_allow_html=True,
+            )
+        elif i < current_step:
+            # Completed step — clickable to go back
+            if st.button(label, key=f"step_nav_{i}", use_container_width=True, help=f"Go back to {label}"):
+                st.session_state["eval_step"] = i
+                st.rerun()
+        else:
+            st.markdown(
+                f'<div style="background:#E2E8F0;color:#94A3B8;border-radius:8px;padding:8px;text-align:center;font-weight:700;">{label}</div>',
+                unsafe_allow_html=True,
+            )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -164,7 +210,11 @@ if st.session_state["eval_step"] == 1:
         st.stop()
 
     proj_options = {p["name"]: p["id"] for p in projects}
-    selected_proj_name = st.selectbox("Select Project", list(proj_options.keys()))
+    # If a project is pre-selected from a draft, keep it selected
+    saved_proj_id = st.session_state.get("eval_project_id")
+    saved_proj_name = next((n for n, pid in proj_options.items() if pid == saved_proj_id), None)
+    default_proj_idx = list(proj_options.keys()).index(saved_proj_name) if saved_proj_name in proj_options else 0
+    selected_proj_name = st.selectbox("Select Project", list(proj_options.keys()), index=default_proj_idx)
     selected_proj_id = proj_options[selected_proj_name]
 
     roles = get_roles_for_project(selected_proj_id)
@@ -175,7 +225,10 @@ if st.session_state["eval_step"] == 1:
         st.stop()
 
     role_options = {r["name"]: r["id"] for r in roles}
-    selected_role_name = st.selectbox("Select Role", list(role_options.keys()))
+    saved_role_id = st.session_state.get("eval_role_id")
+    saved_role_name = next((n for n, rid in role_options.items() if rid == saved_role_id), None)
+    default_role_idx = list(role_options.keys()).index(saved_role_name) if saved_role_name in role_options else 0
+    selected_role_name = st.selectbox("Select Role", list(role_options.keys()), index=default_role_idx)
     selected_role_id = role_options[selected_role_name]
 
     # Pre-populate role-linked questions
@@ -187,29 +240,47 @@ if st.session_state["eval_step"] == 1:
     with c2:
         cand_email = st.text_input("Candidate Email", value=st.session_state["eval_candidate_email"])
 
+    # Show info if resume was previously loaded from draft
+    if st.session_state.get("eval_resume_filename"):
+        st.info(f"📄 Previously uploaded: **{st.session_state['eval_resume_filename']}** — upload again below to refresh or proceed with Next.")
+
     uploaded = st.file_uploader("Upload Resume (PDF or DOCX) *", type=["pdf", "docx"])
 
-    if st.button("▶ Next: Analyse Resume", type="primary"):
-        if not cand_name.strip():
-            st.error("Candidate name is required.")
-        elif uploaded is None:
-            st.error("Please upload a resume.")
-        else:
-            file_bytes = uploaded.read()
-            if uploaded.name.lower().endswith(".pdf"):
-                resume_text = _extract_text_from_pdf(file_bytes)
+    b_next, b_save = st.columns([3, 1])
+    with b_save:
+        if st.button("💾 Save Progress", use_container_width=True, help="Save your progress and resume later"):
+            st.session_state["eval_project_id"] = selected_proj_id
+            st.session_state["eval_role_id"] = selected_role_id
+            st.session_state["eval_candidate_name"] = cand_name.strip()
+            st.session_state["eval_candidate_email"] = cand_email.strip()
+            _save_progress()
+    with b_next:
+        if st.button("▶ Next: Analyse Resume", type="primary", use_container_width=True):
+            if not cand_name.strip():
+                st.error("Candidate name is required.")
+            elif uploaded is None and not st.session_state.get("eval_resume_text"):
+                st.error("Please upload a resume.")
             else:
-                resume_text = _extract_text_from_docx(file_bytes)
+                if uploaded is not None:
+                    file_bytes = uploaded.read()
+                    if uploaded.name.lower().endswith(".pdf"):
+                        resume_text = _extract_text_from_pdf(file_bytes)
+                    else:
+                        resume_text = _extract_text_from_docx(file_bytes)
 
-            if not resume_text.strip():
-                st.error("Could not extract text from the uploaded file. Please try a different file.")
-            else:
+                    if not resume_text.strip():
+                        st.error("Could not extract text from the uploaded file. Please try a different file.")
+                        st.stop()
+                    # New upload → clear stale metrics so step 2 re-analyses
+                    if uploaded.name != st.session_state.get("eval_resume_filename"):
+                        st.session_state["eval_metrics"] = {}
+                    st.session_state["eval_resume_text"] = resume_text
+                    st.session_state["eval_resume_filename"] = uploaded.name
+
                 st.session_state["eval_project_id"] = selected_proj_id
                 st.session_state["eval_role_id"] = selected_role_id
                 st.session_state["eval_candidate_name"] = cand_name.strip()
                 st.session_state["eval_candidate_email"] = cand_email.strip()
-                st.session_state["eval_resume_text"] = resume_text
-                st.session_state["eval_resume_filename"] = uploaded.name
                 st.session_state["eval_role_questions"] = role_qs
                 st.session_state["eval_step"] = 2
                 st.rerun()
@@ -283,17 +354,22 @@ elif st.session_state["eval_step"] == 2:
         for item in tech_comparison:
             tech = item.get("technology", "")
             status = item.get("status", "Unknown")
-            status_display = "✅ Matched" if status == "Matched" else "❌ Unmatched"
-            tc_rows.append({"Technology": tech, "Required": "✅", "Status": status_display})
+            resume_tech = tech if status == "Matched" else "Not matched"
+            match_label = "Matched" if status == "Matched" else "Un Matched"
+            tc_rows.append({
+                "Project Tech Stack": tech,
+                "Resume Tech Stack": resume_tech,
+                "Match/Unmatch": match_label,
+            })
         df_tc = pd.DataFrame(tc_rows)
         st.dataframe(
             df_tc,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Technology": st.column_config.TextColumn("Technology", width="medium"),
-                "Required": st.column_config.TextColumn("Required", width="small"),
-                "Status": st.column_config.TextColumn("Status", width="medium"),
+                "Project Tech Stack": st.column_config.TextColumn("Project Tech Stack", width="medium"),
+                "Resume Tech Stack": st.column_config.TextColumn("Resume Tech Stack", width="medium"),
+                "Match/Unmatch": st.column_config.TextColumn("Match/Unmatch", width="medium"),
             },
         )
     else:
@@ -407,13 +483,15 @@ elif st.session_state["eval_step"] == 2:
     st.info(f"📝 **Summary:** {metrics.get('summary', '')}")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    b1, b2 = st.columns(2)
+    b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
         if st.button("← Back", use_container_width=True):
             st.session_state["eval_step"] = 1
-            st.session_state["eval_metrics"] = {}
             st.rerun()
     with b2:
+        if st.button("💾 Save Progress", use_container_width=True):
+            _save_progress()
+    with b3:
         if st.button("▶ Generate Questions", type="primary", use_container_width=True):
             st.session_state["eval_step"] = 3
             st.rerun()
@@ -528,12 +606,15 @@ elif st.session_state["eval_step"] == 3:
                     st.toast("Added to My Questions!", icon="✅")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    b1, b2 = st.columns(2)
+    b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
         if st.button("← Back", use_container_width=True):
             st.session_state["eval_step"] = 2
             st.rerun()
     with b2:
+        if st.button("💾 Save Progress", use_container_width=True):
+            _save_progress()
+    with b3:
         if st.button("▶ Continue to Submit", type="primary", use_container_width=True):
             st.session_state["eval_step"] = 4
             st.rerun()
@@ -546,11 +627,10 @@ elif st.session_state["eval_step"] == 4:
 
     st.markdown(f"**Candidate:** {st.session_state['eval_candidate_name']}")
     st.markdown(f"**Email:** {st.session_state['eval_candidate_email'] or '—'}")
-    st.markdown(f"**Resume:** {st.session_state['eval_resume_filename']}")
     st.divider()
 
     interviewer_name = st.text_input(
-        "Interviewer Name",
+        "Interviewer Name *",
         value=st.session_state["eval_interviewer_name"],
         placeholder="e.g. John Smith",
         key="eval_interviewer_name_input",
@@ -558,7 +638,7 @@ elif st.session_state["eval_step"] == 4:
     st.session_state["eval_interviewer_name"] = interviewer_name
 
     # Evaluation notes with AI-refine and copy
-    st.markdown("**Evaluation Notes**")
+    st.markdown("**Evaluator Comments * (required)**")
     notes_val = st.session_state.get("eval_refined_notes") or ""
 
     comments = st.text_area(
@@ -580,6 +660,8 @@ elif st.session_state["eval_step"] == 4:
                 with st.spinner("Refining with AI…"):
                     refined = refine_evaluation_notes(comments)
                 st.session_state["eval_refined_notes"] = refined
+                # Update the widget state so the text area shows refined content
+                st.session_state["eval_comments"] = refined
                 st.rerun()
     with btn_copy:
         # Use base64 to safely transfer the text to JavaScript without injection risk
@@ -607,29 +689,45 @@ elif st.session_state["eval_step"] == 4:
         key="eval_status",
     )
 
-    b1, b2 = st.columns(2)
+    b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
         if st.button("← Back", use_container_width=True):
             st.session_state["eval_step"] = 3
             st.rerun()
     with b2:
+        if st.button("💾 Save Progress", use_container_width=True):
+            st.session_state["eval_refined_notes"] = comments
+            st.session_state["eval_interviewer_name"] = interviewer_name
+            _save_progress()
+    with b3:
         if st.button("✅ Submit Evaluation", type="primary", use_container_width=True):
-            result = create_evaluation(
-                user_id=uid,
-                candidate_name=st.session_state["eval_candidate_name"],
-                candidate_email=st.session_state["eval_candidate_email"],
-                resume_filename=st.session_state["eval_resume_filename"],
-                project_id=st.session_state["eval_project_id"],
-                role_id=st.session_state["eval_role_id"],
-                initial_metrics=st.session_state["eval_metrics"],
-                standard_questions=st.session_state["eval_std_questions"],
-                resume_questions=st.session_state["eval_resume_questions"],
-                comments=comments,
-                status=status,
-                interviewer_name=st.session_state["eval_interviewer_name"],
-            )
-            st.success(f"✅ Evaluation saved! ID: {result['id']}")
-            st.balloons()
-            _reset_eval()
-            if st.button("View in Archives"):
-                st.switch_page("pages/7_Archives.py")
+            if not interviewer_name.strip():
+                st.error("Interviewer Name is required.")
+            elif not comments.strip():
+                st.error("Evaluator Comments are required.")
+            else:
+                result = create_evaluation(
+                    user_id=uid,
+                    candidate_name=st.session_state["eval_candidate_name"],
+                    candidate_email=st.session_state["eval_candidate_email"],
+                    resume_filename=st.session_state["eval_resume_filename"],
+                    project_id=st.session_state["eval_project_id"],
+                    role_id=st.session_state["eval_role_id"],
+                    initial_metrics=st.session_state["eval_metrics"],
+                    standard_questions=st.session_state["eval_std_questions"],
+                    resume_questions=st.session_state["eval_resume_questions"],
+                    role_questions=st.session_state.get("eval_role_questions", []),
+                    q_satisfaction=st.session_state.get("eval_q_satisfaction", {}),
+                    comments=comments,
+                    status=status,
+                    interviewer_name=interviewer_name,
+                )
+                # Delete the draft if one was in progress
+                draft_id = st.session_state.get("eval_draft_id")
+                if draft_id:
+                    delete_draft(draft_id)
+                st.success(f"✅ Evaluation saved! ID: {result['id']}")
+                st.balloons()
+                _reset_eval()
+                if st.button("View in Archives"):
+                    st.switch_page("pages/7_Archives.py")

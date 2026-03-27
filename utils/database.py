@@ -68,6 +68,7 @@ class User(Base):
     questions = relationship("Question", back_populates="user", cascade="all, delete-orphan")
     evaluations = relationship("Evaluation", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
+    drafts = relationship("EvaluationDraft", back_populates="user", cascade="all, delete-orphan")
 
 
 class Project(Base):
@@ -133,8 +134,10 @@ class Evaluation(Base):
     initial_metrics = Column(Text, default="{}")   # JSON
     standard_questions = Column(Text, default="[]")  # JSON
     resume_questions = Column(Text, default="[]")    # JSON
+    role_questions = Column(Text, default="[]")      # JSON
+    q_satisfaction = Column(Text, default="{}")      # JSON
     comments = Column(Text, default="")
-    status = Column(String, default="Pending")  # Pending/Selected/Shortlisted/Rejected/Hold
+    status = Column(String, default="Pending")  # Pending/Selected/Shortlisted/Rejected/Hold/Cancelled
     interviewer_name = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -156,6 +159,24 @@ class PasswordReset(Base):
     user = relationship("User", back_populates="password_resets")
 
 
+class EvaluationDraft(Base):
+    __tablename__ = "evaluation_drafts"
+
+    id = Column(String, primary_key=True, default=_new_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    role_id = Column(String, ForeignKey("roles.id"), nullable=True)
+    candidate_name = Column(String, default="")
+    step = Column(String, default="1")         # current step when saved
+    eval_data = Column(Text, default="{}")     # JSON snapshot of all eval_* session-state keys
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="drafts")
+    project = relationship("Project")
+    role = relationship("Role")
+
+
 # ---------------------------------------------------------------------------
 # DB session helper
 # ---------------------------------------------------------------------------
@@ -166,7 +187,7 @@ def get_db() -> Session:
 
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
-    # Migrate: add interviewer_name column if it doesn't exist (SQLite)
+    # Migrate: add missing columns to evaluations if they don't exist (SQLite)
     try:
         engine = _get_engine()
         with engine.connect() as conn:
@@ -176,6 +197,16 @@ def init_db():
             if "interviewer_name" not in cols:
                 conn.execute(sa_text(
                     "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
+                ))
+                conn.commit()
+            if "role_questions" not in cols:
+                conn.execute(sa_text(
+                    "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'"
+                ))
+                conn.commit()
+            if "q_satisfaction" not in cols:
+                conn.execute(sa_text(
+                    "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'"
                 ))
                 conn.commit()
     except Exception:
@@ -501,6 +532,8 @@ def get_evaluations_for_user(user_id: str) -> list[dict]:
                 "initial_metrics": json.loads(r.Evaluation.initial_metrics or "{}"),
                 "standard_questions": json.loads(r.Evaluation.standard_questions or "[]"),
                 "resume_questions": json.loads(r.Evaluation.resume_questions or "[]"),
+                "role_questions": json.loads(r.Evaluation.role_questions or "[]"),
+                "q_satisfaction": json.loads(r.Evaluation.q_satisfaction or "{}"),
                 "comments": r.Evaluation.comments,
                 "status": r.Evaluation.status,
                 "interviewer_name": r.Evaluation.interviewer_name or "",
@@ -541,6 +574,8 @@ def get_evaluation_by_id(evaluation_id: str) -> dict | None:
             "initial_metrics": json.loads(row.Evaluation.initial_metrics or "{}"),
             "standard_questions": json.loads(row.Evaluation.standard_questions or "[]"),
             "resume_questions": json.loads(row.Evaluation.resume_questions or "[]"),
+            "role_questions": json.loads(row.Evaluation.role_questions or "[]"),
+            "q_satisfaction": json.loads(row.Evaluation.q_satisfaction or "{}"),
             "comments": row.Evaluation.comments,
             "status": row.Evaluation.status,
             "interviewer_name": row.Evaluation.interviewer_name or "",
@@ -564,6 +599,8 @@ def create_evaluation(
     comments: str,
     status: str = "Pending",
     interviewer_name: str = "",
+    role_questions: list | None = None,
+    q_satisfaction: dict | None = None,
 ) -> dict:
     db = get_db()
     try:
@@ -578,6 +615,8 @@ def create_evaluation(
             initial_metrics=json.dumps(initial_metrics),
             standard_questions=json.dumps(standard_questions),
             resume_questions=json.dumps(resume_questions),
+            role_questions=json.dumps(role_questions or []),
+            q_satisfaction=json.dumps(q_satisfaction or {}),
             comments=comments,
             status=status,
             interviewer_name=interviewer_name,
@@ -597,7 +636,7 @@ def update_evaluation(evaluation_id: str, **kwargs):
         for key, value in kwargs.items():
             if key in ("initial_metrics",):
                 update_data[key] = json.dumps(value)
-            elif key in ("standard_questions", "resume_questions"):
+            elif key in ("standard_questions", "resume_questions", "role_questions", "q_satisfaction"):
                 update_data[key] = json.dumps(value)
             else:
                 update_data[key] = value
@@ -662,6 +701,96 @@ def mark_reset_used(reset_id: str):
     db = get_db()
     try:
         db.query(PasswordReset).filter(PasswordReset.id == reset_id).update({"used": True})
+        db.commit()
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# CRUD helpers — Evaluation Drafts
+# ---------------------------------------------------------------------------
+
+def get_drafts_for_user(user_id: str) -> list[dict]:
+    db = get_db()
+    try:
+        rows = (
+            db.query(
+                EvaluationDraft,
+                Project.name.label("project_name"),
+                Role.name.label("role_name"),
+            )
+            .outerjoin(Project, EvaluationDraft.project_id == Project.id)
+            .outerjoin(Role, EvaluationDraft.role_id == Role.id)
+            .filter(EvaluationDraft.user_id == user_id)
+            .order_by(EvaluationDraft.updated_at.desc())
+            .all()
+        )
+        return [
+            {
+                "id": r.EvaluationDraft.id,
+                "candidate_name": r.EvaluationDraft.candidate_name,
+                "project_id": r.EvaluationDraft.project_id,
+                "project_name": r.project_name or "—",
+                "role_id": r.EvaluationDraft.role_id,
+                "role_name": r.role_name or "—",
+                "step": r.EvaluationDraft.step,
+                "eval_data": json.loads(r.EvaluationDraft.eval_data or "{}"),
+                "created_at": r.EvaluationDraft.created_at,
+                "updated_at": r.EvaluationDraft.updated_at,
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
+
+
+def create_draft(
+    user_id: str,
+    candidate_name: str,
+    project_id: str | None,
+    role_id: str | None,
+    step: str,
+    eval_data: dict,
+) -> dict:
+    db = get_db()
+    try:
+        draft = EvaluationDraft(
+            id=_new_uuid(),
+            user_id=user_id,
+            candidate_name=candidate_name,
+            project_id=project_id or None,
+            role_id=role_id or None,
+            step=step,
+            eval_data=json.dumps(eval_data),
+        )
+        db.add(draft)
+        db.commit()
+        db.refresh(draft)
+        return {"id": draft.id}
+    finally:
+        db.close()
+
+
+def update_draft(draft_id: str, candidate_name: str, project_id: str | None, role_id: str | None, step: str, eval_data: dict):
+    db = get_db()
+    try:
+        db.query(EvaluationDraft).filter(EvaluationDraft.id == draft_id).update({
+            "candidate_name": candidate_name,
+            "project_id": project_id or None,
+            "role_id": role_id or None,
+            "step": step,
+            "eval_data": json.dumps(eval_data),
+            "updated_at": datetime.now(timezone.utc),
+        })
+        db.commit()
+    finally:
+        db.close()
+
+
+def delete_draft(draft_id: str):
+    db = get_db()
+    try:
+        db.query(EvaluationDraft).filter(EvaluationDraft.id == draft_id).delete()
         db.commit()
     finally:
         db.close()

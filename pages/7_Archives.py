@@ -41,6 +41,7 @@ st.markdown("""
 .s-selected     { background: #DCFCE7; color: #16A34A; }
 .s-rejected     { background: #FEE2E2; color: #DC2626; }
 .s-hold         { background: #FEF9C3; color: #CA8A04; }
+.s-cancelled    { background: #F1F5F9; color: #94A3B8; }
 .stButton > button { border-radius: 8px !important; font-weight: 500 !important; }
 /* Archive table header */
 .arch-hdr {
@@ -70,15 +71,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 render_page_logo()
-STATUS_OPTIONS = ["Pending", "Shortlisted", "Selected", "Rejected", "Hold"]
+STATUS_OPTIONS = ["Pending", "Shortlisted", "Selected", "Rejected", "Hold", "Cancelled"]
 STATUS_CLS = {
     "Pending": "s-pending",
     "Shortlisted": "s-shortlisted",
     "Selected": "s-selected",
     "Rejected": "s-rejected",
     "Hold": "s-hold",
+    "Cancelled": "s-cancelled",
 }
-STATUS_ICON = {"Pending": "⚪", "Shortlisted": "🔵", "Selected": "🟢", "Rejected": "🔴", "Hold": "🟡"}
+STATUS_ICON = {"Pending": "⚪", "Shortlisted": "🔵", "Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Cancelled": "⛔"}
 
 st.markdown("## 📂 Evaluation Archives")
 
