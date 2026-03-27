@@ -390,28 +390,25 @@ elif st.session_state["eval_step"] == 2:
             tech = item.get("technology", "")
             status = item.get("status", "Unknown")
             is_matched = status == "Matched"
-            bg_color = "#DCFCE7" if is_matched else "#FEE2E2"
-            text_color = "#16A34A" if is_matched else "#DC2626"
-            icon = "✅" if is_matched else "❌"
-            resume_tech = tech if is_matched else "Not found in resume"
-            status_label = "Matched" if is_matched else "Unmatched"
+            row_bg = "#F0FDF4" if is_matched else "#FFF7F7"
+            resume_color = "#16A34A" if is_matched else "#94A3B8"
+            match_color = "#16A34A" if is_matched else "#DC2626"
+            resume_tech = tech if is_matched else "Not matched"
+            status_label = "Matched" if is_matched else "Un Matched"
             html_rows += (
-                f'<tr>'
+                f'<tr style="background:{row_bg};">'
                 f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;">{tech}</td>'
-                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;">{resume_tech}</td>'
-                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;background:{bg_color};'
-                f'color:{text_color};font-weight:700;">{icon} {status_label}</td>'
+                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;color:{resume_color};font-weight:600;">{resume_tech}</td>'
+                f'<td style="padding:8px 14px;border-bottom:1px solid #E2E8F0;'
+                f'color:{match_color};font-weight:700;">{status_label}</td>'
                 f'</tr>'
             )
         table_html = (
-            '<table style="width:100%;border-collapse:collapse;">'
-            '<thead><tr style="background:#F1F5F9;">'
-            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
-            'text-transform:uppercase;letter-spacing:0.05em;">Project Tech Stack</th>'
-            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
-            'text-transform:uppercase;letter-spacing:0.05em;">Resume Tech Stack</th>'
-            '<th style="padding:10px 14px;text-align:left;font-size:0.8rem;color:#475569;'
-            'text-transform:uppercase;letter-spacing:0.05em;">Match Status</th>'
+            '<table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;">'
+            '<thead><tr style="background:#EEF2FF;">'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.85rem;color:#1E293B;font-weight:600;">Project Tech Stack</th>'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.85rem;color:#1E293B;font-weight:600;">Resume Tech Stack</th>'
+            '<th style="padding:10px 14px;text-align:left;font-size:0.85rem;color:#1E293B;font-weight:600;">Match/Unmatch</th>'
             f'</tr></thead><tbody>{html_rows}</tbody></table>'
         )
         st.markdown(table_html, unsafe_allow_html=True)
