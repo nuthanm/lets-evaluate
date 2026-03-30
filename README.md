@@ -107,7 +107,7 @@ The "Forgot Password" feature sends a 6-digit passcode via email. Use an **App P
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/lets_evaluate
 ```
-Install the driver: `pip install psycopg2-binary`
+The PostgreSQL driver (`psycopg2-binary`) is already included in `requirements.txt` — no extra install needed.
 
 **Recommended database for this app**: SQLite for solo/small use; **PostgreSQL** (via [Supabase](https://supabase.com) free tier or [Railway](https://railway.app)) for production.
 
