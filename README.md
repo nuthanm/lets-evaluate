@@ -111,6 +111,40 @@ Install the driver: `pip install psycopg2-binary`
 
 **Recommended database for this app**: SQLite for solo/small use; **PostgreSQL** (via [Supabase](https://supabase.com) free tier or [Railway](https://railway.app)) for production.
 
+### ⚠️ Data Persistence Warning — Cloud Deployments
+
+> **If you deployed this app to a cloud platform and lost all your data, this section explains why.**
+
+Most free-tier cloud platforms use **ephemeral (temporary) filesystems**.  
+Every time the app container restarts — which happens after periods of inactivity on Render, Streamlit Community Cloud, Railway, and similar platforms — the local SQLite file is **permanently deleted**, taking all your data with it.
+
+| Platform | Behaviour | Safe with SQLite? |
+|---|---|---|
+| Local machine | File persists on disk | ✅ Yes |
+| Streamlit Community Cloud | Container restarts on redeploy / inactivity | ❌ No |
+| Render free tier | Spins down after 15 min inactivity, fresh container on restart | ❌ No |
+| Railway ephemeral deploy | No persistent volume by default | ❌ No |
+| VPS / dedicated server | File persists as long as disk exists | ✅ Yes (with backups) |
+
+**How to prevent data loss — use a persistent PostgreSQL database:**
+
+1. Create a **free** PostgreSQL instance on [Supabase](https://supabase.com) or [Railway](https://railway.app)  
+2. Copy the connection string they provide  
+3. Set it as your `DATABASE_URL`:
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+```
+
+On **Streamlit Community Cloud**, add it under *App settings → Secrets*:
+```toml
+DATABASE_URL = "postgresql://user:password@host:5432/dbname"
+```
+
+Once `DATABASE_URL` points to PostgreSQL, data survives all restarts and periods of inactivity.
+
+> The app will also show a **⚠️ warning banner** in the sidebar whenever it detects a SQLite database, reminding you to switch before you lose data.
+
 ---
 
 ## 🤖 AI Model Recommendation
