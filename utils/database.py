@@ -153,17 +153,13 @@ def _get_engine():
                             DATABASE_URL,
                             connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
                         )
-                except (ValueError, _SAArgumentError):
-                    warnings.warn(
-                        "DATABASE_URL could not be parsed (invalid URL format); "
-                        f"falling back to the default SQLite database at {_default_sqlite_path}.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
-                    _engine = create_engine(
-                        f"sqlite:///{_default_sqlite_path}",
-                        connect_args={"check_same_thread": False},
-                    )
+                except (ValueError, _SAArgumentError) as exc:
+                    raise ValueError(
+                        "DATABASE_URL is invalid and could not be parsed. "
+                        "Please ensure DATABASE_URL is set to a valid PostgreSQL connection string "
+                        "(e.g. postgresql://user:password@host:5432/dbname). "
+                        f"Original error: {exc}"
+                    ) from exc
     return _engine
 
 
