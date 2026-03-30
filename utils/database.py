@@ -1,6 +1,7 @@
 import uuid
 import json
 import os
+import tempfile
 import threading
 from datetime import datetime, timezone
 from sqlalchemy import (
@@ -12,7 +13,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lets_evaluate.db")
+# Default to a writable temp directory so the app starts on read-only
+# filesystems (e.g. Streamlit Cloud mounts the repo at /mount/src/… which
+# is read-only, causing SQLite to fail when ./lets_evaluate.db is used).
+_default_sqlite_path = os.path.join(tempfile.gettempdir(), "lets_evaluate.db")
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite_path}")
 # SQLAlchemy 2.0+ dropped the legacy 'postgres://' dialect alias.
 # Many cloud platforms (Heroku, Streamlit Cloud, Neon, Supabase…) still
 # issue connection strings that start with 'postgres://', so normalise them
