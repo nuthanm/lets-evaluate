@@ -94,7 +94,7 @@ st.markdown("""
 <div class="policy-section">
   <h3>4. Data Storage &amp; Security</h3>
   <p>
-    All data is stored in a local SQLite database on the server where the application is
+    All data is stored in a PostgreSQL database on the server where the application is
     deployed. Passwords are hashed using bcrypt before storage. We implement
     industry-standard security practices; however, no method of electronic storage is 100%
     secure, and we cannot guarantee absolute security.

@@ -2,14 +2,13 @@ import uuid
 import json
 import os
 import socket
-import tempfile
 import threading
 import warnings
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs, unquote_plus
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
-    Text, ForeignKey, text as sa_text, inspect as sa_inspect,
+    Text, ForeignKey, text as sa_text,
 )
 from sqlalchemy.exc import ArgumentError as _SAArgumentError
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
@@ -23,42 +22,35 @@ except ImportError:
 
 load_dotenv()
 
-# Default to a writable temp directory so the app starts on read-only
-# filesystems (e.g. Streamlit Cloud mounts the repo at /mount/src/… which
-# is read-only, causing SQLite to fail when ./lets_evaluate.db is used).
-_default_sqlite_path = os.path.join(tempfile.gettempdir(), "lets_evaluate.db")
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite_path}")
+# DATABASE_URL must be set to a PostgreSQL connection string.
 # SQLAlchemy 2.0+ dropped the legacy 'postgres://' dialect alias.
 # Many cloud platforms (Heroku, Streamlit Cloud, Neon, Supabase…) still
 # issue connection strings that start with 'postgres://', so normalise them
 # to 'postgresql://' to avoid an OperationalError on startup.
+_raw_database_url = os.getenv("DATABASE_URL", "").strip()
+if not _raw_database_url:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set.\n\n"
+        "This app requires a PostgreSQL database. "
+        "Set DATABASE_URL to your PostgreSQL connection string:\n"
+        "  DATABASE_URL=postgresql://user:password@host:5432/dbname\n\n"
+        "No Docker? Use a free cloud PostgreSQL instance:\n"
+        "  • Supabase  — https://supabase.com  (free tier)\n"
+        "  • Neon      — https://neon.tech     (free tier)\n"
+        "  • Railway   — https://railway.app   (free starter)\n\n"
+        "On Streamlit Community Cloud add DATABASE_URL under App settings → Secrets."
+    )
+DATABASE_URL = _raw_database_url
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-# Redirect SQLite paths that are not writable to the temp directory.
-# On Streamlit Cloud the repo is mounted read-only at /mount/src/…, so both
-# relative paths (e.g. sqlite:///lets_evaluate.db) and absolute paths that
-# point into a non-writable or non-existent directory (e.g. a local absolute
-# path copied into Streamlit Cloud secrets) raise an OperationalError when
-# SQLAlchemy tries to create/open the file.
-if DATABASE_URL.startswith("sqlite:///"):
-    # Strip whitespace to guard against whitespace-only paths.
-    _sqlite_path = DATABASE_URL[len("sqlite:///"):].strip()
-    if _sqlite_path and not os.path.isabs(_sqlite_path):
-        # Relative paths: redirect to the writable temp directory.
-        # rstrip('/') ensures basename extracts the filename even for
-        # paths like 'foo/' or 'sub/dir/'.
-        _sqlite_filename = os.path.basename(_sqlite_path.rstrip("/")) or "lets_evaluate.db"
-        DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
-    elif _sqlite_path and os.path.isabs(_sqlite_path):
-        # Absolute paths: redirect to the temp directory when the parent
-        # directory does not exist or is not writable (e.g. a local absolute
-        # path copied into Streamlit Cloud secrets where the path either
-        # doesn't exist on the container or points to the read-only repo
-        # mount at /mount/src/…).
-        _sqlite_dir = os.path.dirname(_sqlite_path)
-        if not os.access(_sqlite_dir, os.W_OK):
-            _sqlite_filename = os.path.basename(_sqlite_path) or "lets_evaluate.db"
-            DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
+if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+psycopg2://")):
+    raise RuntimeError(
+        f"DATABASE_URL does not look like a PostgreSQL connection string "
+        f"(got: {DATABASE_URL!r}).\n\n"
+        "This app requires PostgreSQL. "
+        "Set DATABASE_URL to a valid connection string:\n"
+        "  DATABASE_URL=postgresql://user:password@host:5432/dbname"
+    )
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
@@ -138,9 +130,8 @@ def _get_engine():
     if _engine is None:
         with _db_lock:
             if _engine is None:
-                _is_pg = DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+psycopg2://")
                 try:
-                    if _is_pg and _psycopg2_available:
+                    if _psycopg2_available:
                         # Use a custom creator that forces IPv4 to avoid failures
                         # on IPv4-only hosts when the server's DNS publishes an
                         # IPv6 address (e.g. Supabase on Streamlit Community Cloud).
@@ -149,10 +140,7 @@ def _get_engine():
                             creator=_make_ipv4_creator(DATABASE_URL),
                         )
                     else:
-                        _engine = create_engine(
-                            DATABASE_URL,
-                            connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-                        )
+                        _engine = create_engine(DATABASE_URL)
                 except (ValueError, _SAArgumentError) as exc:
                     raise ValueError(
                         "DATABASE_URL is invalid and could not be parsed. "
@@ -316,39 +304,20 @@ def get_db() -> Session:
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
     # Migrate: add any columns that may be missing from older databases.
-    # Uses SQLAlchemy's Inspector for dialect-agnostic column discovery so
-    # this works for both SQLite and PostgreSQL.
-    # PostgreSQL supports ADD COLUMN IF NOT EXISTS (v9.6+); SQLite lacks that
-    # clause, but the pre-check against existing_cols guards against duplicates.
+    # ADD COLUMN IF NOT EXISTS is available in all currently-supported
+    # PostgreSQL versions (12+), so the DDL is safe to run unconditionally.
     # SQL strings are fully static (no interpolation) to avoid any risk of
     # SQL injection from dynamically constructed DDL.
     try:
         engine = _get_engine()
-        inspector = sa_inspect(engine)
-        existing_cols = {c["name"] for c in inspector.get_columns("evaluations")}
-        is_postgres = engine.dialect.name == "postgresql"
-        # Each entry: (column_name, postgresql_ddl, other_ddl)
         migrations = [
-            (
-                "interviewer_name",
-                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS interviewer_name VARCHAR DEFAULT ''",
-                "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''",
-            ),
-            (
-                "role_questions",
-                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS role_questions TEXT DEFAULT '[]'",
-                "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'",
-            ),
-            (
-                "q_satisfaction",
-                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS q_satisfaction TEXT DEFAULT '{}'",
-                "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'",
-            ),
+            "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS interviewer_name VARCHAR DEFAULT ''",
+            "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS role_questions TEXT DEFAULT '[]'",
+            "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS q_satisfaction TEXT DEFAULT '{}'",
         ]
         with engine.begin() as conn:
-            for col_name, pg_sql, other_sql in migrations:
-                if col_name not in existing_cols:
-                    conn.execute(sa_text(pg_sql if is_postgres else other_sql))
+            for sql in migrations:
+                conn.execute(sa_text(sql))
     except Exception:
         pass
 

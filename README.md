@@ -69,7 +69,7 @@ EMAIL_FROM=your_email@gmail.com
 
 # ── App ────────────────────────────────────────────────────────────────────────
 APP_SECRET_KEY=your_secret_key_here_change_this
-DATABASE_URL=sqlite:///./lets_evaluate.db
+DATABASE_URL=postgresql://user:password@host:5432/dbname
 ```
 
 ### 📧 Email Setup — Getting an App Password
@@ -101,63 +101,48 @@ The "Forgot Password" feature sends a 6-digit passcode via email. Use an **App P
 
 ## 🗄️ Database
 
-**Default**: SQLite (`lets_evaluate.db` in the project root) — zero configuration, perfect for local use and small teams.
-
-**To use PostgreSQL** (production / team use):
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/lets_evaluate
-```
-The PostgreSQL driver (`psycopg2-binary`) is already included in `requirements.txt` — no extra install needed.
-
-> **`postgres://` vs `postgresql://`** — SQLAlchemy 2.0+ removed the older `postgres://` dialect alias. The app automatically normalises any `postgres://` connection string to `postgresql://` at startup, so connection strings from Heroku, Neon, Supabase, and similar platforms work without any manual editing.
-
-**Recommended database for this app**: SQLite for solo/small use; **PostgreSQL** (via [Supabase](https://supabase.com) free tier or [Railway](https://railway.app)) for production.
-
-### ✅ Does data persist when the Streamlit app is inactive?
-
-**Yes — but only when `DATABASE_URL` points to an external PostgreSQL instance.**
-
-| Scenario | Database used | Data persists when app sleeps / restarts? |
-|---|---|---|
-| `DATABASE_URL` not set | SQLite (local file, default fallback) | ❌ No — file is deleted on container restart |
-| `DATABASE_URL=postgres://...` | PostgreSQL (auto-corrected to `postgresql://`) | ✅ Yes |
-| `DATABASE_URL=postgresql://...` | PostgreSQL (external server) | ✅ Yes |
-
-When PostgreSQL is configured, data lives on the database server — completely independent of whether the Streamlit app is running, sleeping, or redeployed.
-
-### ⚠️ Data Persistence Warning — Cloud Deployments
-
-> **If you deployed this app to a cloud platform and lost all your data, this section explains why.**
-
-Most free-tier cloud platforms use **ephemeral (temporary) filesystems**.  
-Every time the app container restarts — which happens after periods of inactivity on Render, Streamlit Community Cloud, Railway, and similar platforms — the local SQLite file is **permanently deleted**, taking all your data with it.
-
-| Platform | Behaviour | Safe with SQLite? |
-|---|---|---|
-| Local machine | File persists on disk | ✅ Yes |
-| Streamlit Community Cloud | Container restarts on redeploy / inactivity | ❌ No |
-| Render free tier | Spins down after 15 min inactivity, fresh container on restart | ❌ No |
-| Railway ephemeral deploy | No persistent volume by default | ❌ No |
-| VPS / dedicated server | File persists as long as disk exists | ✅ Yes (with backups) |
-
-**How to prevent data loss — use a persistent PostgreSQL database:**
-
-1. Create a **free** PostgreSQL instance on [Supabase](https://supabase.com) or [Railway](https://railway.app)  
-2. Copy the connection string they provide  
-3. Set it as your `DATABASE_URL`:
+**PostgreSQL is required.** The app will refuse to start without a valid `DATABASE_URL` pointing to a PostgreSQL instance.
 
 ```env
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 ```
 
-On **Streamlit Community Cloud**, add it under *App settings → Secrets*:
+The PostgreSQL driver (`psycopg2-binary`) is already included in `requirements.txt` — no extra install needed.
+
+> **`postgres://` vs `postgresql://`** — SQLAlchemy 2.0+ removed the older `postgres://` dialect alias. The app automatically normalises any `postgres://` connection string to `postgresql://` at startup, so connection strings from Heroku, Neon, Supabase, and similar platforms work without any manual editing.
+
+### 🐘 Don't have Docker? Use a free cloud PostgreSQL instance
+
+You do **not** need Docker or a locally-installed PostgreSQL server. All of the following providers offer a free PostgreSQL database that you can connect to from anywhere — including your local machine or Streamlit Community Cloud:
+
+| Provider | Free tier | Setup time |
+|---|---|---|
+| [Supabase](https://supabase.com) | ✅ Generous free tier | ~2 min |
+| [Neon](https://neon.tech) | ✅ Free serverless Postgres | ~2 min |
+| [Railway](https://railway.app) | ✅ Free starter plan | ~3 min |
+
+**Steps (using Supabase as an example):**
+1. Go to <https://supabase.com> and create a free account
+2. Create a new project — choose any region
+3. Go to **Project Settings → Database → Connection string** and copy the URI
+4. Paste it as `DATABASE_URL` in your `.env` file (or Streamlit Cloud secrets)
+
+### ✅ Does data persist when the Streamlit app is inactive?
+
+**Yes — because all data lives in the external PostgreSQL database**, completely independent of whether the Streamlit app is running, sleeping, or redeployed.
+
+| Scenario | Data persists when app sleeps / restarts? |
+|---|---|
+| `DATABASE_URL=postgres://...` | ✅ Yes (auto-corrected to `postgresql://`) |
+| `DATABASE_URL=postgresql://...` | ✅ Yes |
+| `DATABASE_URL` not set | ❌ App refuses to start — set it to a PostgreSQL URL |
+
+### Streamlit Community Cloud
+
+Add `DATABASE_URL` under *App settings → Secrets*:
 ```toml
 DATABASE_URL = "postgresql://user:password@host:5432/dbname"
 ```
-
-Once `DATABASE_URL` points to PostgreSQL, data survives all restarts and periods of inactivity.
-
-> The app will also show a **⚠️ warning banner** in the sidebar whenever it detects a SQLite database, reminding you to switch before you lose data.
 
 ---
 
@@ -269,7 +254,7 @@ lets-evaluate/
 - Passwords are hashed with **bcrypt** (never stored in plain text)
 - Password reset codes **expire after 15 minutes** and are single-use
 - API keys are loaded from environment variables, never hardcoded
-- The SQLite database file is excluded from version control via `.gitignore`
+- The database is hosted externally (PostgreSQL), keeping credentials separate from the app
 
 ---
 

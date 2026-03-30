@@ -3,7 +3,6 @@
 import html
 import streamlit as st
 from utils.auth import logout_user
-from utils.database import DATABASE_URL
 
 BRAND = "Let's Evaluate"
 
@@ -144,29 +143,6 @@ def inject_common_css() -> None:
     st.markdown(COMMON_CSS, unsafe_allow_html=True)
 
 
-def _render_sqlite_warning() -> None:
-    """Show a warning banner when the app is using a SQLite database.
-
-    SQLite stores data in a local file that is wiped whenever the host
-    container restarts.  On ephemeral platforms (Streamlit Community Cloud,
-    Render free tier, Railway, etc.) this happens after every period of
-    inactivity, causing complete data loss.  The warning nudges users to
-    switch to a persistent PostgreSQL database before deploying.
-    """
-    if DATABASE_URL.startswith("sqlite"):
-        st.warning(
-            "⚠️ **SQLite detected — your data is at risk.**\n\n"
-            "SQLite stores everything in a local file that is **permanently "
-            "deleted** each time the app restarts.  On cloud platforms (Streamlit "
-            "Community Cloud, Render, Railway, etc.) the app restarts after "
-            "every period of inactivity, wiping all your data.\n\n"
-            "**Fix:** set `DATABASE_URL` to a free PostgreSQL instance "
-            "(e.g. [Supabase](https://supabase.com) or "
-            "[Railway](https://railway.app)).\n"
-            "```\nDATABASE_URL=postgresql://user:pass@host:5432/dbname\n```",
-        )
-
-
 def render_authenticated_sidebar() -> None:
     """Render the standard authenticated navigation sidebar."""
     with st.sidebar:
@@ -201,7 +177,6 @@ def render_authenticated_sidebar() -> None:
                 f'{safe_email}</div>',
                 unsafe_allow_html=True,
             )
-        _render_sqlite_warning()
         if st.button("🚪 Sign Out", use_container_width=True):
             logout_user()
             st.switch_page("app.py")
