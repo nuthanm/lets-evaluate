@@ -109,7 +109,21 @@ DATABASE_URL=postgresql://user:password@localhost:5432/lets_evaluate
 ```
 The PostgreSQL driver (`psycopg2-binary`) is already included in `requirements.txt` — no extra install needed.
 
+> **`postgres://` vs `postgresql://`** — SQLAlchemy 2.0+ removed the older `postgres://` dialect alias. The app automatically normalises any `postgres://` connection string to `postgresql://` at startup, so connection strings from Heroku, Neon, Supabase, and similar platforms work without any manual editing.
+
 **Recommended database for this app**: SQLite for solo/small use; **PostgreSQL** (via [Supabase](https://supabase.com) free tier or [Railway](https://railway.app)) for production.
+
+### ✅ Does data persist when the Streamlit app is inactive?
+
+**Yes — but only when `DATABASE_URL` points to an external PostgreSQL instance.**
+
+| Scenario | Database used | Data persists when app sleeps / restarts? |
+|---|---|---|
+| `DATABASE_URL` not set | SQLite (local file, default fallback) | ❌ No — file is deleted on container restart |
+| `DATABASE_URL=postgres://...` | PostgreSQL (auto-corrected to `postgresql://`) | ✅ Yes |
+| `DATABASE_URL=postgresql://...` | PostgreSQL (external server) | ✅ Yes |
+
+When PostgreSQL is configured, data lives on the database server — completely independent of whether the Streamlit app is running, sleeping, or redeployed.
 
 ### ⚠️ Data Persistence Warning — Cloud Deployments
 

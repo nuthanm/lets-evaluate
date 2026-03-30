@@ -13,6 +13,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lets_evaluate.db")
+# SQLAlchemy 2.0+ dropped the legacy 'postgres://' dialect alias.
+# Many cloud platforms (Heroku, Streamlit Cloud, Neon, Supabase…) still
+# issue connection strings that start with 'postgres://', so normalise them
+# to 'postgresql://' to avoid an OperationalError on startup.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
@@ -187,30 +193,32 @@ def get_db() -> Session:
 
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
-    # Migrate: add missing columns to evaluations if they don't exist (SQLite)
-    try:
-        engine = _get_engine()
-        with engine.connect() as conn:
-            cols = [row[1] for row in conn.execute(
-                sa_text("PRAGMA table_info(evaluations)")
-            )]
-            if "interviewer_name" not in cols:
-                conn.execute(sa_text(
-                    "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
-                ))
-                conn.commit()
-            if "role_questions" not in cols:
-                conn.execute(sa_text(
-                    "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'"
-                ))
-                conn.commit()
-            if "q_satisfaction" not in cols:
-                conn.execute(sa_text(
-                    "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'"
-                ))
-                conn.commit()
-    except Exception:
-        pass
+    # Migrate: add missing columns to existing SQLite databases.
+    # PRAGMA table_info is SQLite-only; skip for other backends.
+    if DATABASE_URL.startswith("sqlite"):
+        try:
+            engine = _get_engine()
+            with engine.connect() as conn:
+                cols = [row[1] for row in conn.execute(
+                    sa_text("PRAGMA table_info(evaluations)")
+                )]
+                if "interviewer_name" not in cols:
+                    conn.execute(sa_text(
+                        "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
+                    ))
+                    conn.commit()
+                if "role_questions" not in cols:
+                    conn.execute(sa_text(
+                        "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'"
+                    ))
+                    conn.commit()
+                if "q_satisfaction" not in cols:
+                    conn.execute(sa_text(
+                        "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'"
+                    ))
+                    conn.commit()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
