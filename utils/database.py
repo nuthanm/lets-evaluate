@@ -24,18 +24,31 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite_path}")
 # to 'postgresql://' to avoid an OperationalError on startup.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-# Redirect relative SQLite paths to the writable temp directory.
-# On Streamlit Cloud the repo is mounted read-only, so relative paths like
-# sqlite:///./lets_evaluate.db or sqlite:///lets_evaluate.db would raise an
-# OperationalError when SQLAlchemy tries to create/open the file.
+# Redirect SQLite paths that are not writable to the temp directory.
+# On Streamlit Cloud the repo is mounted read-only at /mount/src/…, so both
+# relative paths (e.g. sqlite:///lets_evaluate.db) and absolute paths that
+# point into a non-writable or non-existent directory (e.g. a local absolute
+# path copied into Streamlit Cloud secrets) raise an OperationalError when
+# SQLAlchemy tries to create/open the file.
 if DATABASE_URL.startswith("sqlite:///"):
     # Strip whitespace to guard against whitespace-only paths.
     _sqlite_path = DATABASE_URL[len("sqlite:///"):].strip()
     if _sqlite_path and not os.path.isabs(_sqlite_path):
+        # Relative paths: redirect to the writable temp directory.
         # rstrip('/') ensures basename extracts the filename even for
         # paths like 'foo/' or 'sub/dir/'.
         _sqlite_filename = os.path.basename(_sqlite_path.rstrip("/")) or "lets_evaluate.db"
         DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
+    elif _sqlite_path and os.path.isabs(_sqlite_path):
+        # Absolute paths: redirect to the temp directory when the parent
+        # directory does not exist or is not writable (e.g. a local absolute
+        # path copied into Streamlit Cloud secrets where the path either
+        # doesn't exist on the container or points to the read-only repo
+        # mount at /mount/src/…).
+        _sqlite_dir = os.path.dirname(_sqlite_path)
+        if not os.access(_sqlite_dir, os.W_OK):
+            _sqlite_filename = os.path.basename(_sqlite_path) or "lets_evaluate.db"
+            DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
