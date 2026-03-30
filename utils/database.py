@@ -1,15 +1,24 @@
 import uuid
 import json
 import os
+import socket
 import tempfile
 import threading
+import warnings
 from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs, unquote_plus
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, text as sa_text, inspect as sa_inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
+
+try:
+    import psycopg2
+    _psycopg2_available = True
+except ImportError:
+    _psycopg2_available = False
 
 load_dotenv()
 
@@ -59,15 +68,86 @@ _SessionLocal = None
 _db_lock = threading.Lock()
 
 
+def _make_ipv4_creator(db_url: str):
+    """Return a psycopg2 connection creator that forces an IPv4 connection.
+
+    Some cloud platforms (e.g. Supabase) publish both IPv4 and IPv6 DNS
+    records, but certain deployment environments (e.g. Streamlit Community
+    Cloud) can only route IPv4.  When Python's default DNS resolution picks
+    an IPv6 address the connection fails with "Cannot assign requested
+    address".
+
+    Setting the ``hostaddr`` libpq parameter to the resolved IPv4 address
+    tells libpq to dial that address directly while ``host`` is still kept
+    for SSL hostname verification.  If IPv4 resolution fails the function
+    falls back to the default DNS behaviour so legitimate IPv6-only setups
+    continue to work.
+    """
+    parsed = urlparse(db_url)
+
+    # Build psycopg2 keyword arguments from the URL.
+    connect_kwargs = {}
+    if parsed.hostname:
+        connect_kwargs["host"] = parsed.hostname
+    if parsed.port:
+        connect_kwargs["port"] = parsed.port
+    if parsed.username:
+        connect_kwargs["user"] = unquote_plus(parsed.username)
+    if parsed.password:
+        connect_kwargs["password"] = unquote_plus(parsed.password)
+    if parsed.path and len(parsed.path) > 1:
+        connect_kwargs["dbname"] = parsed.path.lstrip("/")
+    # Forward any query-string parameters (e.g. sslmode=require).
+    for key, values in parse_qs(parsed.query).items():
+        connect_kwargs[key] = values[0]
+
+    def creator():
+        kw = dict(connect_kwargs)
+        host = kw.get("host", "")
+        if host:
+            try:
+                infos = socket.getaddrinfo(
+                    host,
+                    kw.get("port", 5432),
+                    family=socket.AF_INET,
+                    type=socket.SOCK_STREAM,
+                )
+                if infos:
+                    # Pass the IPv4 address via hostaddr so libpq skips DNS
+                    # and dials it directly; host is kept for SNI/SSL checks.
+                    kw["hostaddr"] = infos[0][4][0]
+            except socket.gaierror as exc:
+                warnings.warn(
+                    f"IPv4 DNS lookup for '{host}' failed ({exc}); "
+                    "falling back to default address resolution — "
+                    "this may cause connection issues on IPv4-only hosts.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        return psycopg2.connect(**kw)
+
+    return creator
+
+
 def _get_engine():
     global _engine
     if _engine is None:
         with _db_lock:
             if _engine is None:
-                _engine = create_engine(
-                    DATABASE_URL,
-                    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-                )
+                _is_pg = DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+psycopg2://")
+                if _is_pg and _psycopg2_available:
+                    # Use a custom creator that forces IPv4 to avoid failures
+                    # on IPv4-only hosts when the server's DNS publishes an
+                    # IPv6 address (e.g. Supabase on Streamlit Community Cloud).
+                    _engine = create_engine(
+                        DATABASE_URL,
+                        creator=_make_ipv4_creator(DATABASE_URL),
+                    )
+                else:
+                    _engine = create_engine(
+                        DATABASE_URL,
+                        connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+                    )
     return _engine
 
 
