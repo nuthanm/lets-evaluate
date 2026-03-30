@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
-    Text, ForeignKey, text as sa_text,
+    Text, ForeignKey, text as sa_text, inspect as sa_inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
@@ -223,32 +223,42 @@ def get_db() -> Session:
 
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
-    # Migrate: add missing columns to existing SQLite databases.
-    # PRAGMA table_info is SQLite-only; skip for other backends.
-    if DATABASE_URL.startswith("sqlite"):
-        try:
-            engine = _get_engine()
-            with engine.connect() as conn:
-                cols = [row[1] for row in conn.execute(
-                    sa_text("PRAGMA table_info(evaluations)")
-                )]
-                if "interviewer_name" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
-                    ))
-                    conn.commit()
-                if "role_questions" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'"
-                    ))
-                    conn.commit()
-                if "q_satisfaction" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'"
-                    ))
-                    conn.commit()
-        except Exception:
-            pass
+    # Migrate: add any columns that may be missing from older databases.
+    # Uses SQLAlchemy's Inspector for dialect-agnostic column discovery so
+    # this works for both SQLite and PostgreSQL.
+    # PostgreSQL supports ADD COLUMN IF NOT EXISTS (v9.6+); SQLite lacks that
+    # clause, but the pre-check against existing_cols guards against duplicates.
+    # SQL strings are fully static (no interpolation) to avoid any risk of
+    # SQL injection from dynamically constructed DDL.
+    try:
+        engine = _get_engine()
+        inspector = sa_inspect(engine)
+        existing_cols = {c["name"] for c in inspector.get_columns("evaluations")}
+        is_postgres = engine.dialect.name == "postgresql"
+        # Each entry: (column_name, postgresql_ddl, other_ddl)
+        migrations = [
+            (
+                "interviewer_name",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS interviewer_name VARCHAR DEFAULT ''",
+                "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''",
+            ),
+            (
+                "role_questions",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS role_questions TEXT DEFAULT '[]'",
+                "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'",
+            ),
+            (
+                "q_satisfaction",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS q_satisfaction TEXT DEFAULT '{}'",
+                "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'",
+            ),
+        ]
+        with engine.begin() as conn:
+            for col_name, pg_sql, other_sql in migrations:
+                if col_name not in existing_cols:
+                    conn.execute(sa_text(pg_sql if is_postgres else other_sql))
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

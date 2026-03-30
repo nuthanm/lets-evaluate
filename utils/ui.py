@@ -1,9 +1,9 @@
 """Shared UI helpers for every page in Let's Evaluate."""
 
 import html
-import os
 import streamlit as st
 from utils.auth import logout_user
+from utils.database import DATABASE_URL
 
 BRAND = "Let's Evaluate"
 
@@ -153,8 +153,7 @@ def _render_sqlite_warning() -> None:
     inactivity, causing complete data loss.  The warning nudges users to
     switch to a persistent PostgreSQL database before deploying.
     """
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./lets_evaluate.db")
-    if db_url.startswith("sqlite"):
+    if DATABASE_URL.startswith("sqlite"):
         st.warning(
             "⚠️ **SQLite detected — your data is at risk.**\n\n"
             "SQLite stores everything in a local file that is **permanently "
