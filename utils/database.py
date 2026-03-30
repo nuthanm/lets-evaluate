@@ -24,6 +24,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite_path}")
 # to 'postgresql://' to avoid an OperationalError on startup.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Redirect relative SQLite paths to the writable temp directory.
+# On Streamlit Cloud the repo is mounted read-only, so relative paths like
+# sqlite:///./lets_evaluate.db or sqlite:///lets_evaluate.db would raise an
+# OperationalError when SQLAlchemy tries to create/open the file.
+if DATABASE_URL.startswith("sqlite:///"):
+    # Strip whitespace to guard against whitespace-only paths.
+    _sqlite_path = DATABASE_URL[len("sqlite:///"):].strip()
+    if _sqlite_path and not os.path.isabs(_sqlite_path):
+        # rstrip('/') ensures basename extracts the filename even for
+        # paths like 'foo/' or 'sub/dir/'.
+        _sqlite_filename = os.path.basename(_sqlite_path.rstrip("/")) or "lets_evaluate.db"
+        DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
