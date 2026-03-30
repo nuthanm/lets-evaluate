@@ -10,7 +10,7 @@ from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, text as sa_text,
 )
-from sqlalchemy.exc import ArgumentError as _SAArgumentError
+from sqlalchemy.exc import ArgumentError as _SAArgumentError, OperationalError as _SAOperationalError
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
 
@@ -302,7 +302,26 @@ def get_db() -> Session:
 
 
 def init_db():
-    Base.metadata.create_all(bind=_get_engine())
+    try:
+        Base.metadata.create_all(bind=_get_engine())
+    except _SAOperationalError as exc:
+        _orig = str(exc.orig) if exc.orig else str(exc)
+        parsed = urlparse(DATABASE_URL)
+        host = parsed.hostname or "<unknown>"
+        raise RuntimeError(
+            f"Could not connect to the PostgreSQL database "
+            f"(host: {host!r}).\n\n"
+            f"Original error: {_orig}\n\n"
+            "Common causes and fixes:\n"
+            "  • The hostname in DATABASE_URL is a Docker Compose service name (e.g. 'postgres') that is not reachable from this environment. Update DATABASE_URL to use an accessible host.\n"
+            "  • The database server is not running or is not accepting connections.\n"
+            "  • The credentials or database name in DATABASE_URL are incorrect.\n\n"
+            "Free cloud PostgreSQL options (no Docker needed):\n"
+            "  • Supabase  — https://supabase.com  (free tier)\n"
+            "  • Neon      — https://neon.tech     (free tier)\n"
+            "  • Railway   — https://railway.app   (free starter)\n\n"
+            "On Streamlit Community Cloud set DATABASE_URL under App settings → Secrets."
+        ) from exc
     # Migrate: add any columns that may be missing from older databases.
     # ADD COLUMN IF NOT EXISTS is available in all currently-supported
     # PostgreSQL versions (12+), so the DDL is safe to run unconditionally.
