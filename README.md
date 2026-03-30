@@ -124,8 +124,14 @@ You do **not** need Docker or a locally-installed PostgreSQL server. All of the 
 **Steps (using Supabase as an example):**
 1. Go to <https://supabase.com> and create a free account
 2. Create a new project — choose any region
-3. Go to **Project Settings → Database → Connection string** and copy the URI
-4. Paste it as `DATABASE_URL` in your `.env` file (or Streamlit Cloud secrets)
+3. Go to **Project Settings → Database → Connection string** and select the **URI** tab
+4. Copy the connection string — it will look like one of these:
+   - Direct: `postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres`
+   - Pooler: `postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres`
+     *(In the pooler format `postgres.[PROJECT-REF]` is the full username, not two separate fields.)*
+5. Paste it as `DATABASE_URL` in your `.env` file (or Streamlit Cloud secrets)
+
+> ⚠️ **Common mistake:** Supabase uses `postgres` as both the default *username* and the default *database name*. The **hostname** is different — it always contains dots (e.g. `db.abcdef.supabase.co`). Do **not** use `postgres` as the hostname.
 
 ### ✅ Does data persist when the Streamlit app is inactive?
 

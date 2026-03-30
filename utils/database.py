@@ -52,6 +52,34 @@ if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("pos
         "  DATABASE_URL=postgresql://user:password@host:5432/dbname"
     )
 
+# Detect Docker Compose-style bare hostnames (e.g. "postgres", "db") early so
+# users get a clear, actionable error rather than a cryptic DNS failure later.
+# A legitimate public hostname always contains at least one dot (e.g.
+# "db.abc.supabase.co") or is "localhost".  IPv6 addresses contain ":" so
+# they are also excluded from this check.
+_startup_parsed = urlparse(DATABASE_URL)
+_startup_host = _startup_parsed.hostname or ""
+if (
+    _startup_host
+    and "." not in _startup_host
+    and ":" not in _startup_host
+    and _startup_host != "localhost"
+):
+    raise RuntimeError(
+        f"DATABASE_URL contains a bare hostname ({_startup_host!r}) that cannot be "
+        f"reached from the public internet.\n\n"
+        "A single-word name like 'postgres' or 'db' is a Docker Compose service name "
+        "that only resolves inside a Docker network — it will not work on your local "
+        "machine or on Streamlit Community Cloud.\n\n"
+        "Please use the full connection string from your cloud PostgreSQL provider:\n"
+        "  • Supabase — Project Settings → Database → Connection string → URI\n"
+        "    (hostname looks like db.<ref>.supabase.co or <ref>.pooler.supabase.com)\n"
+        "  • Neon     — Dashboard → Connection Details → Connection string\n"
+        "  • Railway  — Service → Variables → DATABASE_URL\n\n"
+        "On Streamlit Community Cloud: update DATABASE_URL under "
+        "App settings → Secrets."
+    )
+
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
 # when the module is loaded before the Streamlit runtime is fully ready).
