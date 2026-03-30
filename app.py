@@ -12,7 +12,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-init_db()
+try:
+    init_db()
+except Exception as _db_exc:  # noqa: BLE001
+    st.error(
+        "⚠️ **Database connection failed** — the app could not reach the PostgreSQL database.\n\n"
+        f"```\n{_db_exc}\n```\n\n"
+        "**How to fix this:**\n"
+        "1. Set `DATABASE_URL` to a valid, reachable PostgreSQL connection string.\n"
+        "2. If you are using a Docker Compose hostname (e.g. `postgres`), replace it with a publicly accessible host.\n"
+        "3. Free cloud databases: [Supabase](https://supabase.com) · [Neon](https://neon.tech) · [Railway](https://railway.app)\n"
+        "4. On Streamlit Community Cloud: add `DATABASE_URL` under **App settings → Secrets**."
+    )
+    st.stop()
 
 # Redirect authenticated users straight to Dashboard (logo / direct URL visit)
 if st.session_state.get("authenticated", False):
