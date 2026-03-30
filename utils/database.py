@@ -11,6 +11,7 @@ from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, text as sa_text, inspect as sa_inspect,
 )
+from sqlalchemy.exc import ArgumentError as _SAArgumentError
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
 
@@ -89,8 +90,11 @@ def _make_ipv4_creator(db_url: str):
     connect_kwargs = {}
     if parsed.hostname:
         connect_kwargs["host"] = parsed.hostname
-    if parsed.port:
-        connect_kwargs["port"] = parsed.port
+    try:
+        if parsed.port:
+            connect_kwargs["port"] = parsed.port
+    except ValueError:
+        pass  # non-integer port — omit and let psycopg2 use its default (5432)
     if parsed.username:
         connect_kwargs["user"] = unquote_plus(parsed.username)
     if parsed.password:
@@ -135,19 +139,27 @@ def _get_engine():
         with _db_lock:
             if _engine is None:
                 _is_pg = DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+psycopg2://")
-                if _is_pg and _psycopg2_available:
-                    # Use a custom creator that forces IPv4 to avoid failures
-                    # on IPv4-only hosts when the server's DNS publishes an
-                    # IPv6 address (e.g. Supabase on Streamlit Community Cloud).
-                    _engine = create_engine(
-                        DATABASE_URL,
-                        creator=_make_ipv4_creator(DATABASE_URL),
-                    )
-                else:
-                    _engine = create_engine(
-                        DATABASE_URL,
-                        connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-                    )
+                try:
+                    if _is_pg and _psycopg2_available:
+                        # Use a custom creator that forces IPv4 to avoid failures
+                        # on IPv4-only hosts when the server's DNS publishes an
+                        # IPv6 address (e.g. Supabase on Streamlit Community Cloud).
+                        _engine = create_engine(
+                            DATABASE_URL,
+                            creator=_make_ipv4_creator(DATABASE_URL),
+                        )
+                    else:
+                        _engine = create_engine(
+                            DATABASE_URL,
+                            connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+                        )
+                except (ValueError, _SAArgumentError) as exc:
+                    raise ValueError(
+                        "DATABASE_URL is invalid and could not be parsed. "
+                        "Please ensure DATABASE_URL is set to a valid PostgreSQL connection string "
+                        "(e.g. postgresql://user:password@host:5432/dbname). "
+                        f"Original error: {exc}"
+                    ) from exc
     return _engine
 
 
