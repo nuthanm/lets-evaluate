@@ -11,7 +11,7 @@ from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, text as sa_text, inspect as sa_inspect,
 )
-from sqlalchemy.exc import ArgumentError as _SAArgumentError
+from sqlalchemy.exc import ArgumentError as _SAArgumentError, OperationalError as _SAOperationalError
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
 
@@ -144,12 +144,12 @@ def _get_engine():
                         # Use a custom creator that forces IPv4 to avoid failures
                         # on IPv4-only hosts when the server's DNS publishes an
                         # IPv6 address (e.g. Supabase on Streamlit Community Cloud).
-                        _engine = create_engine(
+                        candidate = create_engine(
                             DATABASE_URL,
                             creator=_make_ipv4_creator(DATABASE_URL),
                         )
                     else:
-                        _engine = create_engine(
+                        candidate = create_engine(
                             DATABASE_URL,
                             connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
                         )
@@ -160,6 +160,29 @@ def _get_engine():
                         "(e.g. postgresql://user:password@host:5432/dbname). "
                         f"Original error: {exc}"
                     ) from exc
+                # For PostgreSQL, probe the connection before committing to it.
+                # This catches cases where the hostname cannot be resolved (e.g.
+                # the Docker Compose service name "postgres" used outside Docker)
+                # and falls back to SQLite so the app remains usable.
+                if _is_pg:
+                    try:
+                        with candidate.connect() as _conn:
+                            pass  # connectivity probe only
+                    except _SAOperationalError as exc:
+                        warnings.warn(
+                            f"Could not connect to PostgreSQL ({exc}); "
+                            f"falling back to SQLite at '{_default_sqlite_path}'. "
+                            "Set DATABASE_URL to a reachable PostgreSQL connection string "
+                            "for persistent storage.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                        candidate.dispose()
+                        candidate = create_engine(
+                            f"sqlite:///{_default_sqlite_path}",
+                            connect_args={"check_same_thread": False},
+                        )
+                _engine = candidate
     return _engine
 
 
