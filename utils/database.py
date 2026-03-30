@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
-    Text, ForeignKey, text as sa_text,
+    Text, ForeignKey, text as sa_text, inspect as sa_inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
@@ -24,18 +24,31 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite_path}")
 # to 'postgresql://' to avoid an OperationalError on startup.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-# Redirect relative SQLite paths to the writable temp directory.
-# On Streamlit Cloud the repo is mounted read-only, so relative paths like
-# sqlite:///./lets_evaluate.db or sqlite:///lets_evaluate.db would raise an
-# OperationalError when SQLAlchemy tries to create/open the file.
+# Redirect SQLite paths that are not writable to the temp directory.
+# On Streamlit Cloud the repo is mounted read-only at /mount/src/…, so both
+# relative paths (e.g. sqlite:///lets_evaluate.db) and absolute paths that
+# point into a non-writable or non-existent directory (e.g. a local absolute
+# path copied into Streamlit Cloud secrets) raise an OperationalError when
+# SQLAlchemy tries to create/open the file.
 if DATABASE_URL.startswith("sqlite:///"):
     # Strip whitespace to guard against whitespace-only paths.
     _sqlite_path = DATABASE_URL[len("sqlite:///"):].strip()
     if _sqlite_path and not os.path.isabs(_sqlite_path):
+        # Relative paths: redirect to the writable temp directory.
         # rstrip('/') ensures basename extracts the filename even for
         # paths like 'foo/' or 'sub/dir/'.
         _sqlite_filename = os.path.basename(_sqlite_path.rstrip("/")) or "lets_evaluate.db"
         DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
+    elif _sqlite_path and os.path.isabs(_sqlite_path):
+        # Absolute paths: redirect to the temp directory when the parent
+        # directory does not exist or is not writable (e.g. a local absolute
+        # path copied into Streamlit Cloud secrets where the path either
+        # doesn't exist on the container or points to the read-only repo
+        # mount at /mount/src/…).
+        _sqlite_dir = os.path.dirname(_sqlite_path)
+        if not os.access(_sqlite_dir, os.W_OK):
+            _sqlite_filename = os.path.basename(_sqlite_path) or "lets_evaluate.db"
+            DATABASE_URL = f"sqlite:///{os.path.join(tempfile.gettempdir(), _sqlite_filename)}"
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
@@ -210,32 +223,42 @@ def get_db() -> Session:
 
 def init_db():
     Base.metadata.create_all(bind=_get_engine())
-    # Migrate: add missing columns to existing SQLite databases.
-    # PRAGMA table_info is SQLite-only; skip for other backends.
-    if DATABASE_URL.startswith("sqlite"):
-        try:
-            engine = _get_engine()
-            with engine.connect() as conn:
-                cols = [row[1] for row in conn.execute(
-                    sa_text("PRAGMA table_info(evaluations)")
-                )]
-                if "interviewer_name" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''"
-                    ))
-                    conn.commit()
-                if "role_questions" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'"
-                    ))
-                    conn.commit()
-                if "q_satisfaction" not in cols:
-                    conn.execute(sa_text(
-                        "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'"
-                    ))
-                    conn.commit()
-        except Exception:
-            pass
+    # Migrate: add any columns that may be missing from older databases.
+    # Uses SQLAlchemy's Inspector for dialect-agnostic column discovery so
+    # this works for both SQLite and PostgreSQL.
+    # PostgreSQL supports ADD COLUMN IF NOT EXISTS (v9.6+); SQLite lacks that
+    # clause, but the pre-check against existing_cols guards against duplicates.
+    # SQL strings are fully static (no interpolation) to avoid any risk of
+    # SQL injection from dynamically constructed DDL.
+    try:
+        engine = _get_engine()
+        inspector = sa_inspect(engine)
+        existing_cols = {c["name"] for c in inspector.get_columns("evaluations")}
+        is_postgres = engine.dialect.name == "postgresql"
+        # Each entry: (column_name, postgresql_ddl, other_ddl)
+        migrations = [
+            (
+                "interviewer_name",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS interviewer_name VARCHAR DEFAULT ''",
+                "ALTER TABLE evaluations ADD COLUMN interviewer_name VARCHAR DEFAULT ''",
+            ),
+            (
+                "role_questions",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS role_questions TEXT DEFAULT '[]'",
+                "ALTER TABLE evaluations ADD COLUMN role_questions TEXT DEFAULT '[]'",
+            ),
+            (
+                "q_satisfaction",
+                "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS q_satisfaction TEXT DEFAULT '{}'",
+                "ALTER TABLE evaluations ADD COLUMN q_satisfaction TEXT DEFAULT '{}'",
+            ),
+        ]
+        with engine.begin() as conn:
+            for col_name, pg_sql, other_sql in migrations:
+                if col_name not in existing_cols:
+                    conn.execute(sa_text(pg_sql if is_postgres else other_sql))
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
