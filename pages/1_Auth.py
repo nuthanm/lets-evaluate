@@ -156,7 +156,7 @@ if view == _VIEW_FORGOT:
 
             col_send, col_back = st.columns(2)
             with col_send:
-                if st.button("📧 Send Code", use_container_width=True, type="primary"):
+                if st.button("📧 Send Code", width='stretch', type="primary"):
                     user = get_user_by_email(fp_email)
                     if not user:
                         st.error("No account found with that email.")
@@ -174,7 +174,7 @@ if view == _VIEW_FORGOT:
                         else:
                             st.error(f"Failed to send email: {err}")
             with col_back:
-                if st.button("← Back to Login", use_container_width=True):
+                if st.button("← Back to Login", width='stretch'):
                     st.session_state["auth_view"] = "login"
                     st.session_state["reset_step"] = 1
                     st.rerun()
@@ -187,7 +187,7 @@ if view == _VIEW_FORGOT:
 
             col_reset, col_back = st.columns(2)
             with col_reset:
-                if st.button("🔒 Reset Password", use_container_width=True, type="primary"):
+                if st.button("🔒 Reset Password", width='stretch', type="primary"):
                     if new_pw != conf_pw:
                         st.error("Passwords do not match.")
                     elif len(new_pw) < 8:
@@ -205,7 +205,7 @@ if view == _VIEW_FORGOT:
                             st.session_state["reset_step"] = 1
                             st.rerun()
             with col_back:
-                if st.button("← Back", use_container_width=True):
+                if st.button("← Back", width='stretch'):
                     st.session_state["reset_step"] = 1
                     st.rerun()
 
@@ -225,9 +225,9 @@ else:
 
         col_signin, col_forgot = st.columns([3, 2])
         with col_signin:
-            do_login = st.button("🚀 Sign In", use_container_width=True, type="primary", key="btn_login")
+            do_login = st.button("🚀 Sign In", width='stretch', type="primary", key="btn_login")
         with col_forgot:
-            if st.button("Forgot password?", key="btn_forgot_pw", use_container_width=True):
+            if st.button("Forgot password?", key="btn_forgot_pw", width='stretch'):
                 st.session_state["auth_view"] = _VIEW_FORGOT
                 st.session_state["reset_step"] = 1
                 st.rerun()
@@ -270,7 +270,7 @@ else:
                                   help="Minimum 8 characters")
         reg_conf = st.text_input("Confirm password", type="password", key="reg_conf")
 
-        if st.button("🎉 Create Account", use_container_width=True, type="primary", key="btn_register"):
+        if st.button("🎉 Create Account", width='stretch', type="primary", key="btn_register"):
             missing = []
             if not reg_name:
                 missing.append("Full Name")

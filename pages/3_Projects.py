@@ -121,13 +121,13 @@ def _delete_project_dialog():
         )
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🗑️ Delete", type="primary", use_container_width=True):
+        if st.button("🗑️ Delete", type="primary", width='stretch'):
             delete_project(p["id"])
             del st.session_state["_pending_delete_proj"]
             st.toast(f"Project '{p['name']}' deleted.", icon="🗑️")
             st.rerun()
     with c2:
-        if st.button("✖️ Cancel", use_container_width=True):
+        if st.button("✖️ Cancel", width='stretch'):
             del st.session_state["_pending_delete_proj"]
             st.rerun()
 
@@ -145,7 +145,7 @@ hdr_col, btn_col = st.columns([8, 2])
 with hdr_col:
     st.markdown("## 📁 Projects")
 with btn_col:
-    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+    if st.button("🏠 Dashboard", width='stretch', help="Go to Dashboard"):
         st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
@@ -181,9 +181,9 @@ with right_col:
                 )
                 c_save, c_cancel = st.columns(2)
                 with c_save:
-                    save = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                    save = st.form_submit_button("💾 Save Changes", type="primary", width='stretch')
                 with c_cancel:
-                    cancel = st.form_submit_button("✖️ Cancel", use_container_width=True)
+                    cancel = st.form_submit_button("✖️ Cancel", width='stretch')
 
                 if save:
                     if not ep_name.strip():
@@ -213,7 +213,7 @@ with right_col:
                     placeholder="e.g. FastAPI, Redis, Kafka",
                 )
                 submitted = st.form_submit_button(
-                    "✅ Create Project", type="primary", use_container_width=True
+                    "✅ Create Project", type="primary", width='stretch'
                 )
                 if submitted:
                     if not p_name.strip():
@@ -278,12 +278,12 @@ with left_col:
                 )
             with c_edit:
                 if st.button("✏️", key=f"edit_proj_{p['id']}", help="Edit project",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state["edit_project_id"] = p["id"]
                     st.rerun()
             with c_del:
                 if st.button("🗑️", key=f"del_proj_{p['id']}", help="Delete project",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state["_pending_delete_proj"] = p
                     st.rerun()
 

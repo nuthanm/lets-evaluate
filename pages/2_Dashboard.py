@@ -143,7 +143,7 @@ nav_items = [
 ]
 for col, (icon, title, desc, page) in zip(nav_cols, nav_items):
     with col:
-        if st.button(f"{icon} {title}", use_container_width=True, key=f"nav_{title}"):
+        if st.button(f"{icon} {title}", width='stretch', key=f"nav_{title}"):
             st.switch_page(page)
         st.caption(desc)
 
@@ -176,11 +176,11 @@ if drafts:
             with dc5:
                 rb1, rb2 = st.columns(2)
                 with rb1:
-                    if st.button("▶", key=f"resume_{draft['id']}", help="Resume from left over", use_container_width=True):
+                    if st.button("▶", key=f"resume_{draft['id']}", help="Resume from left over", width='stretch'):
                         st.query_params["draft_id"] = draft["id"]
                         st.switch_page("pages/6_Evaluate_Candidate.py")
                 with rb2:
-                    if st.button("🗑", key=f"del_draft_{draft['id']}", help="Delete this draft", use_container_width=True):
+                    if st.button("🗑", key=f"del_draft_{draft['id']}", help="Delete this draft", width='stretch'):
                         st.session_state[f"del_draft_confirm_{draft['id']}"] = True
                         st.rerun()
 
@@ -195,9 +195,9 @@ if drafts:
                 )
                 cf1, cf2 = st.columns(2)
                 with cf1:
-                    submitted = st.form_submit_button("✅ Confirm Delete", type="primary", use_container_width=True)
+                    submitted = st.form_submit_button("✅ Confirm Delete", type="primary", width='stretch')
                 with cf2:
-                    cancelled = st.form_submit_button("✖️ Cancel", use_container_width=True)
+                    cancelled = st.form_submit_button("✖️ Cancel", width='stretch')
 
                 if submitted:
                     if not del_comment.strip():
@@ -248,4 +248,4 @@ if evaluations:
         for ev in recent
     ]
     df_recent = pd.DataFrame(rows)
-    st.dataframe(df_recent, use_container_width=True, hide_index=True)
+    st.dataframe(df_recent, width='stretch', hide_index=True)

@@ -209,7 +209,7 @@ for i, (col, label) in enumerate(zip(step_cols, step_labels), 1):
             )
         elif i <= max_step:
             # Previously visited step — clickable (back or forward)
-            if st.button(label, key=f"step_nav_{i}", use_container_width=True, help=f"Go to {label}"):
+            if st.button(label, key=f"step_nav_{i}", width='stretch', help=f"Go to {label}"):
                 st.session_state["eval_step"] = i
                 st.rerun()
         else:
@@ -271,7 +271,7 @@ if st.session_state["eval_step"] == 1:
 
     b_next, b_save = st.columns([3, 1])
     with b_save:
-        if st.button("💾 Save Progress", use_container_width=True, help="Save your progress and resume later"):
+        if st.button("💾 Save Progress", width='stretch', help="Save your progress and resume later"):
             st.session_state["eval_project_id"] = selected_proj_id
             st.session_state["eval_role_id"] = selected_role_id
             st.session_state["eval_candidate_name"] = cand_name.strip()
@@ -291,7 +291,7 @@ if st.session_state["eval_step"] == 1:
             _save_progress()
             st.rerun()
     with b_next:
-        if st.button("▶ Next: Analyse Resume", type="primary", use_container_width=True):
+        if st.button("▶ Next: Analyse Resume", type="primary", width='stretch'):
             if not cand_name.strip():
                 st.error("Candidate name is required.")
             elif uploaded is None and not st.session_state.get("eval_resume_text"):
@@ -535,15 +535,15 @@ elif st.session_state["eval_step"] == 2:
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
-        if st.button("← Back", use_container_width=True):
+        if st.button("← Back", width='stretch'):
             st.session_state["eval_step"] = 1
             st.rerun()
     with b2:
-        if st.button("💾 Save Progress", use_container_width=True):
+        if st.button("💾 Save Progress", width='stretch'):
             _save_progress()
             st.rerun()
     with b3:
-        if st.button("▶ Generate Questions", type="primary", use_container_width=True):
+        if st.button("▶ Generate Questions", type="primary", width='stretch'):
             st.session_state["eval_step"] = 3
             st.session_state["eval_max_step"] = max(st.session_state.get("eval_max_step", 1), 3)
             st.rerun()
@@ -662,7 +662,7 @@ elif st.session_state["eval_step"] == 3:
 
     gen_col1, gen_col2 = st.columns(2)
     with gen_col1:
-        if st.button("🤖 Generate Standard Questions", type="primary", use_container_width=True):
+        if st.button("🤖 Generate Standard Questions", type="primary", width='stretch'):
             with st.spinner("Generating interview questions…"):
                 qs = generate_standard_questions(role_name, tech_stack, topic=ai_topic.strip())
             # Append new questions to existing list
@@ -670,7 +670,7 @@ elif st.session_state["eval_step"] == 3:
             st.session_state["eval_std_questions"] = existing + qs
             st.rerun()
     with gen_col2:
-        if st.button("📄 Generate From Resume", use_container_width=True):
+        if st.button("📄 Generate From Resume", width='stretch'):
             with st.spinner("Generating resume-based questions…"):
                 rqs = generate_resume_based_questions(
                     st.session_state["eval_resume_text"], role_req
@@ -684,12 +684,12 @@ elif st.session_state["eval_step"] == 3:
         cl1, cl2 = st.columns(2)
         with cl1:
             if st.session_state.get("eval_std_questions"):
-                if st.button("🗑 Clear Standard Questions", use_container_width=True):
+                if st.button("🗑 Clear Standard Questions", width='stretch'):
                     st.session_state["eval_std_questions"] = []
                     st.rerun()
         with cl2:
             if st.session_state.get("eval_resume_questions"):
-                if st.button("🗑 Clear Resume Questions", use_container_width=True):
+                if st.button("🗑 Clear Resume Questions", width='stretch'):
                     st.session_state["eval_resume_questions"] = []
                     st.rerun()
 
@@ -720,15 +720,15 @@ elif st.session_state["eval_step"] == 3:
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
-        if st.button("← Back", use_container_width=True):
+        if st.button("← Back", width='stretch'):
             st.session_state["eval_step"] = 2
             st.rerun()
     with b2:
-        if st.button("💾 Save Progress", use_container_width=True):
+        if st.button("💾 Save Progress", width='stretch'):
             _save_progress()
             st.rerun()
     with b3:
-        if st.button("▶ Continue to Submit", type="primary", use_container_width=True):
+        if st.button("▶ Continue to Submit", type="primary", width='stretch'):
             st.session_state["eval_step"] = 4
             st.session_state["eval_max_step"] = max(st.session_state.get("eval_max_step", 1), 4)
             st.rerun()
@@ -810,17 +810,17 @@ elif st.session_state["eval_step"] == 4:
 
     b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
-        if st.button("← Back", use_container_width=True):
+        if st.button("← Back", width='stretch'):
             st.session_state["eval_step"] = 3
             st.rerun()
     with b2:
-        if st.button("💾 Save Progress", use_container_width=True):
+        if st.button("💾 Save Progress", width='stretch'):
             st.session_state["eval_refined_notes"] = comments
             st.session_state["eval_interviewer_name"] = interviewer_name
             _save_progress()
             st.rerun()
     with b3:
-        if st.button("✅ Submit Evaluation", type="primary", use_container_width=True):
+        if st.button("✅ Submit Evaluation", type="primary", width='stretch'):
             if not interviewer_name.strip():
                 st.error("Interviewer Name is required.")
             elif not comments.strip():
