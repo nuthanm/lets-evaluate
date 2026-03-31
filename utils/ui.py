@@ -2,7 +2,6 @@
 
 import html
 import streamlit as st
-from utils.auth import logout_user
 
 BRAND = "Let's Evaluate"
 
@@ -212,6 +211,7 @@ def render_authenticated_sidebar() -> None:
                 unsafe_allow_html=True,
             )
         if st.button("🚪 Sign Out", width='stretch'):
+            from utils.auth import logout_user
             logout_user()
             st.switch_page("app.py")
 
@@ -231,6 +231,7 @@ def render_page_logo() -> None:
 
     # Handle sign-out triggered by the header link
     if is_auth and st.query_params.get("action") == "signout":
+        from utils.auth import logout_user
         logout_user()
         st.query_params.clear()
         st.switch_page("app.py")
