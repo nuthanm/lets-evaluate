@@ -22,63 +22,13 @@ except ImportError:
 
 load_dotenv()
 
-# DATABASE_URL must be set to a PostgreSQL connection string.
-# SQLAlchemy 2.0+ dropped the legacy 'postgres://' dialect alias.
-# Many cloud platforms (Heroku, Streamlit Cloud, Neon, Supabase…) still
-# issue connection strings that start with 'postgres://', so normalise them
-# to 'postgresql://' to avoid an OperationalError on startup.
-_raw_database_url = os.getenv("DATABASE_URL", "").strip()
-if not _raw_database_url:
-    raise RuntimeError(
-        "DATABASE_URL environment variable is not set.\n\n"
-        "This app requires a PostgreSQL database. "
-        "Set DATABASE_URL to your PostgreSQL connection string:\n"
-        "  DATABASE_URL=postgresql://user:password@host:5432/dbname\n\n"
-        "No Docker? Use a free cloud PostgreSQL instance:\n"
-        "  • Supabase  — https://supabase.com  (free tier)\n"
-        "  • Neon      — https://neon.tech     (free tier)\n"
-        "  • Railway   — https://railway.app   (free starter)\n\n"
-        "On Streamlit Community Cloud add DATABASE_URL under App settings → Secrets."
-    )
-DATABASE_URL = _raw_database_url
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-if not (DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgresql+psycopg2://")):
-    raise RuntimeError(
-        f"DATABASE_URL does not look like a PostgreSQL connection string "
-        f"(got: {DATABASE_URL!r}).\n\n"
-        "This app requires PostgreSQL. "
-        "Set DATABASE_URL to a valid connection string:\n"
-        "  DATABASE_URL=postgresql://user:password@host:5432/dbname"
-    )
-
-# Detect Docker Compose-style bare hostnames (e.g. "postgres", "db") early so
-# users get a clear, actionable error rather than a cryptic DNS failure later.
-# A legitimate public hostname always contains at least one dot (e.g.
-# "db.abc.supabase.co") or is "localhost".  IPv6 addresses contain ":" so
-# they are also excluded from this check.
-_startup_parsed = urlparse(DATABASE_URL)
-_startup_host = _startup_parsed.hostname or ""
-if (
-    _startup_host
-    and "." not in _startup_host
-    and ":" not in _startup_host
-    and _startup_host != "localhost"
-):
-    raise RuntimeError(
-        f"DATABASE_URL contains a bare hostname ({_startup_host!r}) that cannot be "
-        f"reached from the public internet.\n\n"
-        "A single-word name like 'postgres' or 'db' is a Docker Compose service name "
-        "that only resolves inside a Docker network — it will not work on your local "
-        "machine or on Streamlit Community Cloud.\n\n"
-        "Please use the full connection string from your cloud PostgreSQL provider:\n"
-        "  • Supabase — Project Settings → Database → Connection string → URI\n"
-        "    (hostname looks like db.<ref>.supabase.co or <ref>.pooler.supabase.com)\n"
-        "  • Neon     — Dashboard → Connection Details → Connection string\n"
-        "  • Railway  — Service → Variables → DATABASE_URL\n\n"
-        "On Streamlit Community Cloud: update DATABASE_URL under "
-        "App settings → Secrets."
-    )
+# Read the raw URL at import time but do NOT raise here.  Validation and
+# normalisation are deferred to _validate_database_url(), which is called
+# lazily by _get_engine().  This lets ``from utils.database import init_db``
+# succeed so that app.py can call st.set_page_config() and render a
+# user-friendly error via its try/except block instead of showing a raw
+# Streamlit traceback.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 # Engine and session factory are created lazily on first use to avoid
 # import-time failures (e.g. KeyError from SQLAlchemy's dialect registry
@@ -87,6 +37,70 @@ if (
 _engine = None
 _SessionLocal = None
 _db_lock = threading.Lock()
+
+
+def _validate_database_url(raw_url: str) -> str:
+    """Validate and normalise *raw_url*; return the normalised URL.
+
+    Raises ``RuntimeError`` with an actionable message when the URL is absent,
+    not a PostgreSQL connection string, or contains a bare Docker Compose
+    hostname.  Called lazily by ``_get_engine()`` so the error surfaces through
+    the ``try/except`` block in *app.py* rather than at module import time.
+    """
+    # SQLAlchemy 2.0+ dropped the legacy 'postgres://' dialect alias.
+    # Many cloud platforms (Heroku, Streamlit Cloud, Neon, Supabase…) still
+    # issue connection strings that start with 'postgres://', so normalise them
+    # to 'postgresql://' to avoid an OperationalError on startup.
+    if not raw_url:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set.\n\n"
+            "This app requires a PostgreSQL database. "
+            "Set DATABASE_URL to your PostgreSQL connection string:\n"
+            "  DATABASE_URL=postgresql://user:password@host:5432/dbname\n\n"
+            "No Docker? Use a free cloud PostgreSQL instance:\n"
+            "  • Supabase  — https://supabase.com  (free tier)\n"
+            "  • Neon      — https://neon.tech     (free tier)\n"
+            "  • Railway   — https://railway.app   (free starter)\n\n"
+            "On Streamlit Community Cloud add DATABASE_URL under App settings → Secrets."
+        )
+    url = raw_url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if not (url.startswith("postgresql://") or url.startswith("postgresql+psycopg2://")):
+        raise RuntimeError(
+            f"DATABASE_URL does not look like a PostgreSQL connection string "
+            f"(got: {url!r}).\n\n"
+            "This app requires PostgreSQL. "
+            "Set DATABASE_URL to a valid connection string:\n"
+            "  DATABASE_URL=postgresql://user:password@host:5432/dbname"
+        )
+    # Detect Docker Compose-style bare hostnames (e.g. "postgres", "db").
+    # A legitimate public hostname always contains at least one dot (e.g.
+    # "db.abc.supabase.co") or is "localhost".  IPv6 addresses contain ":" so
+    # they are excluded from this check.
+    _parsed = urlparse(url)
+    _host = _parsed.hostname or ""
+    if (
+        _host
+        and "." not in _host
+        and ":" not in _host
+        and _host != "localhost"
+    ):
+        raise RuntimeError(
+            f"DATABASE_URL contains a bare hostname ({_host!r}) that cannot be "
+            f"reached from the public internet.\n\n"
+            "A single-word name like 'postgres' or 'db' is a Docker Compose service name "
+            "that only resolves inside a Docker network — it will not work on your local "
+            "machine or on Streamlit Community Cloud.\n\n"
+            "Please use the full connection string from your cloud PostgreSQL provider:\n"
+            "  • Supabase — Project Settings → Database → Connection string → URI\n"
+            "    (hostname looks like db.<ref>.supabase.co or <ref>.pooler.supabase.com)\n"
+            "  • Neon     — Dashboard → Connection Details → Connection string\n"
+            "  • Railway  — Service → Variables → DATABASE_URL\n\n"
+            "On Streamlit Community Cloud: update DATABASE_URL under "
+            "App settings → Secrets."
+        )
+    return url
 
 
 def _make_ipv4_creator(db_url: str):
@@ -154,10 +168,14 @@ def _make_ipv4_creator(db_url: str):
 
 
 def _get_engine():
-    global _engine
+    global _engine, DATABASE_URL
     if _engine is None:
         with _db_lock:
             if _engine is None:
+                # Validate and normalise the URL here (not at import time) so
+                # that a missing or invalid DATABASE_URL raises inside the
+                # try/except block in app.py rather than during module import.
+                DATABASE_URL = _validate_database_url(DATABASE_URL)
                 try:
                     if _psycopg2_available:
                         # Use a custom creator that forces IPv4 to avoid failures
