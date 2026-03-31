@@ -43,23 +43,6 @@ st.markdown("""
   box-shadow: 0 2px 8px rgba(79,70,229,0.18) !important;
   transform: none !important;
 }
-/* Icon-only action buttons (edit / delete) inside table rows */
-[data-testid="stHorizontalBlock"] .stButton > button {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #64748B !important;
-  padding: 4px 6px !important;
-  font-size: 1.1rem !important;
-  min-height: unset !important;
-  transform: none !important;
-  transition: color .15s !important;
-}
-[data-testid="stHorizontalBlock"] .stButton > button:hover {
-  color: #4F46E5 !important;
-  background: #EEF2FF !important;
-  border-radius: 6px !important;
-}
 .tbl-col-hdr {
   font-size: 0.72rem;
   font-weight: 700;
@@ -77,6 +60,7 @@ st.markdown("""
   padding: 2px 8px;
   font-size: 0.72rem;
   font-weight: 600;
+  margin: 1px 2px 1px 0;
 }
 .form-section-title {
   font-size: 1rem;
@@ -111,11 +95,15 @@ if "edit_role_id" not in st.session_state:
 def _delete_role_dialog():
     r = st.session_state["_pending_delete_role"]
     questions = st.session_state.get("_all_questions_for_delete", [])
-    linked_qs = [q for q in questions if q["role_id"] == r["id"]]
+    linked_qs = [q for q in questions if q["role_id"] == r["id"] or r["id"] in q.get("role_ids", [])]
 
     st.markdown(f"Are you sure you want to delete role **{r['name']}**?")
     if linked_qs:
-        st.warning(f"This role has **{len(linked_qs)} linked question(s)**. Deleting will remove all associations.")
+        st.warning(
+            f"This role has **{len(linked_qs)} linked question(s)**. "
+            f"Questions will be **unlinked** from this role (not deleted). "
+            f"They will appear as 'No Role Associated' in the Questions page."
+        )
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🗑️ Delete", type="primary", use_container_width=True):
@@ -144,7 +132,12 @@ if "_pending_delete_role" in st.session_state:
 
 # ── Page header ──────────────────────────────────────────────────────────────
 render_page_logo()
-st.markdown("## 👥 Roles")
+hdr_col, btn_col = st.columns([8, 2])
+with hdr_col:
+    st.markdown("## 👥 Roles")
+with btn_col:
+    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+        st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
 left_col, right_col = st.columns([6, 4], gap="large")
@@ -155,7 +148,6 @@ left_col, right_col = st.columns([6, 4], gap="large")
 with right_col:
     edit_id = st.session_state.get("edit_role_id")
     er = role_map.get(edit_id) if edit_id else None
-    proj_names = ["(None)"] + list(project_options.keys())
 
     with st.container(border=True):
         if er:
@@ -168,9 +160,21 @@ with right_col:
                 er_name = st.text_input("Role Name *", value=er["name"])
                 er_desc = st.text_area("Description", value=er["description"] or "", height=70)
                 er_req = st.text_area("Requirements", value=er["requirements"] or "", height=100)
-                current_proj = project_id_to_name.get(er.get("project_id"), "(None)")
-                default_idx = proj_names.index(current_proj) if current_proj in proj_names else 0
-                er_proj = st.selectbox("Link to Project", options=proj_names, index=default_idx)
+                # Multi-project selection – pre-check existing linked projects
+                existing_pids = er.get("project_ids") or (
+                    [er["project_id"]] if er.get("project_id") else []
+                )
+                existing_proj_names = [
+                    project_id_to_name[pid]
+                    for pid in existing_pids
+                    if pid in project_id_to_name
+                ]
+                er_projs = st.multiselect(
+                    "Link to Project(s)",
+                    options=list(project_options.keys()),
+                    default=existing_proj_names,
+                    help="A role can be linked to multiple projects.",
+                )
 
                 c_save, c_cancel = st.columns(2)
                 with c_save:
@@ -182,8 +186,11 @@ with right_col:
                     if not er_name.strip():
                         st.error("Role name is required.")
                     else:
-                        pid = project_options.get(er_proj) if er_proj != "(None)" else None
-                        update_role(edit_id, er_name.strip(), er_desc.strip(), er_req.strip(), pid)
+                        pids = [project_options[n] for n in er_projs if n in project_options]
+                        update_role(
+                            edit_id, er_name.strip(), er_desc.strip(), er_req.strip(),
+                            project_ids=pids,
+                        )
                         st.session_state["edit_role_id"] = None
                         st.toast("Role updated!", icon="✅")
                         st.rerun()
@@ -203,7 +210,11 @@ with right_col:
                     "Requirements", height=100,
                     placeholder="List key skills, years of experience, etc.",
                 )
-                r_proj = st.selectbox("Link to Project (optional)", options=proj_names)
+                r_projs = st.multiselect(
+                    "Link to Project(s) (optional)",
+                    options=list(project_options.keys()),
+                    help="Select one or more projects this role belongs to.",
+                )
                 submitted = st.form_submit_button(
                     "✅ Create Role", type="primary", use_container_width=True
                 )
@@ -211,8 +222,8 @@ with right_col:
                     if not r_name.strip():
                         st.error("Role name is required.")
                     else:
-                        pid = project_options.get(r_proj) if r_proj != "(None)" else None
-                        create_role(uid, r_name.strip(), r_desc.strip(), r_req.strip(), pid)
+                        pids = [project_options[n] for n in r_projs if n in project_options]
+                        create_role(uid, r_name.strip(), r_desc.strip(), r_req.strip(), project_ids=pids)
                         st.success(f"Role **{r_name}** created!")
                         st.rerun()
 
@@ -249,11 +260,19 @@ with left_col:
                     unsafe_allow_html=True,
                 )
             with c2:
-                proj_html = (
-                    f'<span class="role-proj-badge">📁 {r["project_name"]}</span>'
-                    if r.get("project_name") else
-                    '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
+                # Show all linked project badges
+                pids = r.get("project_ids") or (
+                    [r["project_id"]] if r.get("project_id") else []
                 )
+                if pids:
+                    badges = "".join(
+                        f'<span class="role-proj-badge">📁 {project_id_to_name.get(pid, pid[:8])}</span> '
+                        for pid in pids
+                        if pid in project_id_to_name
+                    )
+                    proj_html = badges if badges.strip() else '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
+                else:
+                    proj_html = '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
                 st.markdown(
                     f'<div style="padding:8px 4px 2px;">{proj_html}</div>',
                     unsafe_allow_html=True,

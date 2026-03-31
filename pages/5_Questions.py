@@ -43,17 +43,6 @@ st.markdown("""
   box-shadow: 0 2px 8px rgba(79,70,229,0.18) !important;
   transform: none !important;
 }
-/* Icon-only action buttons (edit/delete) */
-button[data-testid^="baseButton-"][title="Edit question"],
-button[data-testid^="baseButton-"][title="Delete question"],
-div[data-testid="column"] button[kind="secondary"][data-icon-only="true"] {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 2px 6px !important;
-  font-size: 1.05rem !important;
-  min-height: unset !important;
-}
 .tbl-col-hdr {
   font-size: 0.72rem;
   font-weight: 700;
@@ -83,22 +72,6 @@ div[data-testid="column"] button[kind="secondary"][data-icon-only="true"] {
   padding-bottom: 10px;
   margin-bottom: 4px;
   border-bottom: 2px solid #EEF2FF;
-}
-/* Remove box from icon-only buttons in question rows */
-[data-testid="stHorizontalBlock"] .stButton > button {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #64748B !important;
-  padding: 4px 6px !important;
-  font-size: 1.1rem !important;
-  min-height: unset !important;
-  transition: color .15s !important;
-}
-[data-testid="stHorizontalBlock"] .stButton > button:hover {
-  color: #4F46E5 !important;
-  background: #EEF2FF !important;
-  border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -162,7 +135,12 @@ if "_pending_delete_question" in st.session_state:
 
 # ── Page header ──────────────────────────────────────────────────────────────
 render_page_logo()
-st.markdown("## ❓ Questions")
+hdr_col, btn_col = st.columns([8, 2])
+with hdr_col:
+    st.markdown("## ❓ Questions")
+with btn_col:
+    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+        st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
 left_col, right_col = st.columns([6, 4], gap="large")
@@ -173,7 +151,7 @@ left_col, right_col = st.columns([6, 4], gap="large")
 with right_col:
     edit_id = st.session_state.get("edit_question_id")
     eq = question_map.get(edit_id) if edit_id else None
-    role_names = list(role_options.keys())
+    role_name_list = [r["name"] for r in roles]  # for multiselect
 
     with st.container(border=True):
         if eq:
@@ -194,11 +172,20 @@ with right_col:
                 with ec2:
                     eq_diff = st.selectbox("Difficulty", DIFFICULTIES,
                                             index=DIFFICULTIES.index(eq.get("difficulty", "Medium")))
-                cur_role_name = role_id_to_name.get(eq.get("role_id"), "(None)")
-                eq_role = st.selectbox(
-                    "Link to Role",
-                    role_names,
-                    index=role_names.index(cur_role_name) if cur_role_name in role_names else 0,
+                # Multi-role selection – pre-check existing linked roles
+                existing_rids = eq.get("role_ids") or (
+                    [eq["role_id"]] if eq.get("role_id") else []
+                )
+                existing_role_names = [
+                    role_id_to_name[rid]
+                    for rid in existing_rids
+                    if rid in role_id_to_name
+                ]
+                eq_roles = st.multiselect(
+                    "Link to Role(s)",
+                    options=role_name_list,
+                    default=existing_role_names,
+                    help="A question can apply to multiple roles.",
                 )
                 eq_cat_other = st.text_input(
                     "Custom category (when 'Other' selected)",
@@ -218,8 +205,8 @@ with right_col:
                         st.error("Please enter a custom category name.")
                     else:
                         final_cat = eq_cat_other.strip() if eq_cat == "Other" else eq_cat
-                        rid = role_options.get(eq_role)
-                        update_question(edit_id, eq_text.strip(), final_cat, eq_diff, rid)
+                        rids = [role_options[n] for n in eq_roles if n in role_options]
+                        update_question(edit_id, eq_text.strip(), final_cat, eq_diff, role_ids=rids)
                         st.session_state["edit_question_id"] = None
                         st.toast("Question updated!", icon="✅")
                         st.rerun()
@@ -239,7 +226,11 @@ with right_col:
                     q_cat = st.selectbox("Category", CATEGORIES)
                 with c2:
                     q_diff = st.selectbox("Difficulty", DIFFICULTIES)
-                q_role = st.selectbox("Link to Role (optional)", list(role_options.keys()))
+                q_roles = st.multiselect(
+                    "Link to Role(s) (optional)",
+                    options=role_name_list,
+                    help="Select one or more roles this question applies to.",
+                )
                 q_cat_other = st.text_input(
                     "Custom category (when 'Other' selected)",
                     placeholder="e.g. Leadership, Domain Knowledge…",
@@ -254,8 +245,8 @@ with right_col:
                         st.error("Please enter a custom category name when 'Other' is selected.")
                     else:
                         final_cat = q_cat_other.strip() if q_cat == "Other" else q_cat
-                        rid = role_options.get(q_role)
-                        create_question(uid, q_text.strip(), final_cat, q_diff, rid)
+                        rids = [role_options[n] for n in q_roles if n in role_options]
+                        create_question(uid, q_text.strip(), final_cat, q_diff, role_ids=rids)
                         st.success("Question added!")
                         st.rerun()
 
@@ -277,7 +268,11 @@ with left_col:
     filtered = questions
     if filter_role != "All":
         target_rid = next((r["id"] for r in roles if r["name"] == filter_role), None)
-        filtered = [q for q in filtered if q.get("role_id") == target_rid]
+        # Match on primary role_id OR the role_ids list
+        filtered = [
+            q for q in filtered
+            if q.get("role_id") == target_rid or target_rid in q.get("role_ids", [])
+        ]
     if filter_cat != "All":
         _preset_cats = {"Technical", "Behavioral", "Situational", "Process"}
         if filter_cat == "Other":
@@ -335,11 +330,19 @@ with left_col:
                     unsafe_allow_html=True,
                 )
             with c4:
-                role_html = (
-                    f'<span class="badge badge-role">{q["role_name"]}</span>'
-                    if q.get("role_name") else
-                    '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
-                )
+                # Show all linked roles
+                rids = q.get("role_ids") or ([q["role_id"]] if q.get("role_id") else [])
+                if rids:
+                    badges = "".join(
+                        f'<span class="badge badge-role">{role_id_to_name.get(rid, "?")}</span> '
+                        for rid in rids
+                        if rid in role_id_to_name
+                    )
+                    role_html = badges if badges.strip() else (
+                        '<span style="color:#94A3B8;font-size:0.82rem;">No Role Associated</span>'
+                    )
+                else:
+                    role_html = '<span style="color:#94A3B8;font-size:0.82rem;">No Role Associated</span>'
                 st.markdown(
                     f'<div style="padding:8px 4px 2px;">{role_html}</div>',
                     unsafe_allow_html=True,

@@ -82,7 +82,12 @@ STATUS_CLS = {
 }
 STATUS_ICON = {"Pending": "⚪", "Shortlisted": "🔵", "Selected": "🟢", "Rejected": "🔴", "Hold": "🟡", "Cancelled": "⛔"}
 
-st.markdown("## 📂 Evaluation Archives")
+hdr_col, btn_col = st.columns([8, 2])
+with hdr_col:
+    st.markdown("## 📂 Evaluation Archives")
+with btn_col:
+    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+        st.switch_page("pages/2_Dashboard.py")
 
 evaluations = get_evaluations_for_user(uid)
 projects = get_projects_for_user(uid)

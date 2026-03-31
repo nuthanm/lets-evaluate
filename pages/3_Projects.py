@@ -44,23 +44,6 @@ st.markdown("""
   box-shadow: 0 2px 8px rgba(79,70,229,0.18) !important;
   transform: none !important;
 }
-/* Icon-only action buttons (edit / delete) inside table rows */
-[data-testid="stHorizontalBlock"] .stButton > button {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #64748B !important;
-  padding: 4px 6px !important;
-  font-size: 1.1rem !important;
-  min-height: unset !important;
-  transform: none !important;
-  transition: color .15s !important;
-}
-[data-testid="stHorizontalBlock"] .stButton > button:hover {
-  color: #4F46E5 !important;
-  background: #EEF2FF !important;
-  border-radius: 6px !important;
-}
 .tbl-col-hdr {
   font-size: 0.72rem;
   font-weight: 700;
@@ -132,7 +115,9 @@ def _delete_project_dialog():
     if linked_roles or linked_qs:
         st.warning(
             f"This project has **{len(linked_roles)} linked role(s)** and "
-            f"**{len(linked_qs)} linked question(s)**. Deleting will remove all associations."
+            f"**{len(linked_qs)} linked question(s)**. "
+            f"Roles will be **unlinked** from this project (not deleted). "
+            f"Questions will remain associated with their roles."
         )
     c1, c2 = st.columns(2)
     with c1:
@@ -156,7 +141,12 @@ if "_pending_delete_proj" in st.session_state:
 
 # ── Page header ──────────────────────────────────────────────────────────────
 render_page_logo()
-st.markdown("## 📁 Projects")
+hdr_col, btn_col = st.columns([8, 2])
+with hdr_col:
+    st.markdown("## 📁 Projects")
+with btn_col:
+    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+        st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
 left_col, right_col = st.columns([6, 4], gap="large")
