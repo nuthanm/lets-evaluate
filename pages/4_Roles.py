@@ -266,9 +266,9 @@ with left_col:
                 )
                 if pids:
                     badges = "".join(
-                        f'<span class="role-proj-badge">📁 {project_id_to_name.get(pid, pid[:8])}</span> '
+                        f'<span class="role-proj-badge">📁 {project_id_to_name.get(pid, (pid or "?")[:8])}</span> '
                         for pid in pids
-                        if pid in project_id_to_name
+                        if pid and pid in project_id_to_name
                     )
                     proj_html = badges if badges.strip() else '<span style="color:#94A3B8;font-size:0.82rem;">—</span>'
                 else:

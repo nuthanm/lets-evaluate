@@ -173,7 +173,7 @@ if _draft_id_param and st.session_state.get("eval_draft_id") != _draft_id_param:
         st.session_state["eval_draft_id"] = _draft_id_param
         # Use the DB step column as the authoritative saved step so the user
         # is always returned to the exact step they were on when they saved.
-        _saved_step = int(_draft.get("step", "1"))
+        _saved_step = int(_draft.get("step") or 1)
         st.session_state["eval_step"] = _saved_step
         st.session_state["eval_max_step"] = max(
             int(_data.get("eval_max_step", 1)), _saved_step
