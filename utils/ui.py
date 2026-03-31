@@ -201,6 +201,7 @@ def render_authenticated_sidebar() -> None:
         st.page_link("pages/5_Questions.py", label="❓ Questions")
         st.page_link("pages/6_Evaluate_Candidate.py", label="🤖 Evaluate Candidate")
         st.page_link("pages/7_Archives.py", label="📂 Archives")
+        st.page_link("pages/10_Bulk_Actions.py", label="📤 Bulk Actions")
         st.divider()
         user_name = st.session_state.get("user_name", "")
         user_email = st.session_state.get("user_email", "")
