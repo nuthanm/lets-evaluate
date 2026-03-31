@@ -16,7 +16,7 @@ try:
     init_db()
 except Exception as _db_exc:  # noqa: BLE001
     st.error(
-        "⚠️ **Database connection failed** — the app could not reach the PostgreSQL database.\n\n"
+        "⚠️ **Database error** — the app could not initialize the database.\n\n"
         f"```\n{_db_exc}\n```\n\n"
         "**How to fix this:**\n"
         "1. Set `DATABASE_URL` to a valid, reachable PostgreSQL connection string.\n"
