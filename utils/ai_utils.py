@@ -350,6 +350,64 @@ Return ONLY a valid JSON array (no markdown) where each element has:
         return [{"question": f"Failed to generate questions: {exc}", "category": "Technical", "expected_answer_hints": "N/A"}]
 
 
+def generate_questions_from_prompt(
+    topic: str,
+    role_name: str = "",
+    num_questions: int = 10,
+) -> list[dict]:
+    """Generate interview questions from a free-form topic/description prompt.
+
+    Args:
+        topic: The subject or focus area to generate questions about.
+        role_name: Optional role context to make questions more targeted.
+        num_questions: How many questions to generate (default 10).
+
+    Returns:
+        A list of dicts with keys ``question``, ``category``, and
+        ``expected_answer_hints``.
+    """
+    if not _is_configured():
+        return [
+            {
+                "question": "OpenAI API key not configured. Please set OPENAI_API_KEY.",
+                "category": "Technical",
+                "expected_answer_hints": "N/A",
+            }
+        ]
+
+    if not topic.strip():
+        return []
+
+    try:
+        llm = _get_llm()
+        role_context = role_name.strip()
+        role_line = f" for a {role_context} position" if role_context else ""
+        prompt = (
+            f"You are an expert technical interviewer. "
+            f"Generate {num_questions} interview questions{role_line} "
+            f"focused on the following topic: {topic.strip()}\n\n"
+            f"Return ONLY a valid JSON array (no markdown) where each element has:\n"
+            f'{{\n'
+            f'  "question": "<question text>",\n'
+            f'  "category": "<Technical|Behavioral|Situational|Process>",\n'
+            f'  "expected_answer_hints": "<key points to look for>"\n'
+            f"}}"
+        )
+        response = llm.invoke(prompt)
+        result = _parse_json_response(response.content)
+        if isinstance(result, list):
+            return result
+        return []
+    except Exception as exc:
+        return [
+            {
+                "question": f"Failed to generate questions: {exc}",
+                "category": "Technical",
+                "expected_answer_hints": "N/A",
+            }
+        ]
+
+
 def refine_evaluation_notes(notes: str) -> str:
     """Use AI to refine and format evaluation notes into clear, professional content."""
     if not _is_configured():

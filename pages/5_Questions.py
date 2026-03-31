@@ -5,6 +5,7 @@ from utils.database import (
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ui import inject_common_css, render_authenticated_sidebar, render_page_logo, create_logo_favicon
+from utils.ai_utils import generate_questions_from_prompt
 
 st.set_page_config(
     page_title="Questions – Let's Evaluate",
@@ -97,6 +98,10 @@ ROW_GRADIENTS = [
 # ── Session state ────────────────────────────────────────────────────────────
 if "edit_question_id" not in st.session_state:
     st.session_state["edit_question_id"] = None
+if "ai_gen_questions" not in st.session_state:
+    st.session_state["ai_gen_questions"] = []
+if "ai_gen_topic" not in st.session_state:
+    st.session_state["ai_gen_topic"] = ""
 
 # ── Delete confirmation dialog ───────────────────────────────────────────────
 @st.dialog("🗑️ Confirm Delete")
@@ -153,9 +158,9 @@ with right_col:
     eq = question_map.get(edit_id) if edit_id else None
     role_name_list = [r["name"] for r in roles]  # for multiselect
 
-    with st.container(border=True):
-        if eq:
-            # ── EDIT MODE ───────────────────────────────────────────────
+    if eq:
+        # ── EDIT MODE ───────────────────────────────────────────────
+        with st.container(border=True):
             st.markdown(
                 '<div class="form-section-title">✏️ Edit Question</div>',
                 unsafe_allow_html=True,
@@ -213,42 +218,171 @@ with right_col:
                 if cancel:
                     st.session_state["edit_question_id"] = None
                     st.rerun()
-        else:
-            # ── ADD MODE ────────────────────────────────────────────────
-            st.markdown(
-                '<div class="form-section-title">➕ Add New Question</div>',
-                unsafe_allow_html=True,
-            )
-            with st.form("form_add_question", clear_on_submit=True):
-                q_text = st.text_area("Question Text *", height=90)
-                c1, c2 = st.columns(2)
-                with c1:
-                    q_cat = st.selectbox("Category", CATEGORIES)
-                with c2:
-                    q_diff = st.selectbox("Difficulty", DIFFICULTIES)
-                q_roles = st.multiselect(
-                    "Link to Role(s) (optional)",
-                    options=role_name_list,
-                    help="Select one or more roles this question applies to.",
+    else:
+        # ── ADD / AI-GENERATE MODE – tabs ────────────────────────────
+        manual_tab, ai_tab = st.tabs(["✏️ Add Question", "🤖 AI Generate"])
+
+        # ── MANUAL ADD TAB ───────────────────────────────────────────
+        with manual_tab:
+            with st.container(border=True):
+                st.markdown(
+                    '<div class="form-section-title">➕ Add New Question</div>',
+                    unsafe_allow_html=True,
                 )
-                q_cat_other = st.text_input(
-                    "Custom category (when 'Other' selected)",
-                    placeholder="e.g. Leadership, Domain Knowledge…",
+                with st.form("form_add_question", clear_on_submit=True):
+                    q_text = st.text_area("Question Text *", height=90)
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        q_cat = st.selectbox("Category", CATEGORIES)
+                    with c2:
+                        q_diff = st.selectbox("Difficulty", DIFFICULTIES)
+                    q_roles = st.multiselect(
+                        "Link to Role(s) (optional)",
+                        options=role_name_list,
+                        help="Select one or more roles this question applies to.",
+                    )
+                    q_cat_other = st.text_input(
+                        "Custom category (when 'Other' selected)",
+                        placeholder="e.g. Leadership, Domain Knowledge…",
+                    )
+                    submitted = st.form_submit_button(
+                        "✅ Add Question", type="primary", use_container_width=True
+                    )
+                    if submitted:
+                        if not q_text.strip():
+                            st.error("Question text is required.")
+                        elif q_cat == "Other" and not q_cat_other.strip():
+                            st.error("Please enter a custom category name when 'Other' is selected.")
+                        else:
+                            final_cat = q_cat_other.strip() if q_cat == "Other" else q_cat
+                            rids = [role_options[n] for n in q_roles if n in role_options]
+                            create_question(uid, q_text.strip(), final_cat, q_diff, role_ids=rids)
+                            st.success("Question added!")
+                            st.rerun()
+
+        # ── AI GENERATE TAB ─────────────────────────────────────────
+        with ai_tab:
+            with st.container(border=True):
+                st.markdown(
+                    '<div class="form-section-title">🤖 AI Generate Questions</div>',
+                    unsafe_allow_html=True,
                 )
-                submitted = st.form_submit_button(
-                    "✅ Add Question", type="primary", use_container_width=True
+                ai_topic_val = st.text_area(
+                    "Topic / Description *",
+                    value=st.session_state.get("ai_gen_topic", ""),
+                    height=80,
+                    placeholder="e.g. Python async programming, system design, AWS services, leadership…",
+                    help="Describe what the questions should be about.",
+                    key="ai_gen_topic_input",
                 )
-                if submitted:
-                    if not q_text.strip():
-                        st.error("Question text is required.")
-                    elif q_cat == "Other" and not q_cat_other.strip():
-                        st.error("Please enter a custom category name when 'Other' is selected.")
+                ag_c1, ag_c2 = st.columns(2)
+                with ag_c1:
+                    ai_role_sel = st.selectbox(
+                        "Role context (optional)",
+                        ["(None)"] + role_name_list,
+                        key="ai_gen_role_sel",
+                        help="Optionally narrow questions to a specific role.",
+                    )
+                with ag_c2:
+                    ai_num_qs = st.selectbox(
+                        "Number of questions",
+                        [5, 10, 15],
+                        index=1,
+                        key="ai_gen_num",
+                    )
+
+                if st.button("🚀 Generate Questions", type="primary",
+                             use_container_width=True, key="ai_gen_btn"):
+                    if not ai_topic_val.strip():
+                        st.error("Please enter a topic or description.")
                     else:
-                        final_cat = q_cat_other.strip() if q_cat == "Other" else q_cat
-                        rids = [role_options[n] for n in q_roles if n in role_options]
-                        create_question(uid, q_text.strip(), final_cat, q_diff, role_ids=rids)
-                        st.success("Question added!")
+                        st.session_state["ai_gen_topic"] = ai_topic_val.strip()
+                        role_context = ai_role_sel if ai_role_sel != "(None)" else ""
+                        with st.spinner("Generating questions…"):
+                            generated = generate_questions_from_prompt(
+                                ai_topic_val.strip(),
+                                role_name=role_context,
+                                num_questions=ai_num_qs,
+                            )
+                        st.session_state["ai_gen_questions"] = generated
                         st.rerun()
+
+            # ── Generated results ─────────────────────────────────────
+            ai_gen_qs = st.session_state.get("ai_gen_questions", [])
+            if ai_gen_qs:
+                st.markdown(
+                    f"**{len(ai_gen_qs)} question(s) generated** — "
+                    "click ➕ to add any to your question bank."
+                )
+                for idx, gq in enumerate(ai_gen_qs):
+                    gq_text = gq.get("question", "")
+                    gq_cat = gq.get("category", "Technical")
+                    gq_hints = gq.get("expected_answer_hints", "")
+
+                    preview = gq_text[:80] + ("…" if len(gq_text) > 80 else "")
+                    with st.expander(f"Q{idx + 1}: {preview}"):
+                        st.write(gq_text)
+                        cat_badge = gq_cat if gq_cat in CATEGORIES else CATEGORIES[0]
+                        st.caption(f"Category: {cat_badge}")
+                        if gq_hints:
+                            st.caption(f"Hints: {gq_hints}")
+
+                        show_add_key = f"ai_show_add_{idx}"
+                        if st.session_state.get(show_add_key):
+                            diff_sel = st.selectbox(
+                                "Difficulty",
+                                DIFFICULTIES,
+                                index=1,
+                                key=f"ai_diff_{idx}",
+                            )
+                            roles_sel = st.multiselect(
+                                "Link to role(s) (optional)",
+                                options=role_name_list,
+                                key=f"ai_roles_{idx}",
+                            )
+                            conf_c, canc_c = st.columns(2)
+                            with conf_c:
+                                if st.button(
+                                    "✅ Confirm Add",
+                                    key=f"ai_confirm_{idx}",
+                                    type="primary",
+                                    use_container_width=True,
+                                ):
+                                    final_cat = cat_badge
+                                    rids = [
+                                        role_options[n]
+                                        for n in roles_sel
+                                        if n in role_options
+                                    ]
+                                    create_question(
+                                        uid,
+                                        gq_text,
+                                        final_cat,
+                                        diff_sel,
+                                        role_ids=rids if rids else None,
+                                    )
+                                    st.session_state.pop(show_add_key, None)
+                                    st.toast("Added to question bank!", icon="✅")
+                                    st.rerun()
+                            with canc_c:
+                                if st.button(
+                                    "✖️ Cancel",
+                                    key=f"ai_cancel_{idx}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state.pop(show_add_key, None)
+                                    st.rerun()
+                        else:
+                            if st.button(
+                                "➕ Add to My Questions",
+                                key=f"ai_add_{idx}",
+                            ):
+                                st.session_state[show_add_key] = True
+                                st.rerun()
+
+                if st.button("🗑 Clear Generated", use_container_width=True, key="ai_clear_btn"):
+                    st.session_state["ai_gen_questions"] = []
+                    st.rerun()
 
 # ════════════════════════════════════════════════════════
 #  LEFT COLUMN – Filters + Modern Table Layout
