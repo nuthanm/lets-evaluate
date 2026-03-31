@@ -133,13 +133,14 @@ st.info("📂 **All your completed interview evaluations can be found in the Arc
 
 # ── Quick navigation cards ──────────────────────────────────────────────────
 st.markdown("### 🚀 Quick Access")
-nav_cols = st.columns(5)
+nav_cols = st.columns(6)
 nav_items = [
     ("📁", "Projects", "Manage your projects", "pages/3_Projects.py"),
     ("👥", "Roles", "Define hiring roles", "pages/4_Roles.py"),
     ("❓", "Questions", "Build question bank", "pages/5_Questions.py"),
     ("🤖", "Evaluate", "AI-powered evaluation", "pages/6_Evaluate_Candidate.py"),
     ("📂", "Archives", "Past evaluations", "pages/7_Archives.py"),
+    ("📤", "Bulk Actions", "Export / Import data", "pages/10_Bulk_Actions.py"),
 ]
 for col, (icon, title, desc, page) in zip(nav_cols, nav_items):
     with col:
@@ -177,7 +178,8 @@ if drafts:
                 rb1, rb2 = st.columns(2)
                 with rb1:
                     if st.button("▶", key=f"resume_{draft['id']}", help="Resume from left over", width='stretch'):
-                        st.query_params["draft_id"] = draft["id"]
+                        # Store in session_state so it survives st.switch_page reliably
+                        st.session_state["resume_draft_id"] = draft["id"]
                         st.switch_page("pages/6_Evaluate_Candidate.py")
                 with rb2:
                     if st.button("🗑", key=f"del_draft_{draft['id']}", help="Delete this draft", width='stretch'):

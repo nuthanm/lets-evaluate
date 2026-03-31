@@ -141,12 +141,15 @@ if "_pending_delete_proj" in st.session_state:
 
 # ── Page header ──────────────────────────────────────────────────────────────
 render_page_logo()
-hdr_col, btn_col = st.columns([8, 2])
+hdr_col, btn_col, bulk_col = st.columns([7, 2, 2])
 with hdr_col:
     st.markdown("## 📁 Projects")
 with btn_col:
     if st.button("🏠 Dashboard", width='stretch', help="Go to Dashboard"):
         st.switch_page("pages/2_Dashboard.py")
+with bulk_col:
+    if st.button("📤 Export / Import", width='stretch', help="Bulk export or import data"):
+        st.switch_page("pages/10_Bulk_Actions.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
 left_col, right_col = st.columns([6, 4], gap="large")
