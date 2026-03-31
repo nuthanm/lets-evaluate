@@ -214,7 +214,7 @@ def render_authenticated_sidebar() -> None:
                 f'{safe_email}</div>',
                 unsafe_allow_html=True,
             )
-        if st.button("🚪 Sign Out", use_container_width=True):
+        if st.button("🚪 Sign Out", width='stretch'):
             logout_user()
             st.switch_page("app.py")
 

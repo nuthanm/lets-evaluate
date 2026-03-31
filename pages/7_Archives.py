@@ -86,7 +86,7 @@ hdr_col, btn_col = st.columns([8, 2])
 with hdr_col:
     st.markdown("## 📂 Evaluation Archives")
 with btn_col:
-    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+    if st.button("🏠 Dashboard", width='stretch', help="Go to Dashboard"):
         st.switch_page("pages/2_Dashboard.py")
 
 evaluations = get_evaluations_for_user(uid)
@@ -195,7 +195,7 @@ else:
                     file_name=filename,
                     mime="application/pdf",
                     key=f"dl_{ev['id']}",
-                    use_container_width=True,
+                    width='stretch',
                     help="Download evaluation PDF",
                 )
         with c8:

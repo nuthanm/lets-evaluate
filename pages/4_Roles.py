@@ -106,14 +106,14 @@ def _delete_role_dialog():
         )
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🗑️ Delete", type="primary", use_container_width=True):
+        if st.button("🗑️ Delete", type="primary", width='stretch'):
             delete_role(r["id"])
             del st.session_state["_pending_delete_role"]
             st.session_state.pop("_all_questions_for_delete", None)
             st.toast(f"Role '{r['name']}' deleted.", icon="🗑️")
             st.rerun()
     with c2:
-        if st.button("✖️ Cancel", use_container_width=True):
+        if st.button("✖️ Cancel", width='stretch'):
             del st.session_state["_pending_delete_role"]
             st.session_state.pop("_all_questions_for_delete", None)
             st.rerun()
@@ -136,7 +136,7 @@ hdr_col, btn_col = st.columns([8, 2])
 with hdr_col:
     st.markdown("## 👥 Roles")
 with btn_col:
-    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+    if st.button("🏠 Dashboard", width='stretch', help="Go to Dashboard"):
         st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
@@ -178,9 +178,9 @@ with right_col:
 
                 c_save, c_cancel = st.columns(2)
                 with c_save:
-                    save = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                    save = st.form_submit_button("💾 Save Changes", type="primary", width='stretch')
                 with c_cancel:
-                    cancel = st.form_submit_button("✖️ Cancel", use_container_width=True)
+                    cancel = st.form_submit_button("✖️ Cancel", width='stretch')
 
                 if save:
                     if not er_name.strip():
@@ -216,7 +216,7 @@ with right_col:
                     help="Select one or more projects this role belongs to.",
                 )
                 submitted = st.form_submit_button(
-                    "✅ Create Role", type="primary", use_container_width=True
+                    "✅ Create Role", type="primary", width='stretch'
                 )
                 if submitted:
                     if not r_name.strip():
@@ -287,12 +287,12 @@ with left_col:
                 )
             with c_edit:
                 if st.button("✏️", key=f"edit_role_{r['id']}", help="Edit role",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state["edit_role_id"] = r["id"]
                     st.rerun()
             with c_del:
                 if st.button("🗑️", key=f"del_role_{r['id']}", help="Delete role",
-                             use_container_width=True):
+                             width='stretch'):
                     all_qs = get_questions_for_user(uid)
                     st.session_state["_pending_delete_role"] = r
                     st.session_state["_all_questions_for_delete"] = all_qs

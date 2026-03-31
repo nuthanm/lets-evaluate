@@ -117,13 +117,13 @@ def _delete_question_dialog():
     )
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🗑️ Delete", type="primary", use_container_width=True):
+        if st.button("🗑️ Delete", type="primary", width='stretch'):
             delete_question(q["id"])
             del st.session_state["_pending_delete_question"]
             st.toast("Question deleted.", icon="🗑️")
             st.rerun()
     with c2:
-        if st.button("✖️ Cancel", use_container_width=True):
+        if st.button("✖️ Cancel", width='stretch'):
             del st.session_state["_pending_delete_question"]
             st.rerun()
 
@@ -144,7 +144,7 @@ hdr_col, btn_col = st.columns([8, 2])
 with hdr_col:
     st.markdown("## ❓ Questions")
 with btn_col:
-    if st.button("🏠 Dashboard", use_container_width=True, help="Go to Dashboard"):
+    if st.button("🏠 Dashboard", width='stretch', help="Go to Dashboard"):
         st.switch_page("pages/2_Dashboard.py")
 
 # ── Two-column layout: table (left) + form (right) ──────────────────────────
@@ -199,9 +199,9 @@ with right_col:
                 )
                 s1, s2 = st.columns(2)
                 with s1:
-                    save = st.form_submit_button("💾 Save", type="primary", use_container_width=True)
+                    save = st.form_submit_button("💾 Save", type="primary", width='stretch')
                 with s2:
-                    cancel = st.form_submit_button("✖️ Cancel", use_container_width=True)
+                    cancel = st.form_submit_button("✖️ Cancel", width='stretch')
 
                 if save:
                     if not eq_text.strip():
@@ -246,7 +246,7 @@ with right_col:
                         placeholder="e.g. Leadership, Domain Knowledge…",
                     )
                     submitted = st.form_submit_button(
-                        "✅ Add Question", type="primary", use_container_width=True
+                        "✅ Add Question", type="primary", width='stretch'
                     )
                     if submitted:
                         if not q_text.strip():
@@ -292,7 +292,7 @@ with right_col:
                     )
 
                 if st.button("🚀 Generate Questions", type="primary",
-                             use_container_width=True, key="ai_gen_btn"):
+                             width='stretch', key="ai_gen_btn"):
                     if not ai_topic_val.strip():
                         st.error("Please enter a topic or description.")
                     else:
@@ -346,7 +346,7 @@ with right_col:
                                     "✅ Confirm Add",
                                     key=f"ai_confirm_{idx}",
                                     type="primary",
-                                    use_container_width=True,
+                                    width='stretch',
                                 ):
                                     final_cat = cat_badge
                                     rids = [
@@ -368,7 +368,7 @@ with right_col:
                                 if st.button(
                                     "✖️ Cancel",
                                     key=f"ai_cancel_{idx}",
-                                    use_container_width=True,
+                                    width='stretch',
                                 ):
                                     st.session_state.pop(show_add_key, None)
                                     st.rerun()
@@ -380,7 +380,7 @@ with right_col:
                                 st.session_state[show_add_key] = True
                                 st.rerun()
 
-                if st.button("🗑 Clear Generated", use_container_width=True, key="ai_clear_btn"):
+                if st.button("🗑 Clear Generated", width='stretch', key="ai_clear_btn"):
                     st.session_state["ai_gen_questions"] = []
                     st.rerun()
 
@@ -483,12 +483,12 @@ with left_col:
                 )
             with c_edit:
                 if st.button("✏️", key=f"edit_q_{q['id']}", help="Edit question",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state["edit_question_id"] = q["id"]
                     st.rerun()
             with c_del:
                 if st.button("🗑️", key=f"del_q_{q['id']}", help="Delete question",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state["_pending_delete_question"] = q
                     st.rerun()
 

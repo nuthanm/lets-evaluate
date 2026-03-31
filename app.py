@@ -153,7 +153,7 @@ with hero_left:
   </div>
 </div>
 """, unsafe_allow_html=True)
-    if st.button("Start Evaluating →", use_container_width=False):
+    if st.button("Start Evaluating →", width='content'):
             st.switch_page("pages/1_Auth.py")
 
 with hero_right:
