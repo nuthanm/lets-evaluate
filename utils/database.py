@@ -10,7 +10,7 @@ from sqlalchemy import (
     create_engine, Column, String, Boolean, DateTime,
     Text, ForeignKey, text as sa_text,
 )
-from sqlalchemy.exc import ArgumentError as _SAArgumentError, OperationalError as _SAOperationalError
+from sqlalchemy.exc import ArgumentError as _SAArgumentError, IntegrityError as _SAIntegrityError, OperationalError as _SAOperationalError
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from dotenv import load_dotenv
 
@@ -368,6 +368,18 @@ def init_db():
             "  • Railway   — https://railway.app   (free starter)\n\n"
             "On Streamlit Community Cloud set DATABASE_URL under App settings → Secrets."
         ) from exc
+    except _SAIntegrityError as exc:
+        # A UniqueViolation on pg_type_typname_nsp_index (pgcode '23505') during
+        # create_all() means another Streamlit worker just created the same table
+        # in a concurrent startup race.  The table already exists, so this is safe
+        # to ignore.  Any other IntegrityError is unexpected and should propagate.
+        orig = exc.orig
+        pgcode = getattr(orig, "pgcode", None)
+        constraint = getattr(getattr(orig, "diag", None), "constraint_name", None)
+        if pgcode == "23505" and constraint == "pg_type_typname_nsp_index":
+            pass  # tables already exist - continue normally
+        else:
+            raise
     # Migrate: add any columns that may be missing from older databases.
     # ADD COLUMN IF NOT EXISTS is available in all currently-supported
     # PostgreSQL versions (12+), so the DDL is safe to run unconditionally.
