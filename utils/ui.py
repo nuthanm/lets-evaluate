@@ -108,10 +108,6 @@ footer                                     { display: none !important; }
 [data-testid="stStatusWidget"]            { display: none !important; }
 .block-container { padding-top: 0.6rem !important; padding-bottom: 0 !important; }
 
-/* Hide sidebar toggle buttons (> and <<) */
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-[data-testid="stSidebarCollapseButton"]   { display: none !important; }
-
 /* Hide auto sidebar nav, anchor buttons, top decoration */
 [data-testid="stSidebarNav"]              { display: none !important; }
 [data-testid="StyledLinkIconContainer"]   { display: none !important; }

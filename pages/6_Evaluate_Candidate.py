@@ -156,13 +156,16 @@ def _save_progress():
     st.toast("✅ Progress saved!", icon="💾")
 
 
-# ── Load draft from query params ────────────────────────────────────────────
+# ── Load draft from query params or session state ───────────────────────────
 _qp = st.query_params
-_draft_id_param = _qp.get("draft_id", None)
+# Prefer session_state (set by the Dashboard Resume button via st.switch_page,
+# which doesn't always propagate query params reliably) and fall back to the
+# URL query param so that direct deep-links like ?draft_id=… still work.
+_draft_id_param = st.session_state.pop("resume_draft_id", None) or _qp.get("draft_id", None)
 if _draft_id_param and st.session_state.get("eval_draft_id") != _draft_id_param:
     # Load the draft and restore session state
     drafts = get_drafts_for_user(uid)
-    _draft = next((d for d in drafts if d["id"] == _draft_id_param), None)
+    _draft = next((d for d in drafts if str(d["id"]) == str(_draft_id_param)), None)
     if _draft:
         _data = _draft["eval_data"]
         for k, v in defaults.items():
