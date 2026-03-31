@@ -134,6 +134,43 @@ footer                                     { display: none !important; }
   transform: translateY(-2px) !important;
   box-shadow: 0 8px 20px rgba(79,70,229,0.35) !important;
 }
+
+/* Icon-only action buttons (edit / delete) in table rows.
+   These sit inside [data-testid="stHorizontalBlock"] columns and should
+   look like flat icon buttons, NOT gradient pill buttons. */
+[data-testid="stHorizontalBlock"] [data-testid="column"] .stButton > button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: #64748B !important;
+  padding: 4px 8px !important;
+  font-size: 1.15rem !important;
+  min-height: unset !important;
+  transform: none !important;
+  border-radius: 6px !important;
+  transition: background .15s, color .15s !important;
+  line-height: 1.4 !important;
+}
+[data-testid="stHorizontalBlock"] [data-testid="column"] .stButton > button:hover {
+  background: #EEF2FF !important;
+  color: #4F46E5 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+[data-testid="stHorizontalBlock"] [data-testid="column"] .stButton > button:active,
+[data-testid="stHorizontalBlock"] [data-testid="column"] .stButton > button:focus {
+  background: #E0E7FF !important;
+  color: #4F46E5 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+/* Delete icon specifically — red hover */
+[data-testid="stHorizontalBlock"] [data-testid="column"]:last-child .stButton > button:hover {
+  background: #FEE2E2 !important;
+  color: #DC2626 !important;
+}
 </style>
 """
 

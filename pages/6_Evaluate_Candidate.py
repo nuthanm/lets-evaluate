@@ -6,8 +6,8 @@ import pandas as pd
 
 from utils.database import (
     init_db, get_projects_for_user, get_roles_for_project, get_questions_for_role,
-    create_evaluation, create_question, create_draft, update_draft, get_drafts_for_user,
-    delete_draft,
+    get_roles_for_user, create_evaluation, create_question, create_draft, update_draft,
+    get_drafts_for_user, delete_draft,
 )
 from utils.auth import require_auth, get_current_user, logout_user
 from utils.ai_utils import analyze_resume, generate_standard_questions, generate_resume_based_questions, refine_evaluation_notes
@@ -101,6 +101,7 @@ defaults = {
     "eval_refined_notes": "",
     "eval_draft_id": None,       # ID of the current in-progress draft
     "eval_max_step": 1,          # Highest step reached (enables back/forward navigation)
+    "eval_ai_topic": "",         # Custom topic prompt for AI question generation
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -170,6 +171,13 @@ if _draft_id_param and st.session_state.get("eval_draft_id") != _draft_id_param:
             else:
                 st.session_state[k] = v
         st.session_state["eval_draft_id"] = _draft_id_param
+        # Use the DB step column as the authoritative saved step so the user
+        # is always returned to the exact step they were on when they saved.
+        _saved_step = int(_draft.get("step") or 1)
+        st.session_state["eval_step"] = _saved_step
+        st.session_state["eval_max_step"] = max(
+            int(_data.get("eval_max_step", 1)), _saved_step
+        )
         # Ensure the comments text area widget will reflect the restored notes
         # on the next render of Step 4 (must be set before the widget is created)
         _saved_notes = _data.get("eval_refined_notes", "")
@@ -550,10 +558,14 @@ elif st.session_state["eval_step"] == 3:
     role_id = st.session_state["eval_role_id"]
     proj = next((p for p in projects if p["id"] == proj_id), None)
     tech_stack = proj["tech_stack"] if proj else []
-    roles = get_roles_for_project(proj_id)
-    role = next((r for r in roles if r["id"] == role_id), None)
+    proj_roles = get_roles_for_project(proj_id)
+    role = next((r for r in proj_roles if r["id"] == role_id), None)
     role_name = role["name"] if role else "Unknown Role"
     role_req = role["requirements"] if role else ""
+
+    # All user roles for the "add to role" multi-select
+    all_user_roles = get_roles_for_user(uid)
+    all_role_options = {r["name"]: r["id"] for r in all_user_roles}
 
     SATISFACTION_OPTIONS = ["—", "Satisfied", "Not Satisfied", "Other"]
 
@@ -585,6 +597,44 @@ elif st.session_state["eval_step"] == 3:
                 st.session_state["eval_q_satisfaction"][q_key] = {"level": level, "comment": ""}
                 st.rerun()
 
+    def _render_add_to_questions(q_text: str, q_key: str):
+        """Render 'Add to My Questions' with multi-role selector."""
+        show_key = f"_show_add_{q_key}"
+        if st.session_state.get(show_key):
+            selected_add_roles = st.multiselect(
+                "Add to which role(s)?",
+                options=["(Current Role)"] + list(all_role_options.keys()),
+                default=["(Current Role)"],
+                key=f"add_roles_{q_key}",
+            )
+            col_confirm, col_cancel = st.columns(2)
+            with col_confirm:
+                if st.button("✅ Confirm Add", key=f"confirm_add_{q_key}", type="primary"):
+                    rids = []
+                    for opt in selected_add_roles:
+                        if opt == "(Current Role)":
+                            rids.append(role_id)
+                        else:
+                            rid = all_role_options.get(opt)
+                            if rid and rid not in rids:
+                                rids.append(rid)
+                    primary = rids[0] if rids else None
+                    create_question(
+                        uid, q_text, "AI Based Questions", "Medium",
+                        role_id=primary, role_ids=rids if rids else None,
+                    )
+                    st.session_state.pop(show_key, None)
+                    st.toast("Added to My Questions!", icon="✅")
+                    st.rerun()
+            with col_cancel:
+                if st.button("✖️ Cancel", key=f"cancel_add_{q_key}"):
+                    st.session_state.pop(show_key, None)
+                    st.rerun()
+        else:
+            if st.button("➕ Add to My Questions", key=f"add_{q_key}"):
+                st.session_state[show_key] = True
+                st.rerun()
+
     # Role-linked questions
     role_qs = st.session_state.get("eval_role_questions", [])
     if role_qs:
@@ -595,15 +645,57 @@ elif st.session_state["eval_step"] == 3:
                 st.caption(f"Category: {q['category']} | Difficulty: {q['difficulty']}")
                 _render_satisfaction(f"role_{q['id']}")
 
-    # Standard AI questions
-    if not st.session_state["eval_std_questions"]:
-        if st.button("🤖 Generate Standard Questions (AI)", type="primary"):
-            with st.spinner("Generating standard interview questions…"):
-                qs = generate_standard_questions(role_name, tech_stack)
-            st.session_state["eval_std_questions"] = qs
+    st.markdown("---")
+
+    # ── Persistent topic prompt ──────────────────────────────────────────────
+    st.markdown("**🎯 AI Question Generation**")
+    topic_val = st.session_state.get("eval_ai_topic", "")
+    ai_topic = st.text_input(
+        "Topic / focus area for questions (optional)",
+        value=topic_val,
+        placeholder="e.g. system design, Python async, leadership, cloud architecture…",
+        key="eval_ai_topic_input",
+        help="Leave blank for general role-based questions, or specify a topic for focused questions.",
+    )
+    # Sync to session state immediately (outside form)
+    st.session_state["eval_ai_topic"] = ai_topic
+
+    gen_col1, gen_col2 = st.columns(2)
+    with gen_col1:
+        if st.button("🤖 Generate Standard Questions", type="primary", use_container_width=True):
+            with st.spinner("Generating interview questions…"):
+                qs = generate_standard_questions(role_name, tech_stack, topic=ai_topic.strip())
+            # Append new questions to existing list
+            existing = st.session_state.get("eval_std_questions", [])
+            st.session_state["eval_std_questions"] = existing + qs
             st.rerun()
-    else:
-        std_qs = st.session_state["eval_std_questions"]
+    with gen_col2:
+        if st.button("📄 Generate From Resume", use_container_width=True):
+            with st.spinner("Generating resume-based questions…"):
+                rqs = generate_resume_based_questions(
+                    st.session_state["eval_resume_text"], role_req
+                )
+            existing_rqs = st.session_state.get("eval_resume_questions", [])
+            st.session_state["eval_resume_questions"] = existing_rqs + rqs
+            st.rerun()
+
+    # Clear-generated buttons
+    if st.session_state.get("eval_std_questions") or st.session_state.get("eval_resume_questions"):
+        cl1, cl2 = st.columns(2)
+        with cl1:
+            if st.session_state.get("eval_std_questions"):
+                if st.button("🗑 Clear Standard Questions", use_container_width=True):
+                    st.session_state["eval_std_questions"] = []
+                    st.rerun()
+        with cl2:
+            if st.session_state.get("eval_resume_questions"):
+                if st.button("🗑 Clear Resume Questions", use_container_width=True):
+                    st.session_state["eval_resume_questions"] = []
+                    st.rerun()
+
+    # Standard AI questions display
+    std_qs = st.session_state.get("eval_std_questions", [])
+    if std_qs:
         st.markdown(f"**🎯 AI Standard Questions ({len(std_qs)})**")
         for i, q in enumerate(std_qs, 1):
             q_key = f"std_{i}"
@@ -611,27 +703,11 @@ elif st.session_state["eval_step"] == 3:
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
                 _render_satisfaction(q_key)
-                if st.button("➕ Add to My Questions", key=f"add_std_{i}"):
-                    create_question(
-                        uid,
-                        q.get("question", ""),
-                        "AI Based Questions",
-                        "Medium",
-                        role_id,
-                    )
-                    st.toast("Added to My Questions!", icon="✅")
+                _render_add_to_questions(q.get("question", ""), q_key)
 
-    # Resume-based questions
-    if not st.session_state["eval_resume_questions"]:
-        if st.button("📄 Generate Questions Based on Resume (AI)"):
-            with st.spinner("Generating resume-based questions…"):
-                rqs = generate_resume_based_questions(
-                    st.session_state["eval_resume_text"], role_req
-                )
-            st.session_state["eval_resume_questions"] = rqs
-            st.rerun()
-    else:
-        res_qs = st.session_state["eval_resume_questions"]
+    # Resume-based questions display
+    res_qs = st.session_state.get("eval_resume_questions", [])
+    if res_qs:
         st.markdown(f"**📄 Resume-Based Questions ({len(res_qs)})**")
         for i, q in enumerate(res_qs, 1):
             q_key = f"res_{i}"
@@ -639,15 +715,7 @@ elif st.session_state["eval_step"] == 3:
                 st.write(q.get("question", ""))
                 st.caption(f"Category: {q.get('category', '')} | Hints: {q.get('expected_answer_hints', '')}")
                 _render_satisfaction(q_key)
-                if st.button("➕ Add to My Questions", key=f"add_res_{i}"):
-                    create_question(
-                        uid,
-                        q.get("question", ""),
-                        "AI Based Questions",
-                        "Medium",
-                        role_id,
-                    )
-                    st.toast("Added to My Questions!", icon="✅")
+                _render_add_to_questions(q.get("question", ""), q_key)
 
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2, b3 = st.columns([1, 1, 1])

@@ -228,10 +228,13 @@ Return ONLY a valid JSON object (no markdown) with exactly these keys:
 Rules:
 - tech_comparison MUST include ALL technologies from the Required Tech Stack — every one must have status "Matched" or "Unmatched".
 - matched_technologies and missing_technologies must be consistent with tech_comparison.
+- career_history MUST include EVERY position/role mentioned anywhere in the resume — do not skip older or shorter roles.
 - career_history must be sorted chronologically from OLDEST to NEWEST entry.
+- For each career_history entry, compute duration from start and end dates (round to nearest month).
+- total_experience_calculated MUST equal the sum of all career_history durations; compute this carefully.
 - Use empty string "" (never the word "Unknown") for any field whose value is not present in the resume.
 - certifications should be an empty list if none found in the resume.
-- total_experience_calculated must be calculated from the career_history start/end dates, not estimated."""
+- is_current must be true for any role with end date "Present" or described as current."""
 
         response = llm.invoke(prompt)
         result = _parse_json_response(response.content)
@@ -271,6 +274,7 @@ def generate_standard_questions(
     role_name: str,
     tech_stack: list,
     num_questions: int = 10,
+    topic: str = "",
 ) -> list[dict]:
     if not _is_configured():
         return [
@@ -283,8 +287,12 @@ def generate_standard_questions(
 
     try:
         llm = _get_llm()
+        topic_line = (
+            f"\nFocus specifically on the topic: {topic.strip()}"
+            if topic.strip() else ""
+        )
         prompt = f"""You are an expert technical interviewer. Generate {num_questions} interview questions for a {role_name} position.
-Tech stack: {", ".join(tech_stack)}
+Tech stack: {", ".join(tech_stack)}{topic_line}
 
 Return ONLY a valid JSON array (no markdown) where each element has:
 {{

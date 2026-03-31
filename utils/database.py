@@ -255,6 +255,7 @@ class Role(Base):
     id = Column(String, primary_key=True, default=_new_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=True, index=True)
+    project_ids = Column(Text, default="[]")  # JSON list – all linked project IDs
     name = Column(String, nullable=False)
     description = Column(Text, default="")
     requirements = Column(Text, default="")
@@ -273,6 +274,7 @@ class Question(Base):
     id = Column(String, primary_key=True, default=_new_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     role_id = Column(String, ForeignKey("roles.id"), nullable=True, index=True)
+    role_ids = Column(Text, default="[]")  # JSON list – all linked role IDs
     question_text = Column(Text, nullable=False)
     category = Column(String, default="Technical")  # Technical/Behavioral/Situational/Process
     difficulty = Column(String, default="Medium")   # Easy/Medium/Hard
@@ -391,10 +393,26 @@ def init_db():
             "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS interviewer_name VARCHAR DEFAULT ''",
             "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS role_questions TEXT DEFAULT '[]'",
             "ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS q_satisfaction TEXT DEFAULT '{}'",
+            # Multi-project support for roles
+            "ALTER TABLE roles ADD COLUMN IF NOT EXISTS project_ids TEXT DEFAULT '[]'",
+            # Multi-role support for questions
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS role_ids TEXT DEFAULT '[]'",
         ]
         with engine.begin() as conn:
             for sql in migrations:
                 conn.execute(sa_text(sql))
+            # Back-fill project_ids from existing project_id FK for roles
+            conn.execute(sa_text(
+                "UPDATE roles SET project_ids = json_build_array(project_id)::text "
+                "WHERE project_id IS NOT NULL "
+                "AND (project_ids IS NULL OR project_ids = '[]' OR project_ids = '')"
+            ))
+            # Back-fill role_ids from existing role_id FK for questions
+            conn.execute(sa_text(
+                "UPDATE questions SET role_ids = json_build_array(role_id)::text "
+                "WHERE role_id IS NOT NULL "
+                "AND (role_ids IS NULL OR role_ids = '[]' OR role_ids = '')"
+            ))
     except Exception:
         pass
 
@@ -506,6 +524,23 @@ def update_project(project_id: str, name: str, description: str, tech_stack: lis
 def delete_project(project_id: str):
     db = get_db()
     try:
+        # Unlink roles whose primary project_id points here
+        db.query(Role).filter(Role.project_id == project_id).update({
+            "project_id": None,
+            "updated_at": datetime.now(timezone.utc),
+        })
+        # Also remove from project_ids JSON array for roles that include this project.
+        # Use a parameterised JSONB containment check to avoid LIKE injection.
+        roles_multi = db.query(Role).filter(
+            sa_text(
+                "roles.project_ids::jsonb @> jsonb_build_array(:pid)::jsonb"
+            ).bindparams(pid=project_id)
+        ).all()
+        for r in roles_multi:
+            pids = [p for p in json.loads(r.project_ids or "[]") if p != project_id]
+            r.project_ids = json.dumps(pids)
+        db.commit()
+        # Now safe to delete the project
         db.query(Project).filter(Project.id == project_id).delete()
         db.commit()
     finally:
@@ -534,6 +569,7 @@ def get_roles_for_user(user_id: str) -> list[dict]:
                 "requirements": r.Role.requirements,
                 "project_id": r.Role.project_id,
                 "project_name": r.project_name,
+                "project_ids": json.loads(r.Role.project_ids or "[]"),
                 "created_at": r.Role.created_at,
                 "updated_at": r.Role.updated_at,
             }
@@ -546,22 +582,56 @@ def get_roles_for_user(user_id: str) -> list[dict]:
 def get_roles_for_project(project_id: str) -> list[dict]:
     db = get_db()
     try:
-        roles = db.query(Role).filter(Role.project_id == project_id).all()
-        return [{"id": r.id, "name": r.name, "description": r.description, "requirements": r.requirements} for r in roles]
+        # Include roles linked via the primary project_id FK OR via the project_ids JSON array.
+        # Use a parameterised JSONB containment check (not LIKE) to avoid injection risk.
+        roles = db.query(Role).filter(
+            (Role.project_id == project_id) |
+            sa_text(
+                "roles.project_ids::jsonb @> jsonb_build_array(:pid)::jsonb"
+            ).bindparams(pid=project_id)
+        ).all()
+        # Deduplicate
+        seen: set[str] = set()
+        result = []
+        for r in roles:
+            if r.id not in seen:
+                seen.add(r.id)
+                result.append({
+                    "id": r.id,
+                    "name": r.name,
+                    "description": r.description,
+                    "requirements": r.requirements,
+                })
+        return result
     finally:
         db.close()
 
 
-def create_role(user_id: str, name: str, description: str, requirements: str, project_id: str | None = None) -> dict:
+def create_role(
+    user_id: str,
+    name: str,
+    description: str,
+    requirements: str,
+    project_id: str | None = None,
+    project_ids: list | None = None,
+) -> dict:
     db = get_db()
     try:
+        # Build the complete list of linked project IDs.
+        # project_ids takes precedence; project_id is merged in for backward compat.
+        pids: list[str] = list(project_ids) if project_ids else []
+        if project_id and project_id not in pids:
+            pids.insert(0, project_id)
+        # The primary FK stores the first project in the list (used by evaluate flow).
+        primary_pid: str | None = pids[0] if pids else None
         role = Role(
             id=_new_uuid(),
             user_id=user_id,
             name=name,
             description=description,
             requirements=requirements,
-            project_id=project_id or None,
+            project_id=primary_pid,
+            project_ids=json.dumps(pids),
         )
         db.add(role)
         db.commit()
@@ -571,14 +641,27 @@ def create_role(user_id: str, name: str, description: str, requirements: str, pr
         db.close()
 
 
-def update_role(role_id: str, name: str, description: str, requirements: str, project_id: str | None = None):
+def update_role(
+    role_id: str,
+    name: str,
+    description: str,
+    requirements: str,
+    project_id: str | None = None,
+    project_ids: list | None = None,
+):
     db = get_db()
     try:
+        # Build the complete list of linked project IDs.
+        pids: list[str] = list(project_ids) if project_ids else []
+        if project_id and project_id not in pids:
+            pids.insert(0, project_id)
+        primary_pid: str | None = pids[0] if pids else None
         db.query(Role).filter(Role.id == role_id).update({
             "name": name,
             "description": description,
             "requirements": requirements,
-            "project_id": project_id or None,
+            "project_id": primary_pid,
+            "project_ids": json.dumps(pids),
             "updated_at": datetime.now(timezone.utc),
         })
         db.commit()
@@ -589,6 +672,23 @@ def update_role(role_id: str, name: str, description: str, requirements: str, pr
 def delete_role(role_id: str):
     db = get_db()
     try:
+        # Unlink questions whose primary role_id points here
+        db.query(Question).filter(Question.role_id == role_id).update({
+            "role_id": None,
+            "updated_at": datetime.now(timezone.utc),
+        })
+        # Also remove from role_ids JSON array for any questions that include this role.
+        # Use a parameterised JSONB containment check to avoid LIKE injection.
+        qs_multi = db.query(Question).filter(
+            sa_text(
+                "questions.role_ids::jsonb @> jsonb_build_array(:rid)::jsonb"
+            ).bindparams(rid=role_id)
+        ).all()
+        for q in qs_multi:
+            rids = [r for r in json.loads(q.role_ids or "[]") if r != role_id]
+            q.role_ids = json.dumps(rids)
+        db.commit()
+        # Now safe to delete the role
         db.query(Role).filter(Role.id == role_id).delete()
         db.commit()
     finally:
@@ -617,6 +717,7 @@ def get_questions_for_user(user_id: str) -> list[dict]:
                 "difficulty": q.Question.difficulty,
                 "role_id": q.Question.role_id,
                 "role_name": q.role_name,
+                "role_ids": json.loads(q.Question.role_ids or "[]"),
                 "created_at": q.Question.created_at,
                 "updated_at": q.Question.updated_at,
             }
@@ -629,30 +730,53 @@ def get_questions_for_user(user_id: str) -> list[dict]:
 def get_questions_for_role(role_id: str) -> list[dict]:
     db = get_db()
     try:
-        questions = db.query(Question).filter(Question.role_id == role_id).all()
-        return [
-            {
-                "id": q.id,
-                "question_text": q.question_text,
-                "category": q.category,
-                "difficulty": q.difficulty,
-            }
-            for q in questions
-        ]
+        # Include questions linked via primary role_id OR via role_ids JSON array.
+        # Use a parameterised JSONB containment check to avoid LIKE injection.
+        questions = db.query(Question).filter(
+            (Question.role_id == role_id) |
+            sa_text(
+                "questions.role_ids::jsonb @> jsonb_build_array(:rid)::jsonb"
+            ).bindparams(rid=role_id)
+        ).all()
+        seen: set[str] = set()
+        result = []
+        for q in questions:
+            if q.id not in seen:
+                seen.add(q.id)
+                result.append({
+                    "id": q.id,
+                    "question_text": q.question_text,
+                    "category": q.category,
+                    "difficulty": q.difficulty,
+                })
+        return result
     finally:
         db.close()
 
 
-def create_question(user_id: str, question_text: str, category: str, difficulty: str, role_id: str | None = None) -> dict:
+def create_question(
+    user_id: str,
+    question_text: str,
+    category: str,
+    difficulty: str,
+    role_id: str | None = None,
+    role_ids: list | None = None,
+) -> dict:
     db = get_db()
     try:
+        # Normalise role_ids: ensure primary role_id is in the list
+        rids = list(role_ids) if role_ids else []
+        if role_id and role_id not in rids:
+            rids.insert(0, role_id)
+        primary_rid = rids[0] if rids else None
         question = Question(
             id=_new_uuid(),
             user_id=user_id,
             question_text=question_text,
             category=category,
             difficulty=difficulty,
-            role_id=role_id or None,
+            role_id=primary_rid,
+            role_ids=json.dumps(rids),
         )
         db.add(question)
         db.commit()
@@ -662,14 +786,26 @@ def create_question(user_id: str, question_text: str, category: str, difficulty:
         db.close()
 
 
-def update_question(question_id: str, question_text: str, category: str, difficulty: str, role_id: str | None = None):
+def update_question(
+    question_id: str,
+    question_text: str,
+    category: str,
+    difficulty: str,
+    role_id: str | None = None,
+    role_ids: list | None = None,
+):
     db = get_db()
     try:
+        rids = list(role_ids) if role_ids else []
+        if role_id and role_id not in rids:
+            rids.insert(0, role_id)
+        primary_rid = rids[0] if rids else None
         db.query(Question).filter(Question.id == question_id).update({
             "question_text": question_text,
             "category": category,
             "difficulty": difficulty,
-            "role_id": role_id or None,
+            "role_id": primary_rid,
+            "role_ids": json.dumps(rids),
             "updated_at": datetime.now(timezone.utc),
         })
         db.commit()
