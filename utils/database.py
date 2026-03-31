@@ -823,6 +823,230 @@ def delete_question(question_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Bulk Export / Import helpers
+# ---------------------------------------------------------------------------
+
+def export_data_for_user(user_id: str) -> dict:
+    """Return a serialisable dict containing all projects, roles, and questions
+    for *user_id*, suitable for JSON export."""
+    projects = get_projects_for_user(user_id)
+    roles = get_roles_for_user(user_id)
+    questions = get_questions_for_user(user_id)
+
+    # Build a role-id → name lookup so questions can reference role names.
+    role_id_to_name = {r["id"]: r["name"] for r in roles}
+    # Build a project-id → name lookup so roles can reference project names.
+    project_id_to_name = {p["id"]: p["name"] for p in projects}
+
+    exported_projects = [
+        {
+            "name": p["name"],
+            "description": p["description"] or "",
+            "tech_stack": p["tech_stack"],
+        }
+        for p in projects
+    ]
+
+    exported_roles = [
+        {
+            "name": r["name"],
+            "description": r["description"] or "",
+            "requirements": r["requirements"] or "",
+            "projects": [
+                project_id_to_name[pid]
+                for pid in r.get("project_ids", [])
+                if pid in project_id_to_name
+            ],
+        }
+        for r in roles
+    ]
+
+    exported_questions = [
+        {
+            "question_text": q["question_text"],
+            "category": q["category"] or "Technical",
+            "difficulty": q["difficulty"] or "Medium",
+            "roles": [
+                role_id_to_name[rid]
+                for rid in q.get("role_ids", [])
+                if rid in role_id_to_name
+            ],
+        }
+        for q in questions
+    ]
+
+    return {
+        "version": "1.0",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "projects": exported_projects,
+        "roles": exported_roles,
+        "questions": exported_questions,
+    }
+
+
+def import_data_for_user(
+    user_id: str,
+    data: dict,
+    progress_callback=None,
+) -> dict:
+    """Import projects, roles, and questions from an exported *data* dict.
+
+    Duplicate detection:
+    - Projects: matched by name (case-insensitive). If found, existing record
+      is reused; otherwise a new one is created.
+    - Roles: matched by name (case-insensitive). Same logic.
+    - Questions: matched by normalised question_text. Duplicates are skipped.
+
+    If a role referenced by a question does not exist it is auto-created (with
+    blank description/requirements) and mapped to the question.
+
+    *progress_callback(step, total, message)* is called after each item if
+    provided.
+
+    Returns a summary dict::
+
+        {
+            "projects": {"created": N, "skipped": N},
+            "roles":    {"created": N, "skipped": N},
+            "questions":{"created": N, "skipped": N, "auto_roles": N},
+        }
+    """
+    # ── Counters ──────────────────────────────────────────────────────────
+    summary = {
+        "projects": {"created": 0, "skipped": 0},
+        "roles":    {"created": 0, "skipped": 0},
+        "questions":{"created": 0, "skipped": 0, "auto_roles": 0},
+    }
+
+    projects_in = data.get("projects", [])
+    roles_in    = data.get("roles", [])
+    questions_in = data.get("questions", [])
+    total_steps = len(projects_in) + len(roles_in) + len(questions_in)
+    step = 0
+
+    def _progress(msg: str):
+        nonlocal step
+        step += 1
+        if progress_callback:
+            progress_callback(step, total_steps, msg)
+
+    # ── Load existing data for duplicate checks ───────────────────────────
+    db = get_db()
+    try:
+        existing_projects = {
+            p.name.lower(): p
+            for p in db.query(Project).filter(Project.user_id == user_id).all()
+        }
+        existing_roles = {
+            r.name.lower(): r
+            for r in db.query(Role).filter(Role.user_id == user_id).all()
+        }
+        existing_questions_texts = {
+            q.question_text.strip().lower()
+            for q in db.query(Question).filter(Question.user_id == user_id).all()
+        }
+    finally:
+        db.close()
+
+    # name → id maps (will be updated as we create new records)
+    project_name_to_id: dict[str, str] = {
+        p.name.lower(): p.id for p in existing_projects.values()
+    }
+    role_name_to_id: dict[str, str] = {
+        r.name.lower(): r.id for r in existing_roles.values()
+    }
+
+    # ── 1. Import Projects ────────────────────────────────────────────────
+    for p in projects_in:
+        pname = (p.get("name") or "").strip()
+        if not pname:
+            _progress("Skipped project with empty name")
+            continue
+        if pname.lower() in project_name_to_id:
+            summary["projects"]["skipped"] += 1
+            _progress(f"Project already exists: {pname}")
+        else:
+            result = create_project(
+                user_id=user_id,
+                name=pname,
+                description=p.get("description", ""),
+                tech_stack=p.get("tech_stack", []),
+            )
+            project_name_to_id[pname.lower()] = result["id"]
+            summary["projects"]["created"] += 1
+            _progress(f"Created project: {pname}")
+
+    # ── 2. Import Roles ───────────────────────────────────────────────────
+    for r in roles_in:
+        rname = (r.get("name") or "").strip()
+        if not rname:
+            _progress("Skipped role with empty name")
+            continue
+        if rname.lower() in role_name_to_id:
+            summary["roles"]["skipped"] += 1
+            _progress(f"Role already exists: {rname}")
+        else:
+            # Resolve project references by name
+            pids = [
+                project_name_to_id[pn.lower()]
+                for pn in (r.get("projects") or [])
+                if pn.lower() in project_name_to_id
+            ]
+            result = create_role(
+                user_id=user_id,
+                name=rname,
+                description=r.get("description", ""),
+                requirements=r.get("requirements", ""),
+                project_ids=pids,
+            )
+            role_name_to_id[rname.lower()] = result["id"]
+            summary["roles"]["created"] += 1
+            _progress(f"Created role: {rname}")
+
+    # ── 3. Import Questions ───────────────────────────────────────────────
+    for q in questions_in:
+        qtext = (q.get("question_text") or "").strip()
+        if not qtext:
+            _progress("Skipped question with empty text")
+            continue
+        if qtext.lower() in existing_questions_texts:
+            summary["questions"]["skipped"] += 1
+            _progress(f"Duplicate question skipped")
+            continue
+
+        # Resolve (or auto-create) roles
+        rids = []
+        for rname in (q.get("roles") or []):
+            rname_key = rname.strip().lower()
+            if rname_key in role_name_to_id:
+                rids.append(role_name_to_id[rname_key])
+            else:
+                # Auto-create missing role
+                new_role = create_role(
+                    user_id=user_id,
+                    name=rname.strip(),
+                    description="",
+                    requirements="",
+                )
+                role_name_to_id[rname_key] = new_role["id"]
+                rids.append(new_role["id"])
+                summary["questions"]["auto_roles"] += 1
+
+        create_question(
+            user_id=user_id,
+            question_text=qtext,
+            category=q.get("category", "Technical"),
+            difficulty=q.get("difficulty", "Medium"),
+            role_ids=rids,
+        )
+        existing_questions_texts.add(qtext.lower())
+        summary["questions"]["created"] += 1
+        _progress(f"Imported question")
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # CRUD helpers — Evaluations
 # ---------------------------------------------------------------------------
 
