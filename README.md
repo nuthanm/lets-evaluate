@@ -1,6 +1,7 @@
-# 🎯 Let's Evaluate
+# Let's Evaluate
 
 > **AI-powered interview evaluation platform** — upload a resume, get instant AI analysis, generate tailored interview questions, score candidates, and archive everything in one elegant app.
+<img width="953" height="380" alt="image" src="https://github.com/user-attachments/assets/773f6978-1eae-4e04-8eb8-d9d138ea9ed0" />
 
 ---
 
