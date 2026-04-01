@@ -26,6 +26,14 @@ def logout_user():
 
 
 def require_auth():
+    # Handle sign-out triggered by the header link BEFORE checking auth status.
+    # logout_user() is safe to call even when the session is already cleared
+    # (it uses .pop(key, None)), so we process the param unconditionally and
+    # redirect to the landing page without risking a spurious Auth redirect.
+    if st.query_params.get("action") == "signout":
+        logout_user()
+        st.query_params.clear()
+        st.switch_page("app.py")
     if not st.session_state.get("authenticated", False):
         st.switch_page("pages/1_Auth.py")
 

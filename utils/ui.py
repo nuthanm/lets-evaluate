@@ -223,18 +223,11 @@ def render_page_logo() -> None:
     Sign Out button is shown on the right; otherwise only the logo is shown.
     The Sign Out button is rendered as a plain HTML link (not a Streamlit
     button) so it is never affected by page-specific button CSS overrides.
-    Clicking it appends ``?action=signout`` to the URL, which is detected on
-    the next render and triggers ``logout_user()`` + redirect to the landing
-    page.
+    Clicking it appends ``?action=signout`` to the URL, which is detected by
+    ``require_auth()`` on the next render and triggers ``logout_user()`` +
+    redirect to the landing page.
     """
     is_auth = st.session_state.get("authenticated", False)
-
-    # Handle sign-out triggered by the header link
-    if is_auth and st.query_params.get("action") == "signout":
-        from utils.auth import logout_user
-        logout_user()
-        st.query_params.clear()
-        st.switch_page("app.py")
 
     href = "/Dashboard" if is_auth else "/"
 

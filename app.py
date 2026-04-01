@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
 from utils.database import init_db
-from utils.ui import inject_common_css, render_page_logo, LOGO_HTML, create_logo_favicon
+from utils.ui import inject_common_css, LOGO_HTML, create_logo_favicon
 
 # ── Must be the very first Streamlit call ──────────────────────────────────
 st.set_page_config(
