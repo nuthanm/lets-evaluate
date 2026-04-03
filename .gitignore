@@ -420,3 +420,6 @@ lets_evaluate.db
 __pycache__/
 *.pyc
 .env
+
+# exclude  venv
+.venv/
