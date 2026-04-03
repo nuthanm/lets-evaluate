@@ -1,6 +1,7 @@
-# 🎯 Let's Evaluate
+# Let's Evaluate
 
 > **AI-powered interview evaluation platform** — upload a resume, get instant AI analysis, generate tailored interview questions, score candidates, and archive everything in one elegant app.
+<img width="953" height="380" alt="image" src="https://github.com/user-attachments/assets/773f6978-1eae-4e04-8eb8-d9d138ea9ed0" />
 
 ---
 
@@ -17,6 +18,7 @@
 | 📂 Archives | Browse past evaluations, update status, download PDF reports |
 | 🔒 Privacy Policy | Transparent data usage and privacy information |
 | 📋 Terms & Conditions | Usage terms and acceptable use policy |
+| 📤 Bulk Actions | Export/import projects, roles & questions as JSON for backup or sharing |
 
 ---
 
@@ -228,7 +230,8 @@ lets-evaluate/
 │   ├── 6_Evaluate_Candidate.py    # 4-step AI evaluation wizard (with draft save)
 │   ├── 7_Archives.py              # Evaluation archive + PDF download
 │   ├── 8_Privacy_Policy.py        # Privacy policy page
-│   └── 9_Terms_Conditions.py      # Terms & conditions page
+│   ├── 9_Terms_Conditions.py      # Terms & conditions page
+│   └── 10_Bulk_Actions.py         # Export / import projects, roles & questions (JSON)
 └── utils/
     ├── database.py                # SQLAlchemy models & CRUD helpers
     ├── auth.py                    # bcrypt auth + session helpers
@@ -303,6 +306,63 @@ Describes what data is collected, how it is used, stored, and protected. Accessi
 
 ### Terms & Conditions (`/9_Terms_Conditions`)
 Outlines the acceptable use policy, user responsibilities, and limitations of liability. Accessible to both authenticated and unauthenticated users.
+
+### Bulk Actions (`/10_Bulk_Actions`)
+**Export**: Downloads a single JSON file containing all your projects, roles, and questions — useful for sharing with colleagues or keeping a backup.
+
+**Import**: Uploads a previously exported JSON file and adds records in bulk.
+- Duplicate detection automatically skips records that already exist.
+- If a question references a role not yet present in your account, the role is **auto-created** and linked to that question.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    User(["👤 User (Browser)"])
+
+    subgraph StreamlitApp["☁️ Streamlit Application"]
+        direction TB
+        Landing["app.py\n🏠 Landing Page"]
+
+        subgraph Pages["📄 Pages"]
+            Auth["1_Auth\n🔐 Login / Register"]
+            Dashboard["2_Dashboard\n📊 Stats & Navigation"]
+            Projects["3_Projects\n📁 Projects CRUD"]
+            Roles["4_Roles\n👥 Roles CRUD"]
+            Questions["5_Questions\n❓ Question Bank"]
+            Evaluate["6_Evaluate_Candidate\n🤖 AI Evaluation Wizard"]
+            Archives["7_Archives\n📂 History & PDF"]
+            Privacy["8_Privacy_Policy\n🔒 Privacy"]
+            Terms["9_Terms_Conditions\n📋 Terms"]
+            BulkActions["10_Bulk_Actions\n📤 Export / Import"]
+        end
+
+        subgraph Utils["🛠️ Utils"]
+            DB["database.py\nSQLAlchemy ORM & CRUD"]
+            AuthUtil["auth.py\nbcrypt + session helpers"]
+            EmailUtil["email_utils.py\nSMTP email"]
+            AIUtil["ai_utils.py\nLangChain / OpenAI"]
+            PDFUtil["pdf_utils.py\nReportLab PDF"]
+            UIUtil["ui.py\nShared CSS & sidebar"]
+        end
+    end
+
+    subgraph External["🌐 External Services"]
+        OpenAI["🤖 OpenAI API\n(GPT-4o-mini)"]
+        SMTP["📧 SMTP Server\n(Gmail / Outlook / Yahoo)"]
+        PG["🐘 PostgreSQL\n(Supabase / Neon / Railway)"]
+    end
+
+    User -->|HTTP| Landing
+    Landing --> Pages
+    Pages --> Utils
+    AuthUtil --> PG
+    DB --> PG
+    AIUtil --> OpenAI
+    EmailUtil --> SMTP
+```
 
 ---
 
