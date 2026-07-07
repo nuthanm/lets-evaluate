@@ -1,9 +1,7 @@
 # Let's Evaluate
 
 > **AI-powered technical hiring platform** — configure projects and roles, screen candidates with AI-assisted resume analysis, run structured evaluations, assign interviewers, and track the full pipeline in one org-ready portal.
-
-<img width="953" height="380" alt="image" src="https://github.com/user-attachments/assets/773f6978-1eae-4e04-8eb8-d9d138ea9ed0" />
-
+<img width="1888" height="921" alt="image" src="https://github.com/user-attachments/assets/2e075e30-65ad-481a-91cd-ac12d187688f" />
 ---
 
 ## Features
