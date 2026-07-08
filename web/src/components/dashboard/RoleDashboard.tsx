@@ -4,6 +4,8 @@ import { ButtonLink } from "@/components/Button";
 import { CabinetPage, CasePanel, StatBlock } from "@/components/CabinetPage";
 import Link from "next/link";
 import type { MemberRole } from "@/lib/auth/config";
+import type { RecruiterTask } from "@/lib/recruiter/tasks";
+import { groupTasksByUrgency } from "@/lib/recruiter/tasks";
 
 type CandidateRow = {
   id: string;
@@ -36,6 +38,98 @@ function stagePill(status: string) {
   return { label: status.replace(/_/g, " "), variant: "neutral" as const };
 }
 
+function urgencyPill(urgency: RecruiterTask["urgency"]) {
+  if (urgency === "overdue") return { label: "Overdue", variant: "orange" as const };
+  if (urgency === "today") return { label: "Today", variant: "cyan" as const };
+  if (urgency === "soon") return { label: "Waiting", variant: "orange" as const };
+  if (urgency === "hold") return { label: "On hold", variant: "neutral" as const };
+  return { label: "Action", variant: "cyan" as const };
+}
+
+function TodayWorkPanel({ tasks }: { tasks: RecruiterTask[] }) {
+  if (tasks.length === 0) {
+    return (
+      <section className="mb-5">
+        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+          Today&apos;s work
+        </h2>
+        <div className="case-card p-5 text-sm text-[var(--ink-faint)]">
+          You&apos;re all caught up — no pending actions on your cases right now.
+        </div>
+      </section>
+    );
+  }
+
+  const groups = groupTasksByUrgency(tasks);
+  const sections: { title: string; items: RecruiterTask[] }[] = [
+    { title: "Overdue", items: groups.overdue },
+    { title: "Due today", items: groups.today },
+    { title: "Needs attention", items: [...groups.soon, ...groups.normal].slice(0, 8) },
+    { title: "On hold", items: groups.hold },
+  ].filter((s) => s.items.length > 0);
+
+  const headline = [
+    groups.overdue.length > 0 && `${groups.overdue.length} overdue`,
+    groups.today.length > 0 && `${groups.today.length} today`,
+    groups.soon.length + groups.normal.length > 0 &&
+      `${groups.soon.length + groups.normal.length} to action`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <section className="mb-5">
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            Today&apos;s work
+          </h2>
+          {headline && (
+            <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">{headline}</p>
+          )}
+        </div>
+        {tasks[0] && (
+          <Link
+            href={tasks[0].href}
+            className="text-[12px] font-semibold text-[var(--cyan-d)] hover:underline"
+          >
+            Start with {tasks[0].candidateName} →
+          </Link>
+        )}
+      </div>
+      <CasePanel title="Priority queue">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <div className="border-b border-[var(--cream-2)] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+              {section.title}
+            </div>
+            {section.items.map((t) => {
+              const pill = urgencyPill(t.urgency);
+              return (
+                <Link
+                  key={t.id}
+                  href={t.href}
+                  className="case-row no-underline transition-colors hover:bg-[var(--cream)]"
+                >
+                  <strong className="text-[var(--ink)]">{t.candidateName}</strong>
+                  <span className="truncate text-[var(--ink-soft)]">
+                    {t.action}
+                    {t.detail ? ` — ${t.detail}` : ""}
+                  </span>
+                  <Pill variant={pill.variant}>{pill.label}</Pill>
+                  <span className="text-[11px] font-semibold text-[var(--cyan-d)]">
+                    Open →
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </CasePanel>
+    </section>
+  );
+}
+
 export function TeamDashboard({
   role,
   candidates,
@@ -43,6 +137,7 @@ export function TeamDashboard({
   feed,
   today,
   scheduled = [],
+  todayTasks = [],
 }: {
   role: MemberRole;
   candidates: CandidateRow[];
@@ -54,6 +149,7 @@ export function TeamDashboard({
   feed: ActivityRow[];
   today: string;
   scheduled?: ScheduledRow[];
+  todayTasks?: RecruiterTask[];
 }) {
   const inProgress = candidates.filter((c) =>
     ["screening", "ready_for_interview", "assigned", "draft"].includes(c.status),
@@ -143,6 +239,8 @@ export function TeamDashboard({
           </div>
         </div>
       )}
+
+      <TodayWorkPanel tasks={todayTasks} />
 
       <section className="mb-5">
         <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">

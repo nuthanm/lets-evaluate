@@ -19,6 +19,9 @@
 | Candidate pipeline | Track candidates from screening through interview to decision |
 | Interviewer assignment | Assign panel members and manage their workload |
 | Booking | Schedule and coordinate interview slots |
+| Mail templates | In-app placeholder emails — copy or open in your mail client (no third-party mail API) |
+| Bulk import | CSV import for candidates |
+| Audit log | Organization-wide activity history |
 | Archives | Browse past evaluations and outcomes |
 | White-label branding | Per-deployment org name, colors, logo, and domain restrictions |
 | Resume storage | Local filesystem (dev) or S3-compatible object storage (prod) |

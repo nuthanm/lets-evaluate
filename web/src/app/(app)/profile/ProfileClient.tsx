@@ -9,6 +9,8 @@ import { Pill } from "@/components/Pill";
 import { PasswordStrengthMeter } from "@/components/PasswordStrength";
 import type { MemberRole } from "@/lib/auth/config";
 import { getRoleDisplayName, validatePassword } from "@/lib/auth/validation";
+import { isPanelRole } from "@/lib/auth/capabilities";
+import { AvailabilityEditor } from "@/components/AvailabilityEditor";
 
 type FieldErrors = {
   currentPassword?: string;
@@ -247,6 +249,8 @@ export function ProfileClient({
             </Button>
           </div>
         </CaseCard>
+
+        {isPanelRole(role) && <AvailabilityEditor />}
       </div>
     </CabinetPage>
   );

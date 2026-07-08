@@ -21,6 +21,9 @@ import {
   getCandidateDetail,
   getCandidateStages,
 } from "@/lib/db/queries";
+import { assertRoleOpen } from "@/lib/db/opening-guard";
+import { MAIL_SLUG_FOR_DECISION, prepareMail, prepareMails } from "@/lib/email";
+import { buildMailVars } from "@/lib/email/vars";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -34,11 +37,22 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 const screenSchema = z.object({
-  action: z.enum(["analyze", "questions", "decide", "finalize"]),
+  action: z.enum([
+    "analyze",
+    "questions",
+    "decide",
+    "finalize",
+    "reassign",
+    "handoff",
+  ]),
   comments: z.string().optional(),
   decision: z.enum(["proceed", "hold", "reject"]).optional(),
   finalDecision: z.enum(["selected", "rejected", "hold"]).optional(),
   resumeText: z.string().optional(),
+  ratings: z.record(z.string(), z.unknown()).optional(),
+  projectId: z.string().optional(),
+  roleId: z.string().optional(),
+  createdById: z.string().optional(),
 });
 
 /**
@@ -220,6 +234,9 @@ export async function POST(req: Request, { params }: Params) {
 
   if (body.action === "decide") {
     if (!body.decision) return apiError("Decision required", 400);
+    const openingErr = await assertRoleOpen(candidate.roleId);
+    if (openingErr) return apiError(openingErr, 400);
+
     const statusMap = {
       proceed: "ready_for_interview" as const,
       hold: "screened_hold" as const,
@@ -231,6 +248,7 @@ export async function POST(req: Request, { params }: Params) {
       .set({
         decision: body.decision,
         comments: body.comments ?? "",
+        qSatisfaction: body.ratings ?? {},
         screenedAt: new Date(),
         screenedById: session.user.id,
       })
@@ -261,6 +279,7 @@ export async function POST(req: Request, { params }: Params) {
           .set({
             status: "passed",
             decision: "yes",
+            comments: body.comments ?? "",
             decidedById: session.user.id,
             decidedAt: new Date(),
             updatedAt: new Date(),
@@ -284,13 +303,55 @@ export async function POST(req: Request, { params }: Params) {
           .set({
             status: "failed",
             decision: "no",
+            comments: body.comments ?? "",
             decidedById: session.user.id,
             decidedAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(candidateStages.id, screeningStage.stage.id));
+
+        // A screening rejection ends the journey — every later round is
+        // skipped so the pipeline reflects that they never take place.
+        for (const s of stages) {
+          if (
+            s.stage.position > screeningStage.stage.position &&
+            (s.stage.status === "pending" || s.stage.status === "active")
+          ) {
+            await db
+              .update(candidateStages)
+              .set({ status: "skipped", updatedAt: new Date() })
+              .where(eq(candidateStages.id, s.stage.id));
+          }
+        }
+      } else if (body.decision === "hold") {
+        await db
+          .update(candidateStages)
+          .set({
+            comments: body.comments ?? "",
+            updatedAt: new Date(),
+          })
+          .where(eq(candidateStages.id, screeningStage.stage.id));
       }
     }
+
+    const [screening] = await db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, id))
+      .limit(1);
+    const metrics = screening?.metrics as Record<string, unknown> | undefined;
+    const mail = await prepareMail(
+      session.user.organizationId,
+      MAIL_SLUG_FOR_DECISION[body.decision],
+      buildMailVars({
+        candidate,
+        roleName: role?.name ?? "Role",
+        projectName: project?.name ?? "Project",
+        taName: session.user.name ?? undefined,
+        screeningComments: body.comments,
+        techMatchScore: metrics?.tech_match_score as number | undefined,
+      }),
+    );
 
     await logEvent({
       organizationId: session.user.organizationId,
@@ -300,6 +361,58 @@ export async function POST(req: Request, { params }: Params) {
       action: "screening.decided",
       payload: { decision: body.decision },
     });
+
+    await logEvent({
+      organizationId: session.user.organizationId,
+      actorId: session.user.id,
+      entityType: "candidate",
+      entityId: id,
+      action: "mail.prepared",
+      payload: { slug: MAIL_SLUG_FOR_DECISION[body.decision] },
+    });
+
+    return NextResponse.json({ ok: true, mail });
+  }
+
+  if (body.action === "reassign") {
+    const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+    if (forbidden) return forbidden;
+    if (!body.projectId && !body.roleId) {
+      return apiError("projectId or roleId required", 400);
+    }
+    const openingErr = await assertRoleOpen(body.roleId ?? candidate.roleId);
+    if (openingErr) return apiError(openingErr, 400);
+
+    await db
+      .update(candidates)
+      .set({
+        projectId: body.projectId ?? candidate.projectId,
+        roleId: body.roleId ?? candidate.roleId,
+        updatedAt: new Date(),
+      })
+      .where(eq(candidates.id, id));
+
+    await logEvent({
+      organizationId: session.user.organizationId,
+      actorId: session.user.id,
+      entityType: "candidate",
+      entityId: id,
+      action: "candidate.reassigned",
+      payload: { projectId: body.projectId, roleId: body.roleId },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "handoff") {
+    const forbidden = requireApiRole(session.user.role, ["admin"]);
+    if (forbidden) return forbidden;
+    if (!body.createdById) return apiError("createdById required", 400);
+
+    await db
+      .update(candidates)
+      .set({ createdById: body.createdById, updatedAt: new Date() })
+      .where(eq(candidates.id, id));
 
     return NextResponse.json({ ok: true });
   }
@@ -337,6 +450,20 @@ export async function POST(req: Request, { params }: Params) {
       .set({ status: fd, updatedAt: new Date() })
       .where(eq(candidates.id, id));
 
+    const slug =
+      fd === "selected" ? "candidate_selected" : "candidate_final_reject";
+    const mail = await prepareMail(
+      session.user.organizationId,
+      slug,
+      buildMailVars({
+        candidate,
+        roleName: role?.name ?? "Role",
+        projectName: project?.name ?? "Project",
+        taName: session.user.name ?? undefined,
+        screeningComments: body.comments,
+      }),
+    );
+
     await logEvent({
       organizationId: session.user.organizationId,
       actorId: session.user.id,
@@ -346,7 +473,7 @@ export async function POST(req: Request, { params }: Params) {
       payload: { decision: fd },
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, mail });
   }
 
   return apiError("Invalid action");
@@ -364,6 +491,10 @@ export async function PUT(req: Request, { params }: Params) {
   const email = String(form.get("email") ?? "");
   const projectId = String(form.get("projectId") ?? "") || null;
   const roleId = String(form.get("roleId") ?? "") || null;
+  const phone = String(form.get("phone") ?? "");
+  const source = String(form.get("source") ?? "");
+  const notes = String(form.get("notes") ?? "");
+  const consent = form.get("consent") === "true" || form.get("consent") === "on";
   const file = form.get("resume") as File | null;
 
   let resumeStorageKey: string | undefined;
@@ -401,6 +532,10 @@ export async function PUT(req: Request, { params }: Params) {
       .set({
         name: name || existing.name,
         email: email || existing.email,
+        phone: phone || existing.phone,
+        source: source || existing.source,
+        notes: notes || existing.notes,
+        consentAt: consent ? new Date() : existing.consentAt,
         projectId: projectId ?? existing.projectId,
         roleId: roleId ?? existing.roleId,
         resumeStorageKey: resumeStorageKey ?? existing.resumeStorageKey,

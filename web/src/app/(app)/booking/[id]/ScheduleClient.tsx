@@ -6,9 +6,23 @@ import { Button } from "@/components/Button";
 import { Pill } from "@/components/Pill";
 import { FaceAvatar } from "@/components/FaceAvatar";
 import { FieldInput, FieldTextarea } from "@/components/FormField";
+import { EmailComposer } from "@/components/EmailComposer";
+import type { RenderedMail } from "@/lib/email";
 import { cn } from "@/lib/utils";
 
-type Interviewer = { id: string; name: string; email: string; role: string };
+type Interviewer = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  pendingCount?: number;
+};
+
+type AvailabilityWindow = {
+  dayOfWeek: number;
+  startMinute: number;
+  endMinute: number;
+};
 
 type Event = {
   id: string;
@@ -81,6 +95,7 @@ export function ScheduleClient({
   interviewers,
   events,
   existing,
+  availability = {},
 }: {
   candidate: {
     id: string;
@@ -93,6 +108,7 @@ export function ScheduleClient({
   interviewers: Interviewer[];
   events: Event[];
   existing: Existing | null;
+  availability?: Record<string, AvailabilityWindow[]>;
 }) {
   const router = useRouter();
   const now = useMemo(() => new Date(), []);
@@ -107,6 +123,8 @@ export function ScheduleClient({
   const [note, setNote] = useState(existing?.handoffNote ?? "");
   const [booking, setBooking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preparedMails, setPreparedMails] = useState<RenderedMail[] | null>(null);
+  const [icsUrl, setIcsUrl] = useState<string | null>(null);
 
   const parsedEvents = useMemo(
     () => events.map((e) => ({ ...e, date: new Date(e.dueAt) })),
@@ -153,6 +171,21 @@ export function ScheduleClient({
     (i) => i.id === selectedInterviewer,
   );
 
+  function isWithinAvailability(day: Date, hour: number) {
+    if (!selectedInterviewer) return true;
+    const windows = availability[selectedInterviewer];
+    if (!windows?.length) return true;
+    const dow = (day.getDay() + 6) % 7;
+    const slotStart = hour * 60;
+    const slotEnd = slotStart + 60;
+    return windows.some(
+      (w) =>
+        w.dayOfWeek === dow &&
+        slotStart >= w.startMinute &&
+        slotEnd <= w.endMinute,
+    );
+  }
+
   function openSlot(day: Date, hour: number) {
     if (!selectedInterviewer) {
       setError("Select an interviewer on the left first.");
@@ -161,6 +194,10 @@ export function ScheduleClient({
     const start = slotDate(day, hour);
     if (start.getTime() < now.getTime()) return;
     if (busyAt(day, hour)) return;
+    if (!isWithinAvailability(day, hour)) {
+      setError("This slot is outside the interviewer's availability window.");
+      return;
+    }
     setError(null);
     setPending(start);
   }
@@ -184,8 +221,13 @@ export function ScheduleClient({
         setError(data.error ?? "Could not book this slot.");
         return;
       }
-      router.push(`/evaluate/${candidate.id}`);
-      router.refresh();
+      const data = await res.json();
+      if (data.mails?.length) setPreparedMails(data.mails as RenderedMail[]);
+      if (data.icsUrl) setIcsUrl(data.icsUrl as string);
+      if (!data.mails?.length) {
+        router.push(`/evaluate/${candidate.id}`);
+        router.refresh();
+      }
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -217,6 +259,33 @@ export function ScheduleClient({
   }
 
   return (
+    <div className="space-y-5">
+      {preparedMails && (
+        <div className="space-y-3">
+          <EmailComposer
+            mails={preparedMails}
+            title="Booking emails ready"
+            onClose={() => setPreparedMails(null)}
+          />
+          {icsUrl && (
+            <a
+              href={icsUrl}
+              className="inline-flex text-[13px] font-semibold text-[var(--cyan-d)] hover:underline"
+            >
+              Download calendar invite (.ics) →
+            </a>
+          )}
+          <Button
+            onClick={() => {
+              router.push(`/evaluate/${candidate.id}`);
+              router.refresh();
+            }}
+          >
+            Done →
+          </Button>
+        </div>
+      )}
+
     <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
       {/* Interviewer roster */}
       <aside className="flex flex-col">
@@ -282,9 +351,10 @@ export function ScheduleClient({
               </p>
             ) : (
               filteredInterviewers.map((iv) => {
-                const load = parsedEvents.filter(
+                const booked = parsedEvents.filter(
                   (e) => e.interviewerId === iv.id,
                 ).length;
+                const pending = iv.pendingCount ?? 0;
                 const on = selectedInterviewer === iv.id;
                 return (
                   <button
@@ -309,9 +379,9 @@ export function ScheduleClient({
                     </span>
                     <span
                       className="shrink-0 rounded-full bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-soft)]"
-                      title="Interviews booked"
+                      title="Pending active rounds"
                     >
-                      {load}
+                      {pending} pending · {booked} booked
                     </span>
                   </button>
                 );
@@ -479,6 +549,7 @@ export function ScheduleClient({
           {error}
         </div>
       )}
+    </div>
     </div>
   );
 }

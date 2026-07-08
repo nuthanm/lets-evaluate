@@ -3,12 +3,13 @@ import {
   ensureCandidateStages,
   getAssignableUsers,
   getCandidateDetail,
+  getInterviewerLoad,
   getStageBookings,
   rolesForStageKind,
   type StageKind,
 } from "@/lib/db/queries";
 import { db } from "@/lib/db";
-import { projects, roles } from "@/lib/db/schema";
+import { interviewerAvailability, projects, roles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -67,10 +68,27 @@ export default async function SchedulePage({ params }: Params) {
   }
 
   const kind = activeStage.stage.kind as StageKind;
-  const [assignable, bookings] = await Promise.all([
+  const [assignable, bookings, load, availRows] = await Promise.all([
     getAssignableUsers(session.user.organizationId, kind),
     getStageBookings(session.user.organizationId),
+    getInterviewerLoad(session.user.organizationId),
+    db
+      .select()
+      .from(interviewerAvailability)
+      .where(eq(interviewerAvailability.organizationId, session.user.organizationId)),
   ]);
+
+  const availability: Record<
+    string,
+    { dayOfWeek: number; startMinute: number; endMinute: number }[]
+  > = {};
+  for (const row of availRows) {
+    (availability[row.userId] ??= []).push({
+      dayOfWeek: row.dayOfWeek,
+      startMinute: row.startMinute,
+      endMinute: row.endMinute,
+    });
+  }
 
   const events = bookings
     .filter((b) => b.dueAt && b.assigneeId && b.status === "active")
@@ -102,8 +120,10 @@ export default async function SchedulePage({ params }: Params) {
           name: i.name,
           email: i.email,
           role: i.role,
+          pendingCount: load[i.id] ?? 0,
         }))}
         events={events}
+        availability={availability}
         existing={
           activeStage.stage.assignedToId
             ? {

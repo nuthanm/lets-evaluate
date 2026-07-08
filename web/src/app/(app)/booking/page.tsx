@@ -18,6 +18,8 @@ export default async function BookingPage() {
       name: row.candidate.name,
       email: row.candidate.email ?? "",
       status: row.candidate.status,
+      roleName: row.roleName ?? null,
+      roleClosed: row.roleStatus === "closed",
       techMatchScore: typeof score === "number" ? score : null,
       recommendation:
         typeof metrics.recommendation === "string"

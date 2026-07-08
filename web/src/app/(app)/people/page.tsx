@@ -13,6 +13,7 @@ import {
   InterviewerDashboard,
   TeamDashboard,
 } from "@/components/dashboard/RoleDashboard";
+import { buildRecruiterTasks } from "@/lib/recruiter/tasks";
 
 export default async function PeoplePage() {
   const session = await requireSession();
@@ -96,6 +97,27 @@ export default async function PeoplePage() {
     }))
     .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
 
+  const todayTasks = buildRecruiterTasks(
+    candidates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      updatedAt: c.updatedAt,
+    })),
+    bookings
+      .filter(
+        (b) =>
+          session.user.role === "admin" || ownedIds.has(b.candidateId),
+      )
+      .map((b) => ({
+        candidateId: b.candidateId,
+        dueAt: b.dueAt,
+        slaDueAt: b.slaDueAt,
+        label: b.label,
+        status: b.status,
+      })),
+  );
+
   return (
     <TeamDashboard
       role={session.user.role}
@@ -104,6 +126,7 @@ export default async function PeoplePage() {
       feed={feed}
       today={today}
       scheduled={scheduled}
+      todayTasks={todayTasks}
     />
   );
 }

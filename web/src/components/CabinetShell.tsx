@@ -79,6 +79,8 @@ function navForRole(role: MemberRole): NavSection[] {
         { href: "/setup/projects", label: "Projects", icon: ProjectsIcon },
         { href: "/setup/roles", label: "Roles", icon: RolesIcon },
         { href: "/setup/pipeline", label: "Interview Process", icon: PipelineIcon },
+        { href: "/setup/templates", label: "Mail templates", icon: RolesIcon },
+        { href: "/setup/audit", label: "Audit log", icon: ArchivesIcon },
         { href: "/openings", label: "Openings", icon: OpeningsIcon },
       ],
     },
@@ -140,10 +142,12 @@ const collapseStore = {
 export function CabinetShell({
   userName,
   userRole,
+  navBadges,
   children,
 }: {
   userName: string;
   userRole: MemberRole;
+  navBadges?: { candidates?: number; booking?: number };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -159,6 +163,16 @@ export function CabinetShell({
   }
 
   const sections = navForRole(userRole);
+
+  function navBadge(href: string) {
+    if (href === "/candidates" && navBadges?.candidates) {
+      return navBadges.candidates;
+    }
+    if (href === "/booking" && navBadges?.booking) {
+      return navBadges.booking;
+    }
+    return 0;
+  }
 
   function isActive(item: NavItem) {
     const path = item.href.split("?")[0];
@@ -239,6 +253,7 @@ export function CabinetShell({
                 {section.items.map((item) => {
                   const on = isActive(item);
                   const Icon = item.icon;
+                  const badge = navBadge(item.href);
                   return (
                     <Link
                       key={item.href}
@@ -256,15 +271,29 @@ export function CabinetShell({
                     >
                       <span
                         className={cn(
-                          "grid size-8 shrink-0 place-items-center rounded-lg border transition-colors",
+                          "relative grid size-8 shrink-0 place-items-center rounded-lg border transition-colors",
                           on
                             ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
                             : "border-[var(--cream-2)] bg-white/40 text-[var(--ink-soft)]",
                         )}
                       >
                         <Icon className="size-[18px]" />
+                        {badge > 0 && collapsed && (
+                          <span className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full bg-[var(--orange)] px-1 text-[9px] font-bold text-white">
+                            {badge > 9 ? "9+" : badge}
+                          </span>
+                        )}
                       </span>
-                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      {!collapsed && (
+                        <span className="flex min-w-0 flex-1 items-center justify-between gap-2 truncate">
+                          <span className="truncate">{item.label}</span>
+                          {badge > 0 && (
+                            <span className="shrink-0 rounded-full bg-[var(--orange)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                              {badge}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

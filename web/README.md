@@ -10,7 +10,7 @@ cp .env.example .env.local
 # Set DATABASE_URL, AUTH_SECRET, OPENAI_API_KEY
 
 npm install
-npm run db:push
+npm run db:migrate
 npm run db:seed
 npm run dev
 ```
@@ -20,12 +20,8 @@ Open http://localhost:3000
 ## Additional docs
 
 - [Environment template](.env.example) — all configuration variables
-- [Cloud database migration](docs/cloud-migration.md) — Neon → Azure, S3 resume sync
+- [Cloud database migration](docs/cloud-migration.md) — self-hosted PostgreSQL, S3 resume sync
 
-## Legacy data import
+## Mail templates
 
-If you have data from the old Python/Streamlit prototype, set `LEGACY_DATABASE_URL` in `.env.local` and run:
-
-```bash
-npm run migrate:streamlit
-```
+All candidate and interviewer emails are **in-app templates** with `{{placeholders}}` — no Resend or third-party mail API. Admins edit templates under **Setup → Mail templates**. Recruiters copy or open prepared messages in their own mail client after screening or booking.

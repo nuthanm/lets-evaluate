@@ -29,11 +29,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${workSans.variable}`}>
+    <html lang="en" className={`${fraunces.variable} ${workSans.variable}`} suppressHydrationWarning>
       <head>
         <BrandTheme />
       </head>
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen antialiased" suppressHydrationWarning>
         <Providers brand={brand}>{children}</Providers>
       </body>
     </html>

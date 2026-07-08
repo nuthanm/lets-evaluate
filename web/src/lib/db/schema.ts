@@ -74,6 +74,12 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
 
 export const roleStatusEnum = pgEnum("role_status", ["open", "closed"]);
 
+export const mailTemplateAudienceEnum = pgEnum("mail_template_audience", [
+  "candidate",
+  "interviewer",
+  "internal",
+]);
+
 export const organizations = pgTable("organizations", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -218,6 +224,8 @@ export const candidateStages = pgTable(
       onDelete: "set null",
     }),
     dueAt: timestamp("due_at", { withTimezone: true }),
+    /** Panel SLA — defaults to dueAt + 48h when a slot is booked. */
+    slaDueAt: timestamp("sla_due_at", { withTimezone: true }),
     handoffNote: text("handoff_note").default(""),
     decision: text("decision"),
     comments: text("comments").default(""),
@@ -242,6 +250,51 @@ export const candidateStages = pgTable(
     index("candidate_stages_org_idx").on(t.organizationId),
     index("candidate_stages_assignee_idx").on(t.assignedToId),
   ],
+);
+
+export const mailTemplates = pgTable(
+  "mail_templates",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    audience: mailTemplateAudienceEnum("audience").notNull().default("candidate"),
+    description: text("description").default(""),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("mail_templates_org_slug_idx").on(t.organizationId, t.slug),
+    index("mail_templates_org_idx").on(t.organizationId),
+  ],
+);
+
+export const interviewerAvailability = pgTable(
+  "interviewer_availability",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** 0 = Monday … 6 = Sunday */
+    dayOfWeek: integer("day_of_week").notNull(),
+    /** Minutes from midnight, e.g. 540 = 09:00 */
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("availability_org_user_idx").on(t.organizationId, t.userId)],
 );
 
 export const questions = pgTable(
@@ -287,6 +340,10 @@ export const candidates = pgTable(
     roleId: text("role_id").references(() => roles.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     email: text("email").default(""),
+    phone: text("phone").default(""),
+    source: text("source").default(""),
+    consentAt: timestamp("consent_at", { withTimezone: true }),
+    notes: text("notes").default(""),
     resumeStorageKey: text("resume_storage_key"),
     resumeFilename: text("resume_filename").default(""),
     resumeText: text("resume_text"),

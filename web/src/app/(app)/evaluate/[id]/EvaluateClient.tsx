@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Pill } from "@/components/Pill";
 import { FieldTextarea } from "@/components/FormField";
+import { EmailComposer } from "@/components/EmailComposer";
 import { cn } from "@/lib/utils";
+import type { RenderedMail } from "@/lib/email";
 import type { ResumeMetrics } from "@/lib/ai";
 import { InterviewWorkspace } from "./InterviewWorkspace";
 
@@ -41,6 +43,8 @@ export function EvaluateClient({
   candidateEmail,
   canFinalize,
   myActiveStageId,
+  roleOpen = true,
+  initialQuestions,
 }: {
   candidateId: string;
   candidateName: string;
@@ -56,6 +60,11 @@ export function EvaluateClient({
   candidateEmail?: string;
   canFinalize: boolean;
   myActiveStageId: string | null;
+  roleOpen?: boolean;
+  initialQuestions?: {
+    standard: unknown[];
+    resume: unknown[];
+  };
 }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(
@@ -71,6 +80,19 @@ export function EvaluateClient({
   const [resumeReady, setResumeReady] = useState(initialHasResume);
   const [resumeName, setResumeName] = useState(resumeFilename);
   const [uploading, setUploading] = useState(false);
+  const [questions, setQuestions] = useState<{
+    standard: unknown[];
+    resume: unknown[];
+  } | null>(
+    initialQuestions
+      ? {
+          standard: initialQuestions.standard,
+          resume: initialQuestions.resume,
+        }
+      : null,
+  );
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [preparedMails, setPreparedMails] = useState<RenderedMail[] | null>(null);
 
   useEffect(() => {
     if (canScreen) {
@@ -146,22 +168,43 @@ export function EvaluateClient({
     const res = await fetch(`/api/candidates/${candidateId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "decide", decision, comments }),
+      body: JSON.stringify({ action: "decide", decision, comments, ratings }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       setLoading(false);
       setError(data?.error ?? "Could not record the verdict.");
       return;
     }
     await fetch(`/api/drafts?id=${candidateId}`, { method: "DELETE" }).catch(() => {});
-    if (decision === "proceed") {
-      // Next action: assign an interviewer via the scheduling calendar.
+    if (data.mail) setPreparedMails([data.mail as RenderedMail]);
+    if (decision === "proceed" && !data.mail) {
       router.push(`/booking/${candidateId}`);
-    } else {
+    } else if (decision !== "proceed" && !data.mail) {
       router.push("/people");
     }
+    setLoading(false);
     router.refresh();
+  }
+
+  async function generateQuestions() {
+    setQuestionsLoading(true);
+    setError(null);
+    const res = await fetch(`/api/candidates/${candidateId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "questions" }),
+    });
+    const data = await res.json();
+    setQuestionsLoading(false);
+    if (!res.ok) {
+      setError(data?.error ?? "Could not generate questions.");
+      return;
+    }
+    setQuestions({
+      standard: (data.standardQuestions as unknown[]) ?? [],
+      resume: (data.resumeQuestions as unknown[]) ?? [],
+    });
   }
 
   const caseId = candidateId.slice(0, 8).toUpperCase();
@@ -181,6 +224,11 @@ export function EvaluateClient({
   const activeInterviewStage = stages.find(
     (s) => s.status === "active" && s.kind !== "screening" && s.kind !== "final",
   );
+
+  // A single, plain-language read on where the candidate has landed. Drives the
+  // outcome banner so a rejection / hold / selection is never mistaken for an
+  // "in progress" case file.
+  const outcome = deriveOutcome(candidateStatus, stages, screeningComments);
 
   // Setup is complete once the profile has been analyzed; AI Analysis is the
   // last interactive screening step (the verdict is recorded downstream).
@@ -204,7 +252,7 @@ export function EvaluateClient({
     key: string;
     label: string;
     num: number;
-    state: "on" | "done" | "idle";
+    state: "on" | "done" | "idle" | "fail" | "skip";
     statusLabel?: string;
     onClick?: () => void;
   };
@@ -237,7 +285,11 @@ export function EvaluateClient({
           ? "done"
           : s.status === "active"
             ? "on"
-            : "idle";
+            : s.status === "failed"
+              ? "fail"
+              : s.status === "skipped"
+                ? "skip"
+                : "idle";
       return {
         key: s.id,
         label: s.label,
@@ -276,7 +328,13 @@ export function EvaluateClient({
             const inner = (
               <>
                 <span className="num">
-                  {it.state === "done" ? "✓" : it.num}
+                  {it.state === "done"
+                    ? "✓"
+                    : it.state === "fail"
+                      ? "✗"
+                      : it.state === "skip"
+                        ? "–"
+                        : it.num}
                 </span>
                 {it.label}
                 {it.statusLabel && (
@@ -290,6 +348,8 @@ export function EvaluateClient({
               "eval-step",
               it.state === "done" && "done",
               it.state === "on" && "on",
+              it.state === "fail" && "fail",
+              it.state === "skip" && "skip",
             );
             return it.onClick ? (
               <button
@@ -359,6 +419,18 @@ export function EvaluateClient({
             )}
           </div>
 
+          {/* Terminal / hold outcome — always front-and-centre with the reason. */}
+          {outcome && <OutcomeBanner outcome={outcome} />}
+
+          {/* Full hierarchy: every round from screening → final, with its
+              status, so the whole journey is visible on the case file. */}
+          {!showWizard && stages.length > 0 && (
+            <JourneyTimeline
+              stages={stages}
+              screeningComments={screeningComments}
+            />
+          )}
+
           {/* Interviewer / manager / HR workspace for their active round. */}
           {!showWizard && myActiveStage && (
             <InterviewWorkspace
@@ -382,7 +454,6 @@ export function EvaluateClient({
               candidateEmail={candidateEmail}
               role={role}
               projectName={projectName}
-              stages={stages}
               metrics={metrics}
               onDone={() => {
                 router.push("/people");
@@ -391,11 +462,11 @@ export function EvaluateClient({
             />
           )}
 
-          {!showWizard && !myActiveStage && !canFinalize && canScreen && (
-            <CompletedRoundsPanel stages={stages} />
-          )}
-
-          {!showWizard && !myActiveStage && !canFinalize && canScreen && (
+          {!showWizard &&
+            !myActiveStage &&
+            !canFinalize &&
+            canScreen &&
+            (activeInterviewStage || !outcome) && (
             <div className="case-card mb-4 border-[var(--cyan)] bg-[var(--cyan-soft)] p-4">
               {activeInterviewStage ? (
                 activeInterviewStage.assigneeName ? (
@@ -456,10 +527,25 @@ export function EvaluateClient({
                     </a>
                   </>
                 )
-              ) : (
+              ) : outcome ? null : (
                 <p className="text-sm text-[var(--ink-soft)]">
                   This candidate has completed the interview flow.
                 </p>
+              )}
+            </div>
+          )}
+
+          {preparedMails && (
+            <div className="mb-5 space-y-3">
+              <EmailComposer
+                mails={preparedMails}
+                title="Prepared email — copy or open in your mail client"
+                onClose={() => setPreparedMails(null)}
+              />
+              {preparedMails.some((m) => m.slug === "candidate_proceed") && (
+                <Button onClick={() => router.push(`/booking/${candidateId}`)}>
+                  Continue to booking →
+                </Button>
               )}
             </div>
           )}
@@ -569,11 +655,57 @@ export function EvaluateClient({
                     role={role}
                     projectName={projectName}
                     ratings={ratings}
+                    candidateId={candidateId}
+                    canReassign={canScreen}
                     onRatingsChange={(next) => {
                       setRatings(next);
                       saveDraft(2, { ratings: next });
                     }}
                   />
+                  <div className="case-card p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="font-serif text-xl font-bold">
+                        Screening questions
+                      </h2>
+                      <Button
+                        variant="ghost"
+                        onClick={generateQuestions}
+                        disabled={questionsLoading || !hasResume}
+                        className="text-[12px]"
+                      >
+                        {questionsLoading
+                          ? "Generating…"
+                          : questions
+                            ? "Regenerate"
+                            : "Generate questions"}
+                      </Button>
+                    </div>
+                    {questions ? (
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <QuestionList
+                          title="Role & tech"
+                          items={questions.standard}
+                        />
+                        <QuestionList
+                          title="Resume-based"
+                          items={questions.resume}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[13px] text-[var(--ink-faint)]">
+                        Optional — generate suggested questions before your
+                        screening call or candidate email.
+                      </p>
+                    )}
+                  </div>
+                  {!roleOpen && (
+                    <div className="case-alert border-[var(--orange)] bg-[var(--orange-soft)]">
+                      <p className="text-[13px] font-semibold text-[var(--orange)]">
+                        This opening is closed. Reopen the role or change the
+                        candidate&apos;s role before proceeding or booking.
+                      </p>
+                    </div>
+                  )}
                   <div className="case-card p-5">
                     <h2 className="font-serif text-xl font-bold">
                       Proceed to interviews
@@ -593,7 +725,10 @@ export function EvaluateClient({
                       onChange={(e) => setComments(e.target.value)}
                     />
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button onClick={() => decide("proceed")} disabled={loading}>
+                      <Button
+                        onClick={() => decide("proceed")}
+                        disabled={loading || !roleOpen}
+                      >
                         {loading ? "Saving…" : "Proceed to scheduling →"}
                       </Button>
                       <Button
@@ -695,59 +830,184 @@ function stageStatusMeta(status: StageView["status"]): {
   return { variant: "neutral", label: "Pending" };
 }
 
-/* ─────────────────────── Recruiter: completed rounds ─────────────────────── */
+/* ─────────────────────────── Outcome banner ─────────────────────────── */
 
-function CompletedRoundsPanel({ stages }: { stages: StageView[] }) {
-  const decided = stages.filter(
-    (s) =>
-      s.kind !== "screening" &&
-      s.kind !== "final" &&
-      (s.status === "passed" || s.status === "failed"),
+type Outcome = {
+  kind: "rejected" | "hold" | "selected";
+  title: string;
+  reason?: string;
+};
+
+function deriveOutcome(
+  status: string,
+  stages: StageView[],
+  screeningComments?: string,
+): Outcome | null {
+  const rejected = status === "rejected" || status === "screened_rejected";
+  const hold = status === "hold" || status === "screened_hold";
+  const selected = status === "selected";
+  if (!rejected && !hold && !selected) return null;
+
+  if (rejected) {
+    const failed = stages.find((s) => s.status === "failed");
+    const reason =
+      (failed && failed.kind !== "screening" ? failed.comments : null) ||
+      screeningComments ||
+      failed?.comments ||
+      undefined;
+    return {
+      kind: "rejected",
+      title: failed ? `Rejected at ${failed.label}` : "Rejected",
+      reason: reason ?? undefined,
+    };
+  }
+  if (hold) {
+    return { kind: "hold", title: "On hold", reason: screeningComments ?? undefined };
+  }
+  return {
+    kind: "selected",
+    title: "Selected",
+    reason: stages.find((s) => s.kind === "final")?.comments ?? undefined,
+  };
+}
+
+const OUTCOME_STYLES: Record<
+  Outcome["kind"],
+  { card: string; pill: "green" | "orange" | "cyan"; icon: string }
+> = {
+  rejected: {
+    card: "border-[var(--orange)] bg-[var(--orange-soft)]",
+    pill: "orange",
+    icon: "✕",
+  },
+  hold: {
+    card: "border-[var(--cyan)] bg-[var(--cyan-soft)]",
+    pill: "cyan",
+    icon: "‖",
+  },
+  selected: {
+    card: "border-[var(--green)] bg-[var(--green-soft)]",
+    pill: "green",
+    icon: "✓",
+  },
+};
+
+function OutcomeBanner({ outcome }: { outcome: Outcome }) {
+  const s = OUTCOME_STYLES[outcome.kind];
+  return (
+    <section className={cn("case-card mb-4 p-4", s.card)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="grid size-6 place-items-center rounded-full bg-white/70 text-sm font-bold">
+          {s.icon}
+        </span>
+        <h2 className="font-serif text-lg font-bold">{outcome.title}</h2>
+        <Pill variant={s.pill} className="text-[10px] capitalize">
+          {outcome.kind}
+        </Pill>
+      </div>
+      {outcome.reason ? (
+        <div className="mt-2">
+          <span className="case-label">Reason</span>
+          <p className="mt-1 text-sm text-[var(--ink-soft)]">{outcome.reason}</p>
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-[var(--ink-faint)]">
+          No reason was recorded.
+        </p>
+      )}
+    </section>
   );
-  if (decided.length === 0) return null;
+}
+
+/* ─────────────────────────── Journey timeline ─────────────────────────── */
+
+function stageDotClass(status: StageView["status"]): string {
+  if (status === "passed") return "bg-[var(--green)] text-white";
+  if (status === "failed") return "bg-[var(--orange)] text-white";
+  if (status === "active") return "bg-[var(--cyan)] text-white";
+  if (status === "skipped")
+    return "bg-[var(--cream-2)] text-[var(--ink-faint)]";
+  return "border border-[var(--cream-2)] bg-white text-[var(--ink-faint)]";
+}
+
+function stageDotGlyph(status: StageView["status"]): string {
+  if (status === "passed") return "✓";
+  if (status === "failed") return "✕";
+  if (status === "skipped") return "–";
+  return "";
+}
+
+function JourneyTimeline({
+  stages,
+  screeningComments,
+}: {
+  stages: StageView[];
+  screeningComments?: string;
+}) {
+  const ordered = [...stages].sort((a, b) => a.position - b.position);
+  if (ordered.length === 0) return null;
 
   return (
     <section className="case-card mb-4 p-5">
-      <h2 className="font-serif text-xl font-bold">Interview rounds</h2>
+      <h2 className="font-serif text-xl font-bold">Candidate journey</h2>
       <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-        Interviewer comments and their PDF evaluation reports.
+        Every round from screening through final confirmation.
       </p>
-      <ul className="mt-3 space-y-2">
-        {decided.map((s) => {
+      <ol className="mt-4">
+        {ordered.map((s, i) => {
           const meta = stageStatusMeta(s.status);
+          const reason =
+            s.comments ||
+            (s.kind === "screening" ? screeningComments : undefined);
+          const last = i === ordered.length - 1;
           return (
-            <li
-              key={s.id}
-              className="rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-2 text-sm"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{s.label}</span>
-                <Pill variant={meta.variant} className="text-[10px]">
-                  {meta.label}
-                </Pill>
-                {s.assigneeName && (
-                  <span className="text-xs text-[var(--ink-faint)]">
-                    by {s.assigneeName}
-                  </span>
+            <li key={s.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {!last && (
+                <span
+                  aria-hidden
+                  className="absolute left-[11px] top-7 h-[calc(100%-1rem)] w-px bg-[var(--cream-2)]"
+                />
+              )}
+              <span
+                className={cn(
+                  "z-10 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                  stageDotClass(s.status),
                 )}
-                {s.hasReport && (
-                  <a
-                    href={`/api/stages/${s.id}/report`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto text-xs font-semibold text-[var(--cyan-d)] hover:underline"
-                  >
-                    PDF report ↓
-                  </a>
+              >
+                {stageDotGlyph(s.status) || i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold">{s.label}</span>
+                  <Pill variant={meta.variant} className="text-[10px]">
+                    {meta.label}
+                  </Pill>
+                  {s.assigneeName && (
+                    <span className="text-xs text-[var(--ink-faint)]">
+                      by {s.assigneeName}
+                    </span>
+                  )}
+                  {s.hasReport && (
+                    <a
+                      href={`/api/stages/${s.id}/report`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto text-xs font-semibold text-[var(--cyan-d)] hover:underline"
+                    >
+                      PDF report ↓
+                    </a>
+                  )}
+                </div>
+                {reason && (
+                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                    “{reason}”
+                  </p>
                 )}
               </div>
-              {s.comments && (
-                <p className="mt-1 text-xs text-[var(--ink-soft)]">“{s.comments}”</p>
-              )}
             </li>
           );
         })}
-      </ul>
+      </ol>
     </section>
   );
 }
@@ -760,7 +1020,6 @@ function FinalConfirmationPanel({
   candidateEmail,
   role,
   projectName,
-  stages,
   metrics,
   onDone,
 }: {
@@ -769,7 +1028,6 @@ function FinalConfirmationPanel({
   candidateEmail?: string;
   role: string;
   projectName?: string;
-  stages: StageView[];
   metrics?: Metrics;
   onDone: () => void;
 }) {
@@ -814,47 +1072,10 @@ function FinalConfirmationPanel({
         />
       </div>
 
-      <div className="mt-4">
-        <span className="case-label">Round outcomes</span>
-        <ul className="mt-2 space-y-1.5">
-          {stages
-            .filter((s) => s.kind !== "final")
-            .map((s) => {
-              const meta = stageStatusMeta(s.status);
-              return (
-                <li
-                  key={s.id}
-                  className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-3 py-2 text-sm"
-                >
-                  <span className="font-semibold">{s.label}</span>
-                  <Pill variant={meta.variant} className="text-[10px]">
-                    {meta.label}
-                  </Pill>
-                  {s.assigneeName && (
-                    <span className="text-xs text-[var(--ink-faint)]">
-                      by {s.assigneeName}
-                    </span>
-                  )}
-                  {s.comments && (
-                    <span className="w-full text-xs text-[var(--ink-soft)]">
-                      “{s.comments}”
-                    </span>
-                  )}
-                  {s.hasReport && (
-                    <a
-                      href={`/api/stages/${s.id}/report`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-[var(--cyan-d)] hover:underline"
-                    >
-                      PDF report ↓
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-        </ul>
-      </div>
+      <p className="mt-3 text-xs text-[var(--ink-faint)]">
+        Round-by-round outcomes and reports are shown in the candidate journey
+        above.
+      </p>
 
       <FieldTextarea
         className="mt-4"
@@ -887,6 +1108,8 @@ export function AnalysisReport({
   projectName,
   ratings,
   onRatingsChange,
+  candidateId,
+  canReassign,
 }: {
   metrics: Metrics;
   candidateName: string;
@@ -894,7 +1117,11 @@ export function AnalysisReport({
   projectName?: string;
   ratings: Ratings;
   onRatingsChange: (next: Ratings) => void;
+  candidateId?: string;
+  canReassign?: boolean;
 }) {
+  const router = useRouter();
+  const [reassigning, setReassigning] = useState<string | null>(null);
   const techList = (metrics.tech_comparison ?? []).map((t) => t.technology);
   const clarifications = metrics.clarifications ?? [];
   const roleLabel = projectName ? `${role} — ${projectName}` : role;
@@ -1190,10 +1417,42 @@ export function AnalysisReport({
             {metrics.project_suggestions.map((p, i) => (
               <li
                 key={`${p.project}-${i}`}
-                className="rounded-lg bg-[var(--cream)] px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--cream)] px-3 py-2"
               >
-                <span className="font-bold">{p.project}</span>
-                {p.reason ? ` — ${p.reason}` : ""}
+                <span>
+                  <span className="font-bold">{p.project}</span>
+                  {p.reason ? ` — ${p.reason}` : ""}
+                </span>
+                {canReassign && candidateId && (
+                  <button
+                    type="button"
+                    disabled={reassigning === p.project}
+                    onClick={async () => {
+                      setReassigning(p.project);
+                      const projects = (await fetch("/api/projects").then((r) =>
+                        r.json(),
+                      )) as { id: string; name: string }[];
+                      const match = projects.find((x) => x.name === p.project);
+                      if (!match) {
+                        setReassigning(null);
+                        return;
+                      }
+                      await fetch(`/api/candidates/${candidateId}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          action: "reassign",
+                          projectId: match.id,
+                        }),
+                      });
+                      setReassigning(null);
+                      router.refresh();
+                    }}
+                    className="text-[11px] font-semibold text-[var(--cyan-d)] hover:underline"
+                  >
+                    {reassigning === p.project ? "Moving…" : "Reassign →"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -1302,6 +1561,34 @@ function RatingSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+function QuestionList({
+  title,
+  items,
+}: {
+  title: string;
+  items: unknown[];
+}) {
+  const list = items.filter(
+    (q): q is string => typeof q === "string" && q.trim().length > 0,
+  );
+  return (
+    <div>
+      <h3 className="text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
+        {title}
+      </h3>
+      {list.length === 0 ? (
+        <p className="mt-2 text-[13px] text-[var(--ink-faint)]">None generated.</p>
+      ) : (
+        <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-[13px] text-[var(--ink-soft)]">
+          {list.map((q, i) => (
+            <li key={i}>{q}</li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
