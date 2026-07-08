@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldTextarea } from "@/components/FormField";
-import { MAIL_PLACEHOLDERS } from "@/lib/email";
+import { MAIL_PLACEHOLDERS } from "@/lib/email/defaults";
 
 type Template = {
   slug: string;
