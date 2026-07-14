@@ -14,7 +14,7 @@ import {
   candidateStages,
   interviewerAvailability,
 } from "@/lib/db/schema";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import type { MemberRole } from "@/lib/auth/config";
 
@@ -34,16 +34,14 @@ export const DEFAULT_STAGE_TEMPLATE: StageTemplateItem[] = [
   { label: "First level technical", kind: "technical" },
   { label: "Second level technical", kind: "technical" },
   { label: "Manager", kind: "manager" },
-  { label: "HR", kind: "hr" },
-  { label: "Final Confirmation", kind: "final" },
 ];
 
 /** Which member roles may be booked as the assignee for a given stage kind. */
 export function rolesForStageKind(kind: StageKind): MemberRole[] {
-  if (kind === "manager") return ["manager"];
-  if (kind === "hr") return ["hr"];
-  // technical / custom interview rounds
-  return ["interviewer"];
+  if (kind === "manager") return ["manager", "admin"];
+  // hr, technical, custom — all assigned to interviewer or hr for backward compat
+  if (kind === "hr") return ["hr", "interviewer", "admin"];
+  return ["interviewer", "admin"];
 }
 
 export async function getOrgProjects(organizationId: string) {
@@ -293,6 +291,189 @@ export async function getCandidatesGridForUser(
   });
 }
 
+export type ArchivedCandidateRow = CandidateGridRow & {
+  stages: Array<{
+    id: string;
+    label: string;
+    kind: string;
+    status: string;
+    position: number;
+    decision: string | null;
+    reportKey: string | null;
+    reportFilename: string | null;
+    assignedToId: string | null;
+    decidedById: string | null;
+    decidedAt: string | null;
+    assigneeName: string | null;
+  }>;
+};
+
+/**
+ * Archived candidates the current user is allowed to see, with all their
+ * interview stages attached. Uses stage-based scoping for interviewers so
+ * candidates whose stages were assigned directly (without a booking record)
+ * are always visible.
+ */
+export async function getArchivedCandidatesWithStages(
+  organizationId: string,
+  userId: string,
+  role: MemberRole,
+): Promise<ArchivedCandidateRow[]> {
+  const ARCHIVED_STATUSES = [
+    // terminal verdicts
+    "selected", "rejected", "hold", "screened_rejected",
+    // all rounds done, awaiting final confirmation
+    "interview_complete",
+    // actively moving through interview rounds
+    "ready_for_interview", "assigned", "interview_in_progress",
+  ];
+
+  // Determine the candidate IDs visible to this user.
+  // • admin  → all candidates in the org (candidateIds = null)
+  // • ta     → candidates they created
+  // • others → candidates where they appear in candidateStages
+  //            (assignedToId OR decidedById — more reliable than interviewAssignments)
+  let candidateIds: string[] | null = null;
+
+  if (role === "ta") {
+    const rows = await db
+      .select({ id: candidates.id })
+      .from(candidates)
+      .where(
+        and(
+          eq(candidates.organizationId, organizationId),
+          eq(candidates.createdById, userId),
+        ),
+      );
+    candidateIds = rows.map((r) => r.id);
+  } else if (role !== "admin") {
+    const stageRows = await db
+      .select({ candidateId: candidateStages.candidateId })
+      .from(candidateStages)
+      .where(
+        and(
+          eq(candidateStages.organizationId, organizationId),
+          or(
+            eq(candidateStages.assignedToId, userId),
+            eq(candidateStages.decidedById, userId),
+          ),
+        ),
+      );
+    candidateIds = [...new Set(stageRows.map((r) => r.candidateId))];
+  }
+
+  if (candidateIds !== null && !candidateIds.length) return [];
+
+  const baseWhere = eq(candidates.organizationId, organizationId);
+  const scopedWhere =
+    candidateIds === null
+      ? baseWhere
+      : and(baseWhere, inArray(candidates.id, candidateIds));
+
+  const candidateRows = await db
+    .select({
+      id: candidates.id,
+      name: candidates.name,
+      email: candidates.email,
+      status: candidates.status,
+      projectId: candidates.projectId,
+      roleId: candidates.roleId,
+      projectName: projects.name,
+      roleName: roles.name,
+      roleLevel: roles.level,
+      resumeFilename: candidates.resumeFilename,
+      resumeStorageKey: candidates.resumeStorageKey,
+      metrics: screenings.metrics,
+      screeningDecision: screenings.decision,
+      createdAt: candidates.createdAt,
+      updatedAt: candidates.updatedAt,
+    })
+    .from(candidates)
+    .leftJoin(projects, eq(candidates.projectId, projects.id))
+    .leftJoin(roles, eq(candidates.roleId, roles.id))
+    .leftJoin(screenings, eq(screenings.candidateId, candidates.id))
+    .where(scopedWhere)
+    .orderBy(desc(candidates.updatedAt));
+
+  const archived = candidateRows.filter((r) =>
+    ARCHIVED_STATUSES.includes(r.status),
+  );
+  if (!archived.length) return [];
+
+  const ids = archived.map((r) => r.id);
+  const stageRows = await db
+    .select({
+      id: candidateStages.id,
+      candidateId: candidateStages.candidateId,
+      label: candidateStages.label,
+      kind: candidateStages.kind,
+      status: candidateStages.status,
+      position: candidateStages.position,
+      decision: candidateStages.decision,
+      reportKey: candidateStages.reportKey,
+      reportFilename: candidateStages.reportFilename,
+      assignedToId: candidateStages.assignedToId,
+      decidedById: candidateStages.decidedById,
+      decidedAt: candidateStages.decidedAt,
+      assigneeName: users.name,
+    })
+    .from(candidateStages)
+    .leftJoin(users, eq(candidateStages.assignedToId, users.id))
+    .where(
+      and(
+        eq(candidateStages.organizationId, organizationId),
+        inArray(candidateStages.candidateId, ids),
+      ),
+    )
+    .orderBy(asc(candidateStages.position));
+
+  const byCandidate = new Map<string, typeof stageRows>();
+  for (const s of stageRows) {
+    if (!byCandidate.has(s.candidateId)) byCandidate.set(s.candidateId, []);
+    byCandidate.get(s.candidateId)!.push(s);
+  }
+
+  return archived.map((r) => {
+    const rawScore = (r.metrics as Record<string, unknown> | null)
+      ?.tech_match_score;
+    const techScore =
+      typeof rawScore === "number" && Number.isFinite(rawScore)
+        ? Math.round(rawScore)
+        : null;
+    return {
+      id: r.id,
+      name: r.name,
+      email: r.email ?? "",
+      status: r.status,
+      projectId: r.projectId,
+      roleId: r.roleId,
+      projectName: r.projectName ?? null,
+      roleName: r.roleName ?? null,
+      roleLevel: r.roleLevel ?? null,
+      resumeFilename: r.resumeFilename ?? null,
+      hasResume: Boolean(r.resumeStorageKey),
+      techScore,
+      screeningDecision: r.screeningDecision ?? null,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      stages: (byCandidate.get(r.id) ?? []).map((s) => ({
+        id: s.id,
+        label: s.label,
+        kind: s.kind,
+        status: s.status,
+        position: s.position,
+        decision: s.decision ?? null,
+        reportKey: s.reportKey ?? null,
+        reportFilename: s.reportFilename ?? null,
+        assignedToId: s.assignedToId ?? null,
+        decidedById: s.decidedById ?? null,
+        decidedAt: s.decidedAt?.toISOString() ?? null,
+        assigneeName: s.assigneeName ?? null,
+      })),
+    };
+  });
+}
+
 export async function getCandidateDetail(
   organizationId: string,
   candidateId: string,
@@ -331,7 +512,7 @@ export async function getCandidateDetail(
     .innerJoin(users, eq(interviewAssignments.assignedToId, users.id))
     .where(eq(interviewAssignments.candidateId, candidateId));
 
-  const stages = await getCandidateStages(candidateId);
+  const stages = await getCandidateStages(candidateId, organizationId);
 
   return { candidate, screening, review, assignments, stages };
 }
@@ -583,7 +764,12 @@ export async function ensureCandidateStages(
   const [existing] = await db
     .select({ id: candidateStages.id })
     .from(candidateStages)
-    .where(eq(candidateStages.candidateId, candidateId))
+    .where(
+      and(
+        eq(candidateStages.candidateId, candidateId),
+        eq(candidateStages.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   if (existing) return;
 
@@ -603,7 +789,7 @@ export async function ensureCandidateStages(
   );
 }
 
-export async function getCandidateStages(candidateId: string) {
+export async function getCandidateStages(candidateId: string, organizationId?: string) {
   return db
     .select({
       stage: candidateStages,
@@ -612,7 +798,14 @@ export async function getCandidateStages(candidateId: string) {
     })
     .from(candidateStages)
     .leftJoin(users, eq(candidateStages.assignedToId, users.id))
-    .where(eq(candidateStages.candidateId, candidateId))
+    .where(
+      organizationId
+        ? and(
+            eq(candidateStages.candidateId, candidateId),
+            eq(candidateStages.organizationId, organizationId),
+          )
+        : eq(candidateStages.candidateId, candidateId),
+    )
     .orderBy(asc(candidateStages.position));
 }
 
@@ -759,9 +952,13 @@ export async function getStageAssignmentsForUser(
     .select({
       stage: candidateStages,
       candidate: candidates,
+      roleName: roles.name,
+      projectName: projects.name,
     })
     .from(candidateStages)
     .innerJoin(candidates, eq(candidateStages.candidateId, candidates.id))
+    .leftJoin(roles, eq(candidates.roleId, roles.id))
+    .leftJoin(projects, eq(candidates.projectId, projects.id))
     .where(
       and(
         eq(candidateStages.organizationId, organizationId),

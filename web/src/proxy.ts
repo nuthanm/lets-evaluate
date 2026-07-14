@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/edge";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -31,8 +31,14 @@ function isProtectedPath(pathname: string) {
   return protectedPrefixes.some((p) => pathname.startsWith(p));
 }
 
-function withSecurityHeaders(response: NextResponse, noStore = false) {
-  response.headers.set("X-Frame-Options", "DENY");
+/** Routes that are embedded in same-origin iframes (resume preview). */
+function isResumePreviewRoute(pathname: string) {
+  return /^\/api\/candidates\/[^/]+\/resume(\/html)?$/.test(pathname);
+}
+
+function withSecurityHeaders(response: NextResponse, noStore = false, sameOriginFrame = false) {
+  // Resume preview routes are loaded inside same-origin iframes — use SAMEORIGIN.
+  response.headers.set("X-Frame-Options", sameOriginFrame ? "SAMEORIGIN" : "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   if (noStore) {
@@ -45,7 +51,7 @@ function withSecurityHeaders(response: NextResponse, noStore = false) {
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -80,7 +86,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  return withSecurityHeaders(NextResponse.next(), isApp && !!session?.user?.id);
+  const sameOriginFrame = isResumePreviewRoute(pathname);
+  return withSecurityHeaders(NextResponse.next(), isApp && !!session?.user?.id, sameOriginFrame);
 }
 
 export const config = {

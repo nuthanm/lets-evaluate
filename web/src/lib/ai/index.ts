@@ -480,15 +480,7 @@ export async function generateCategoryQuestions(
 ): Promise<GeneratedQuestion[]> {
   const openai = client();
   if (!openai) {
-    return [
-      {
-        question: "OpenAI API key not configured",
-        category,
-        difficulty: "Medium",
-        code: "",
-        expected_answer_hints: "N/A",
-      },
-    ];
+    throw new Error("OpenAI API key is not configured. Add OPENAI_API_KEY to your .env.local file.");
   }
 
   const role = ctx.roleName?.trim() || "the role";
@@ -516,30 +508,30 @@ Return ONLY a valid JSON array of exactly ${count} objects, each with keys:
 - "code" (string): ${wantsCode ? "the code snippet the question refers to (use \\n for newlines). Required." : 'leave as an empty string "".'}
 - "expected_answer_hints" (string): concise notes on what a strong answer covers.`;
 
-  try {
-    const res = await openai.chat.completions.create({
-      model: defaultModel(),
-      temperature: 0.6,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            'You generate practical, role-relevant interview questions and return strict JSON. When code is requested, produce compilable-looking, realistic snippets. Respond with a JSON object shaped as {"questions": [...]}.',
-        },
-        { role: "user", content: prompt },
-      ],
-    });
-    const raw = res.choices[0]?.message?.content ?? "{}";
-    const parsed = parseJson<
-      { questions?: unknown[] } | unknown[]
-    >(raw);
-    const arr = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed.questions)
-        ? parsed.questions
-        : [];
-    return arr.map((q) => {
+  const res = await openai.chat.completions.create({
+    model: defaultModel(),
+    temperature: 0.6,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          'You generate practical, role-relevant interview questions and return strict JSON. When code is requested, produce compilable-looking, realistic snippets. Respond with a JSON object shaped as {"questions": [...]}.',
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+
+  const raw = res.choices[0]?.message?.content ?? "{}";
+  const parsed = parseJson<{ questions?: unknown[] } | unknown[]>(raw);
+  const arr = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as { questions?: unknown[] }).questions)
+      ? (parsed as { questions?: unknown[] }).questions!
+      : [];
+
+  return arr
+    .map((q) => {
       const o = (q ?? {}) as Record<string, unknown>;
       return {
         question: String(o.question ?? "").trim(),
@@ -548,18 +540,8 @@ Return ONLY a valid JSON array of exactly ${count} objects, each with keys:
         code: String(o.code ?? "").trim(),
         expected_answer_hints: String(o.expected_answer_hints ?? "").trim(),
       };
-    }).filter((q) => q.question);
-  } catch (e) {
-    return [
-      {
-        question: `Could not generate questions: ${e instanceof Error ? e.message : String(e)}`,
-        category,
-        difficulty: "Medium",
-        code: "",
-        expected_answer_hints: "",
-      },
-    ];
-  }
+    })
+    .filter((q) => q.question);
 }
 
 export async function refineEvaluationNotes(notes: string) {

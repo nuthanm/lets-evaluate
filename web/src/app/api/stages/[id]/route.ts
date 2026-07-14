@@ -14,7 +14,7 @@ import { z } from "zod";
 import { apiError } from "@/lib/api/helpers";
 import { getCandidateStages } from "@/lib/db/queries";
 import { logEvent } from "@/lib/events";
-import { buildInterviewReportPdf } from "@/lib/report/pdf";
+import { buildInterviewReportPdf, PDF_REPORT_VERSION } from "@/lib/report/pdf";
 import { storeReport } from "@/lib/storage/reports";
 
 type Params = { params: Promise<{ id: string }> };
@@ -131,7 +131,7 @@ export async function PATCH(req: Request, { params }: Params) {
     });
 
     const safeName = (candidate?.name ?? "candidate").replace(/[^a-z0-9]+/gi, "-");
-    reportFilename = `${safeName}-${stage.label.replace(/[^a-z0-9]+/gi, "-")}-report.pdf`;
+    reportFilename = `${safeName}-${stage.label.replace(/[^a-z0-9]+/gi, "-")}-report-v${PDF_REPORT_VERSION}.pdf`;
     reportKey = await storeReport(pdf, reportFilename);
   } catch (err) {
     console.error("Report generation failed", err);
@@ -163,7 +163,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (body.decision === "no") {
     // Reject the candidate and skip any remaining stages.
     candidateStatus = "rejected";
-    const stages = await getCandidateStages(candidateId);
+    const stages = await getCandidateStages(candidateId, stage.organizationId);
     for (const s of stages) {
       if (s.stage.position > stage.position && s.stage.status === "pending") {
         await db
@@ -173,7 +173,7 @@ export async function PATCH(req: Request, { params }: Params) {
       }
     }
   } else {
-    const stages = await getCandidateStages(candidateId);
+    const stages = await getCandidateStages(candidateId, stage.organizationId);
     const next = stages.find(
       (s) => s.stage.position > stage.position && s.stage.status === "pending",
     );

@@ -14,8 +14,6 @@ const KIND_OPTIONS: { value: StageKind; label: string }[] = [
   { value: "screening", label: "Screening (AI / TA)" },
   { value: "technical", label: "Technical round → Interviewer" },
   { value: "manager", label: "Manager round → Manager" },
-  { value: "hr", label: "HR round → HR" },
-  { value: "final", label: "Final confirmation → TA / Admin" },
   { value: "custom", label: "Custom → Interviewer" },
 ];
 

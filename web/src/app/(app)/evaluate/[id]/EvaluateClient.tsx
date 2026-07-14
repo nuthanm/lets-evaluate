@@ -245,7 +245,11 @@ export function EvaluateClient({
   // The step bar mirrors the whole journey: the two interactive screening
   // steps (Setup, AI Analysis) followed by the admin-configured rounds, which
   // render as read-only progress indicators here.
-  const downstreamStages = stages.filter((s) => s.kind !== "screening");
+  // HR and Final Confirmation stages are hidden from the step bar — they are
+  // managed separately and should not be visible to interviewers.
+  const downstreamStages = stages.filter(
+    (s) => s.kind !== "screening" && s.kind !== "hr" && s.kind !== "final",
+  );
   const showStepBar = showWizard || stages.length > 0;
 
   type StepItem = {
@@ -375,23 +379,146 @@ export function EvaluateClient({
         </div>
       )}
 
-      <div className="grid flex-1 md:grid-cols-[180px_1fr_200px]">
-        <aside className="hidden border-r border-[var(--cream-2)] bg-[var(--cream-2)] p-4 md:block">
-          <Pill variant="cyan" className="mb-4 text-[10px]">
-            In review
-          </Pill>
-          {projectName && <MarginField label="Project" value={projectName} />}
-          <MarginField label="Evidence" value={resumeFilename ?? "—"} />
-          <MarginField
-            label="Opened"
-            value={new Date().toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          />
-        </aside>
+      {/* ── Info tiles strip (visible to all roles) ── */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--cream-2)] bg-white px-4 py-2">
+        <div className="flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)] px-2.5 py-1">
+          <span className="text-[10px] font-bold text-[var(--cyan-d)]">In review</span>
+        </div>
+        {projectName && (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--ink-faint)]">Project</span>
+            <span className="text-xs font-bold text-[var(--ink)]">{projectName}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--ink-faint)]">Evidence</span>
+          <span className="max-w-[200px] truncate text-xs font-bold text-[var(--ink)]">{resumeFilename ?? "—"}</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--ink-faint)]">Opened</span>
+          <span className="text-xs font-bold text-[var(--ink)]">
+            {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setSplitView((v) => !v)}
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
+            splitView
+              ? "border-[var(--ink)] bg-[var(--ink)] text-white"
+              : "border-[var(--cream-2)] bg-white text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]",
+          )}
+        >
+          {splitView ? "✕ Close" : "📄 Resume Preview & AI Analysis"}
+        </button>
+      </div>
 
+      {/* ── Split view panel: resume left, AI analysis right ── */}
+      {splitView && (
+        <div className="flex min-h-0 flex-1 border-b border-[var(--cream-2)]">
+          {/* Resume panel */}
+          <div className="flex w-1/2 flex-col overflow-hidden border-r border-[var(--cream-2)]">
+            <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
+              <span>📄</span>
+              <span className="text-xs font-bold uppercase tracking-wide text-[var(--ink-faint)]">Resume Preview</span>
+              {resumeFilename && (
+                <span className="ml-1 max-w-[180px] truncate text-[11px] text-[var(--ink-faint)]">{resumeFilename}</span>
+              )}
+            </div>
+            {resumeReady && resumeFilename?.toLowerCase().endsWith(".pdf") ? (
+              /* PDF — native browser renderer */
+              <iframe
+                src={`/api/candidates/${candidateId}/resume`}
+                title="Resume preview"
+                className="flex-1 w-full border-0 bg-white"
+              />
+            ) : resumeReady && (resumeFilename?.toLowerCase().endsWith(".docx") || resumeFilename?.toLowerCase().endsWith(".doc")) ? (
+              /* DOCX — mammoth converts to styled HTML, rendered in iframe */
+              <iframe
+                src={`/api/candidates/${candidateId}/resume/html`}
+                title="Resume preview"
+                className="flex-1 w-full border-0 bg-white"
+              />
+            ) : (
+              <div className="flex-1 overflow-y-auto p-4">
+                {resumeReady ? (
+                  /* Unknown/unsupported file type — fallback to download */
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <span className="text-3xl opacity-30">📄</span>
+                    <p className="text-sm font-semibold text-[var(--ink-soft)]">
+                      {resumeFilename ?? "Resume on file"}
+                    </p>
+                    <p className="text-xs text-[var(--ink-faint)]">
+                      Preview not available for this file type.
+                    </p>
+                    <a
+                      href={`/api/candidates/${candidateId}/resume`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--ink)] px-4 py-2 text-xs font-bold text-white transition-all hover:bg-[var(--cyan-d)]"
+                    >
+                      Download to view ↓
+                    </a>
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <span className="text-3xl opacity-30">📄</span>
+                    <p className="text-sm font-semibold text-[var(--ink-soft)]">No resume on file</p>
+                    <p className="text-xs text-[var(--ink-faint)]">Upload a resume to view it here.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {/* AI Analysis panel */}
+          <div className="flex w-1/2 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
+              <span>🤖</span>
+              <span className="text-xs font-bold uppercase tracking-wide text-[var(--ink-faint)]">AI Analysis</span>
+              {metrics?.recommendation && (
+                <Pill variant={recommendationVariant(metrics.recommendation)} className="ml-2 text-[10px]">
+                  {metrics.recommendation}
+                </Pill>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {metrics ? (
+                <AnalysisReport
+                  metrics={metrics}
+                  candidateName={candidateName}
+                  role={role}
+                  projectName={projectName}
+                  ratings={ratings}
+                  onRatingsChange={setRatings}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                  <span className="text-3xl opacity-30">🤖</span>
+                  <p className="text-sm font-semibold text-[var(--ink-soft)]">No analysis yet</p>
+                  {canScreen && (
+                    <Button
+                      onClick={runAnalyze}
+                      disabled={loading || !resumeReady}
+                      className="mt-2 px-4 py-2 text-xs"
+                    >
+                      {loading ? "Analyzing…" : "Run AI analysis →"}
+                    </Button>
+                  )}
+                  {!canScreen && (
+                    <p className="text-xs text-[var(--ink-faint)]">
+                      Analysis will appear here once completed by the TA.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!splitView && (
+      <div className={cn("grid flex-1", showSidebar ? "md:grid-cols-[1fr_200px]" : "")}>
         <main className="overflow-auto p-5 md:p-7">
           {screeningComments && (
             <div className="case-card mb-4 border-[var(--cyan)] bg-[var(--cyan-soft)] p-4 text-sm">
@@ -440,6 +567,7 @@ export function EvaluateClient({
               role={role}
               projectName={projectName}
               metrics={metrics}
+              onStepChange={setWsStep}
               onDone={() => {
                 router.push("/assignments");
                 router.refresh();
@@ -754,6 +882,7 @@ export function EvaluateClient({
 
         </main>
 
+        {showSidebar && (
         <aside className="hidden flex-col border-l border-[var(--cream-2)] bg-[var(--navy)] p-4 text-white md:flex">
           {score != null ? (
             <>
@@ -783,7 +912,9 @@ export function EvaluateClient({
             Human review required
           </p>
         </aside>
+        )}
       </div>
+      )}
 
       {showWizard && (
         <footer className="flex items-center justify-between border-t border-[var(--cream-2)] bg-[var(--cream)] px-5 py-3.5 md:px-7">
