@@ -7,6 +7,11 @@ import { Button } from "@/components/Button";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
 import { cn } from "@/lib/utils";
 import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_ACCEPT,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
+import {
   candidateNeedsAction,
   nextActionForCandidate,
 } from "@/lib/recruiter/tasks";
@@ -674,6 +679,10 @@ function EditModal({
       setError("Candidate name is required.");
       return;
     }
+    if (file && !isAllowedResumeFilename(file.name)) {
+      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+      return;
+    }
     setSaving(true);
     setError(null);
     const form = new FormData();
@@ -805,8 +814,18 @@ function EditModal({
             <input
               id="edit-resume"
               type="file"
-              accept=".pdf,.docx"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              accept={RESUME_UPLOAD_ACCEPT}
+              onChange={(e) => {
+                const nextFile = e.target.files?.[0] ?? null;
+                if (nextFile && !isAllowedResumeFilename(nextFile.name)) {
+                  setFile(null);
+                  setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+                  e.target.value = "";
+                  return;
+                }
+                setFile(nextFile);
+                setError(null);
+              }}
               className="sr-only"
             />
           </div>

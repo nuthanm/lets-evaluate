@@ -12,6 +12,10 @@ import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { v4 as uuid } from "uuid";
 import { storeResume } from "@/lib/storage/resumes";
 import { extractResumeText } from "@/lib/resume/parse";
+import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -69,6 +73,9 @@ export async function POST(req: Request) {
     let resumeText: string | undefined;
 
     if (file && file.size > 0) {
+      if (!isAllowedResumeFilename(file.name)) {
+        return apiError(RESUME_UPLOAD_FRIENDLY_ERROR, 400);
+      }
       if (file.size > 10 * 1024 * 1024) {
         return apiError("Resume must be under 10MB", 400);
       }

@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
+import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_ACCEPT,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
 
 type Project = { id: string; name: string };
 type Role = { id: string; name: string; projectId: string | null };
@@ -22,6 +27,7 @@ export function NewCandidateClient() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/projects")
@@ -42,7 +48,12 @@ export function NewCandidateClient() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (file && !isAllowedResumeFilename(file.name)) {
+      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+      return;
+    }
     setLoading(true);
+    setError(null);
     const fd = new FormData();
     fd.set("name", name);
     fd.set("email", email);
@@ -53,9 +64,13 @@ export function NewCandidateClient() {
     if (roleId) fd.set("roleId", roleId);
     if (file) fd.set("resume", file);
     const res = await fetch("/api/candidates", { method: "POST", body: fd });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (data.id) router.push(`/evaluate/${data.id}`);
+    if (res.ok && data.id) {
+      router.push(`/evaluate/${data.id}`);
+      return;
+    }
+    setError(data?.error ?? "Could not create the candidate. Please try again.");
   }
 
   return (
@@ -161,11 +176,22 @@ export function NewCandidateClient() {
             <input
               id="candidate-resume"
               type="file"
-              accept=".pdf,.docx"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              accept={RESUME_UPLOAD_ACCEPT}
+              onChange={(e) => {
+                const nextFile = e.target.files?.[0] ?? null;
+                if (nextFile && !isAllowedResumeFilename(nextFile.name)) {
+                  setFile(null);
+                  setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+                  e.target.value = "";
+                  return;
+                }
+                setFile(nextFile);
+                setError(null);
+              }}
               className="sr-only"
             />
           </div>
+          {error ? <p className="text-sm font-semibold text-[#c0392b]">{error}</p> : null}
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Opening…" : "Open case file →"}
           </Button>

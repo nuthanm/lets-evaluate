@@ -1,12 +1,14 @@
-import { writeFile, mkdir, readFile } from "fs/promises";
-import path from "path";
 import mammoth from "mammoth";
+import { isAllowedResumeFilename } from "@/lib/resume/formats";
 
 export async function extractResumeText(
   buffer: Buffer,
   filename: string,
 ): Promise<string> {
   const lower = filename.toLowerCase();
+  if (!isAllowedResumeFilename(filename)) {
+    throw new Error("Please upload a resume in PDF or DOCX format.");
+  }
   if (lower.endsWith(".pdf")) {
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
@@ -21,5 +23,5 @@ export async function extractResumeText(
     const result = await mammoth.extractRawText({ buffer });
     return (result.value || "").trim();
   }
-  throw new Error("Only PDF and DOCX resumes are supported");
+  throw new Error("Please upload a resume in PDF or DOCX format.");
 }

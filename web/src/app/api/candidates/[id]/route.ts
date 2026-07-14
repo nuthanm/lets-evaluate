@@ -8,6 +8,10 @@ import { z } from "zod";
 import { storeResume, readResume } from "@/lib/storage/resumes";
 import { extractResumeText } from "@/lib/resume/parse";
 import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
+import {
   ANALYSIS_MODEL,
   analyzeResume,
   generateResumeQuestions,
@@ -502,6 +506,9 @@ export async function PUT(req: Request, { params }: Params) {
   let resumeText: string | undefined;
 
   if (file && file.size > 0) {
+    if (!isAllowedResumeFilename(file.name)) {
+      return apiError(RESUME_UPLOAD_FRIENDLY_ERROR, 400);
+    }
     if (file.size > 10 * 1024 * 1024) {
       return apiError("Resume must be under 10MB", 400);
     }

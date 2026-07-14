@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
+import { DocxPreview } from "@/components/DocxPreview";
 import { Pill } from "@/components/Pill";
 import { FieldTextarea } from "@/components/FormField";
 import { EmailComposer } from "@/components/EmailComposer";
 import { cn } from "@/lib/utils";
+import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_ACCEPT,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
 import type { RenderedMail } from "@/lib/email";
 import type { ResumeMetrics } from "@/lib/ai";
 import { InterviewWorkspace } from "./InterviewWorkspace";
@@ -35,6 +41,7 @@ export function EvaluateClient({
   projectName,
   resumeFilename,
   hasResume: initialHasResume,
+  hasStoredResume: initialHasStoredResume,
   canScreen,
   initialMetrics,
   screeningComments,
@@ -52,6 +59,7 @@ export function EvaluateClient({
   projectName?: string;
   resumeFilename?: string;
   hasResume: boolean;
+  hasStoredResume: boolean;
   canScreen: boolean;
   initialMetrics?: Metrics;
   screeningComments?: string;
@@ -79,10 +87,14 @@ export function EvaluateClient({
   const [ratings, setRatings] = useState<Ratings>({});
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [resumeReady, setResumeReady] = useState(initialHasResume);
+  const [resumeStored, setResumeStored] = useState(initialHasStoredResume);
   const [resumeName, setResumeName] = useState(resumeFilename);
   const [uploading, setUploading] = useState(false);
   const [splitView, setSplitView] = useState(false);
+  const [resumePaneWidth, setResumePaneWidth] = useState(50);
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   const [wsStep, setWsStep] = useState<number>(1);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const [questions, setQuestions] = useState<{
     standard: unknown[];
     resume: unknown[];
@@ -124,6 +136,10 @@ export function EvaluateClient({
   }
 
   async function uploadResume(file: File) {
+    if (!isAllowedResumeFilename(file.name)) {
+      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+      return;
+    }
     setUploading(true);
     setError(null);
     const fd = new FormData();
@@ -141,6 +157,7 @@ export function EvaluateClient({
     }
     setResumeName(file.name);
     setResumeReady(true);
+    setResumeStored(true);
   }
 
   async function runAnalyze() {
@@ -214,6 +231,48 @@ export function EvaluateClient({
   const score = metrics?.tech_match_score;
   const hasResume = resumeReady;
   const analyzed = Boolean(metrics?.tech_match_score);
+  const activeResumeFilename = resumeName ?? resumeFilename;
+  const resumeExt = activeResumeFilename?.toLowerCase() ?? "";
+  const isPdfResume = resumeReady && resumeExt.endsWith(".pdf");
+  const isDocxResume = resumeReady && resumeExt.endsWith(".docx");
+  const canRenderStoredFile = resumeReady && resumeStored;
+  const canRenderHtmlPreview = resumeReady && Boolean(activeResumeFilename);
+
+  function updateSplitFromClientX(clientX: number) {
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const raw = ((clientX - rect.left) / rect.width) * 100;
+    const clamped = Math.min(75, Math.max(25, raw));
+    setResumePaneWidth(clamped);
+  }
+
+  function handleSplitPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    setIsDraggingSplit(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    updateSplitFromClientX(e.clientX);
+  }
+
+  function handleSplitPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isDraggingSplit) return;
+    updateSplitFromClientX(e.clientX);
+  }
+
+  function handleSplitPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    setIsDraggingSplit(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
+  function handleSplitKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setResumePaneWidth((w) => Math.max(25, w - 2));
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setResumePaneWidth((w) => Math.min(75, w + 2));
+    }
+  }
 
   const screeningStage = stages.find((s) => s.kind === "screening");
   const screeningOpen =
@@ -401,7 +460,7 @@ export function EvaluateClient({
         )}
         <div className="flex items-center gap-2 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-1.5">
           <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--ink-faint)]">Evidence</span>
-          <span className="max-w-[200px] truncate text-xs font-bold text-[var(--ink)]">{resumeFilename ?? "—"}</span>
+          <span className="max-w-[200px] truncate text-xs font-bold text-[var(--ink)]">{activeResumeFilename ?? "—"}</span>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-1.5">
           <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--ink-faint)]">Opened</span>
@@ -425,25 +484,40 @@ export function EvaluateClient({
 
       {/* ── Split view panel: resume left, AI analysis right ── */}
       {splitView && (
-        <div className="flex min-h-0 flex-1 border-b border-[var(--cream-2)]">
+        <div
+          ref={splitContainerRef}
+          className={cn(
+            "flex min-h-0 flex-1 border-b border-[var(--cream-2)]",
+            isDraggingSplit ? "cursor-col-resize select-none" : "",
+          )}
+        >
           {/* Resume panel */}
-          <div className="flex w-1/2 flex-col overflow-hidden border-r border-[var(--cream-2)]">
+          <div
+            className="flex min-w-0 shrink-0 flex-col overflow-hidden border-r border-[var(--cream-2)]"
+            style={{ width: `${resumePaneWidth}%` }}
+          >
             <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
               <span>📄</span>
               <span className="text-xs font-bold uppercase tracking-wide text-[var(--ink-faint)]">Resume Preview</span>
-              {resumeFilename && (
-                <span className="ml-1 max-w-[180px] truncate text-[11px] text-[var(--ink-faint)]">{resumeFilename}</span>
+              {activeResumeFilename && (
+                <span className="ml-1 max-w-[180px] truncate text-[11px] text-[var(--ink-faint)]">{activeResumeFilename}</span>
               )}
             </div>
-            {resumeReady && resumeFilename?.toLowerCase().endsWith(".pdf") ? (
+            {isPdfResume && canRenderStoredFile ? (
               /* PDF — native browser renderer */
               <iframe
                 src={`/api/candidates/${candidateId}/resume`}
                 title="Resume preview"
                 className="flex-1 w-full border-0 bg-white"
               />
-            ) : resumeReady && (resumeFilename?.toLowerCase().endsWith(".docx") || resumeFilename?.toLowerCase().endsWith(".doc")) ? (
-              /* DOCX — mammoth converts to styled HTML, rendered in iframe */
+            ) : isDocxResume && canRenderStoredFile ? (
+              /* DOCX — strict read-only document preview. */
+              <DocxPreview
+                fileUrl={`/api/candidates/${candidateId}/resume`}
+                filename={activeResumeFilename}
+              />
+            ) : canRenderHtmlPreview ? (
+              /* Legacy records without a stored file fall back to persisted resume text. */
               <iframe
                 src={`/api/candidates/${candidateId}/resume/html`}
                 title="Resume preview"
@@ -456,7 +530,7 @@ export function EvaluateClient({
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                     <span className="text-3xl opacity-30">📄</span>
                     <p className="text-sm font-semibold text-[var(--ink-soft)]">
-                      {resumeFilename ?? "Resume on file"}
+                      {activeResumeFilename ?? "Resume on file"}
                     </p>
                     <p className="text-xs text-[var(--ink-faint)]">
                       Preview not available for this file type.
@@ -480,8 +554,33 @@ export function EvaluateClient({
               </div>
             )}
           </div>
+
+          <div
+            role="separator"
+            aria-label="Resize resume and AI analysis panels"
+            aria-orientation="vertical"
+            aria-valuemin={25}
+            aria-valuemax={75}
+            aria-valuenow={Math.round(resumePaneWidth)}
+            tabIndex={0}
+            onPointerDown={handleSplitPointerDown}
+            onPointerMove={handleSplitPointerMove}
+            onPointerUp={handleSplitPointerUp}
+            onPointerCancel={handleSplitPointerUp}
+            onKeyDown={handleSplitKeyDown}
+            className={cn(
+              "group relative w-2 shrink-0 cursor-col-resize touch-none bg-[var(--cream-2)] transition-colors",
+              "hover:bg-[var(--cyan)]/45 focus-visible:bg-[var(--cyan)]/45 focus-visible:outline-none",
+            )}
+          >
+            <span className="pointer-events-none absolute inset-y-1 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[var(--ink-faint)]/55 group-hover:bg-[var(--ink)]/70" />
+          </div>
+
           {/* AI Analysis panel */}
-          <div className="flex w-1/2 flex-col overflow-hidden">
+          <div
+            className="flex min-w-0 flex-1 flex-col overflow-hidden"
+            style={{ width: `${100 - resumePaneWidth}%` }}
+          >
             <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
               <span>🤖</span>
               <span className="text-xs font-bold uppercase tracking-wide text-[var(--ink-faint)]">AI Analysis</span>
@@ -752,7 +851,7 @@ export function EvaluateClient({
                       : "Upload resume"}
                   <input
                     type="file"
-                    accept=".pdf,.docx"
+                    accept={RESUME_UPLOAD_ACCEPT}
                     className="hidden"
                     disabled={uploading}
                     onChange={(e) => {

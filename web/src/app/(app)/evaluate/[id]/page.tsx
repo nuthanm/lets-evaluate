@@ -107,6 +107,7 @@ export default async function EvaluatePage({ params }: Params) {
         detail.candidate.resumeText?.trim() ||
           detail.candidate.resumeStorageKey,
       )}
+      hasStoredResume={Boolean(detail.candidate.resumeStorageKey)}
       canScreen={canScreen && !detail.review}
       initialMetrics={
         (detail.screening?.metrics as Partial<ResumeMetrics> | undefined) ??

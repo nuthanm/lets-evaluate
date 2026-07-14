@@ -38,10 +38,11 @@ export const DEFAULT_STAGE_TEMPLATE: StageTemplateItem[] = [
 
 /** Which member roles may be booked as the assignee for a given stage kind. */
 export function rolesForStageKind(kind: StageKind): MemberRole[] {
-  if (kind === "manager") return ["manager", "admin"];
-  // hr, technical, custom — all assigned to interviewer or hr for backward compat
-  if (kind === "hr") return ["hr", "interviewer", "admin"];
-  return ["interviewer", "admin"];
+  if (kind === "manager") return ["manager"];
+  // HR rounds are owned by HR panelists only.
+  if (kind === "hr") return ["hr"];
+  if (kind === "technical") return ["interviewer"];
+  return ["interviewer"];
 }
 
 export async function getOrgProjects(organizationId: string) {
