@@ -7,6 +7,7 @@ import { DocxPreview } from "@/components/DocxPreview";
 import { Pill } from "@/components/Pill";
 import { FieldTextarea } from "@/components/FormField";
 import { EmailComposer } from "@/components/EmailComposer";
+import type { MemberRole } from "@/lib/auth/config";
 import { cn } from "@/lib/utils";
 import {
   isAllowedResumeFilename,
@@ -50,6 +51,7 @@ export function EvaluateClient({
   candidateEmail,
   canFinalize,
   myActiveStageId,
+  viewerRole,
   roleOpen = true,
   initialQuestions,
 }: {
@@ -68,6 +70,7 @@ export function EvaluateClient({
   candidateEmail?: string;
   canFinalize: boolean;
   myActiveStageId: string | null;
+  viewerRole: MemberRole;
   roleOpen?: boolean;
   resumeText?: string;
   initialQuestions?: {
@@ -313,10 +316,14 @@ export function EvaluateClient({
   // The step bar mirrors the whole journey: the two interactive screening
   // steps (Setup, AI Analysis) followed by the admin-configured rounds, which
   // render as read-only progress indicators here.
-  // HR and Final Confirmation stages are hidden from the step bar — they are
-  // managed separately and should not be visible to interviewers.
+  // HR and Final Confirmation stages are hidden only for panel users. Recruiter
+  // side users keep the full stage map so they can see every section.
+  const viewerIsPanel =
+    viewerRole === "interviewer" || viewerRole === "manager" || viewerRole === "hr";
   const downstreamStages = stages.filter(
-    (s) => s.kind !== "screening" && s.kind !== "hr" && s.kind !== "final",
+    (s) =>
+      s.kind !== "screening" &&
+      (!viewerIsPanel || (s.kind !== "hr" && s.kind !== "final")),
   );
   const showStepBar = showWizard || stages.length > 0;
 
@@ -1877,15 +1884,6 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function Td({ children }: { children: React.ReactNode }) {
   return <td className="px-3 py-2 align-middle">{children}</td>;
-}
-
-function MarginField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="mb-4">
-      <span className="case-label block">{label}</span>
-      <span className="text-xs font-semibold">{value}</span>
-    </div>
-  );
 }
 
 function MetricCell({

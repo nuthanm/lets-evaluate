@@ -119,6 +119,7 @@ export default async function EvaluatePage({ params }: Params) {
       candidateEmail={detail.candidate.email ?? undefined}
       canFinalize={canFinalize}
       myActiveStageId={myActiveStageId}
+      viewerRole={session.user.role}
       roleOpen={roleOpen}
       initialQuestions={
         detail.screening
