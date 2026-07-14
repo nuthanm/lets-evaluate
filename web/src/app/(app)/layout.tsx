@@ -1,8 +1,7 @@
 import { CabinetShell } from "@/components/CabinetShell";
 import { requireSession } from "@/lib/auth/rbac";
 import { isPanelRole } from "@/lib/auth/capabilities";
-import { getCandidatesForUser } from "@/lib/db/queries";
-import { getNavPendingCounts } from "@/lib/recruiter/tasks";
+import { getCachedNavBadges } from "@/lib/db/cache";
 
 export default async function AppLayout({
   children,
@@ -10,15 +9,17 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const session = await requireSession();
+  
   let navBadges: { candidates?: number; booking?: number } | undefined;
   if (!isPanelRole(session.user.role)) {
-    const candidates = await getCandidatesForUser(
+    // Use cached version - revalidates every 60s, no blocking queries on page nav
+    navBadges = await getCachedNavBadges(
       session.user.organizationId,
       session.user.id,
       session.user.role,
     );
-    navBadges = getNavPendingCounts(candidates);
   }
+
   return (
     <CabinetShell
       userName={session.user.name}

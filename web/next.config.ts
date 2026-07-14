@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable compression for faster asset delivery
+  compress: true,
+  
+  // Power up Router performance for faster navigation
+  experimental: {
+    optimizePackageImports: ["@aws-sdk/client-s3"],
+  },
+
   async headers() {
     return [
       {
@@ -9,6 +17,8 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Enable HTTP caching for static assets
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
       // Resume API routes are loaded inside same-origin iframes for preview;
