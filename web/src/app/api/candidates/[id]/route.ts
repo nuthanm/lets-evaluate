@@ -268,7 +268,7 @@ export async function POST(req: Request, { params }: Params) {
       id,
       candidate.projectId,
     );
-    const stages = await getCandidateStages(id);
+    const stages = await getCandidateStages(id, session.user.organizationId);
     const screeningStage =
       stages.find((s) => s.stage.kind === "screening") ?? stages[0];
 
@@ -426,7 +426,7 @@ export async function POST(req: Request, { params }: Params) {
       id,
       candidate.projectId,
     );
-    const stages = await getCandidateStages(id);
+    const stages = await getCandidateStages(id, session.user.organizationId);
     const finalStage =
       stages.find((s) => s.stage.kind === "final") ?? stages[stages.length - 1];
 

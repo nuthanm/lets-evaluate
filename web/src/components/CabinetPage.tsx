@@ -69,23 +69,99 @@ export function StatBlock({
   value,
   icon,
   className,
+  variant = "default",
 }: {
   label: string;
   value: React.ReactNode;
-  icon?: string;
+  icon?: React.ReactNode;
   className?: string;
+  variant?: "default" | "cyan" | "orange" | "green" | "purple" | "teal" | "navy";
 }) {
+  type Config = { borderColor: string; numColor: string; badgeBg: string; badgeText: string; labelColor: string };
+
+  const configs: Record<string, Config> = {
+    default: {
+      borderColor: "border-t-4 border-t-[#cbd5e1]",
+      numColor:    "#292929",
+      badgeBg:    "#f1f5f9",
+      badgeText:  "#64748b",
+      labelColor: "#9a9a9a",
+    },
+    cyan: {
+      borderColor: "border-t-4 border-t-[#23b0e6]",
+      numColor:    "#1c8db8",
+      badgeBg:    "#23b0e6",
+      badgeText:  "#ffffff",
+      labelColor: "#1c8db8",
+    },
+    orange: {
+      borderColor: "border-t-4 border-t-[#e87722]",
+      numColor:    "#e87722",
+      badgeBg:    "#e87722",
+      badgeText:  "#ffffff",
+      labelColor: "#e87722",
+    },
+    green: {
+      borderColor: "border-t-4 border-t-[#61a229]",
+      numColor:    "#61a229",
+      badgeBg:    "#61a229",
+      badgeText:  "#ffffff",
+      labelColor: "#61a229",
+    },
+    purple: {
+      borderColor: "border-t-4 border-t-[#7c3aed]",
+      numColor:    "#6d28d9",
+      badgeBg:    "#7c3aed",
+      badgeText:  "#ffffff",
+      labelColor: "#7c3aed",
+    },
+    teal: {
+      borderColor: "border-t-4 border-t-[#0f766e]",
+      numColor:    "#0f766e",
+      badgeBg:    "#0f766e",
+      badgeText:  "#ffffff",
+      labelColor: "#0f766e",
+    },
+    // navy kept as alias to purple for backward compat
+    navy: {
+      borderColor: "border-t-4 border-t-[#1a2b3c]",
+      numColor:    "#1a2b3c",
+      badgeBg:    "#1a2b3c",
+      badgeText:  "#ffffff",
+      labelColor: "#1a2b3c",
+    },
+  };
+
+  const c = configs[variant] ?? configs.default;
+
   return (
-    <div className={cn("case-card relative overflow-hidden p-5", className)} data-icon={icon}>
-      <div className="case-label">{label}</div>
-      <div className="font-serif mt-1 text-[2.5rem] leading-none">{value}</div>
+    <div
+      className={cn(
+        "case-card relative flex flex-col justify-between overflow-hidden p-5",
+        c.borderColor,
+        className,
+      )}
+    >
+      <p
+        className="case-label"
+        style={{ color: c.labelColor }}
+      >
+        {label}
+      </p>
+      <p
+        className="font-serif mt-2 text-[2.8rem] font-bold leading-none"
+        style={{ color: c.numColor }}
+      >
+        {value}
+      </p>
       {icon && (
-        <span
-          className="pointer-events-none absolute bottom-2 right-3 text-[2rem] opacity-[0.08]"
+        <div
+          className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-xl text-[1.1rem] font-bold"
+          style={{ background: c.badgeBg, color: c.badgeText }}
           aria-hidden
         >
           {icon}
-        </span>
+        </div>
       )}
     </div>
   );

@@ -21,6 +21,7 @@ import {
   AssignmentsIcon,
   ArchivesIcon,
   CollapseIcon,
+  LibraryIcon,
 } from "@/components/NavIcons";
 
 type IconType = (props: { className?: string }) => React.ReactElement;
@@ -40,6 +41,7 @@ function navForRole(role: MemberRole): NavSection[] {
         items: [
           { href: "/people", label: "Dashboard", icon: DashboardIcon },
           { href: "/assignments", label: "My Assignments", icon: AssignmentsIcon },
+          { href: "/library", label: "Question Library", icon: LibraryIcon },
           { href: "/archive", label: "Archives", icon: ArchivesIcon },
         ],
       },
@@ -63,6 +65,7 @@ function navForRole(role: MemberRole): NavSection[] {
         label: "Records",
         items: [
           { href: "/pipeline", label: "Pipeline", icon: PipelineIcon },
+          { href: "/library", label: "Question Library", icon: LibraryIcon },
           { href: "/archive", label: "Archives", icon: ArchivesIcon },
         ],
       },
@@ -96,6 +99,7 @@ function navForRole(role: MemberRole): NavSection[] {
       label: "Records",
       items: [
         { href: "/pipeline", label: "Pipeline", icon: PipelineIcon },
+        { href: "/library", label: "Question Library", icon: LibraryIcon },
         { href: "/archive", label: "Archives", icon: ArchivesIcon },
       ],
     },
@@ -106,7 +110,8 @@ function mobileNavForRole(role: MemberRole) {
   if (role === "interviewer" || role === "manager" || role === "hr") {
     return [
       { href: "/people", label: "Home" },
-      { href: "/assignments", label: "Assign" },
+      { href: "/assignments", label: "Queue" },
+      { href: "/library", label: "Library" },
       { href: "/archive", label: "Archive" },
     ];
   }

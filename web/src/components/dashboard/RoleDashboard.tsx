@@ -2,10 +2,51 @@ import { FaceAvatar } from "@/components/FaceAvatar";
 import { Pill } from "@/components/Pill";
 import { ButtonLink } from "@/components/Button";
 import { CabinetPage, CasePanel, StatBlock } from "@/components/CabinetPage";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type { MemberRole } from "@/lib/auth/config";
 import type { RecruiterTask } from "@/lib/recruiter/tasks";
 import { groupTasksByUrgency } from "@/lib/recruiter/tasks";
+
+/* ── Professional SVG stat icons ───────────────────────────────────────────── */
+const base = { viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+function IcClock() {
+  return <svg {...base}><circle cx="10" cy="10" r="7"/><path d="M10 6.5v3.8l2.5 2"/></svg>;
+}
+function IcAlert() {
+  return <svg {...base}><path d="M10 3.5 2.8 16.5h14.4Z"/><path d="M10 9v3.5"/><circle cx="10" cy="14.5" r=".5" fill="currentColor" stroke="none"/></svg>;
+}
+function IcCheckCircle() {
+  return <svg {...base}><circle cx="10" cy="10" r="7"/><path d="m6.5 10 2.5 2.5 4-5"/></svg>;
+}
+function IcUsers() {
+  return <svg {...base}><circle cx="7.5" cy="7" r="2.8"/><path d="M2 17c0-3 2.5-5.2 5.5-5.2S13 14 13 17"/><path d="M14.5 6a2.5 2.5 0 0 1 0 5M17.5 17c0-2.5-1.2-4.5-3-5.2"/></svg>;
+}
+function IcCalendarDay() {
+  return <svg {...base}><rect x="2.5" y="3.5" width="15" height="14" rx="2"/><path d="M6.5 2v3M13.5 2v3M2.5 8.5h15"/><rect x="8" y="11" width="4" height="3.5" rx="1" fill="currentColor" stroke="none"/></svg>;
+}
+function IcCalendarMonth() {
+  return <svg {...base}><rect x="2.5" y="3.5" width="15" height="14" rx="2"/><path d="M6.5 2v3M13.5 2v3M2.5 8.5h15"/><circle cx="6.5"  cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="10"   cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="13.5" cy="13" r="1" fill="currentColor" stroke="none"/></svg>;
+}
+function IcBarChart() {
+  return <svg {...base}><path d="M3 15.5V10M7.5 15.5V5.5M12 15.5V9.5M16.5 15.5V7"/><path d="M1.5 17h17"/></svg>;
+}
+function IcTrendUp() {
+  return <svg {...base}><path d="M2 14.5 7.5 9l3.5 3.5L18 5"/><path d="M13.5 5H18v4.5"/></svg>;
+}
+function IcFolder() {
+  return <svg {...base}><path d="M2.5 6.5A2 2 0 0 1 4.5 4.5h3.2l1.8 2H15a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2Z"/></svg>;
+}
+function IcEye() {
+  return <svg {...base}><path d="M1.5 10S4.5 4.5 10 4.5 18.5 10 18.5 10 15.5 15.5 10 15.5 1.5 10 1.5 10Z"/><circle cx="10" cy="10" r="2.5"/></svg>;
+}
+function IcStar() {
+  return <svg {...base}><path d="M10 2.5l2.1 4.2 4.7.7-3.4 3.3.8 4.7L10 13l-4.2 2.4.8-4.7L3.2 7.4l4.7-.7Z"/></svg>;
+}
+function IcTarget() {
+  return <svg {...base}><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1.2" fill="currentColor" stroke="none"/></svg>;
+}
 
 type CandidateRow = {
   id: string;
@@ -247,44 +288,60 @@ export function TeamDashboard({
           Action center
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {actions.map((a) => (
-            <Link
-              key={a.key}
-              href={a.href}
-              className="case-card group flex flex-col justify-between p-4 no-underline transition-colors hover:border-[var(--cyan)]"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-serif text-[2.25rem] leading-none">
-                  {a.count}
+          {actions.map((a) => {
+            const borderColor =
+              a.variant === "orange"
+                ? "border-l-[var(--orange)]"
+                : a.variant === "cyan"
+                  ? "border-l-[var(--cyan)]"
+                  : "border-l-[var(--cream-2)]";
+            return (
+              <Link
+                key={a.key}
+                href={a.href}
+                className={cn(
+                  "case-card group flex flex-col justify-between overflow-hidden border-l-4 p-4 no-underline transition-all hover:shadow-sm",
+                  a.count > 0 ? borderColor : "border-l-[var(--cream-2)]",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className={cn(
+                    "font-serif text-[2.25rem] leading-none",
+                    a.count > 0 && a.variant === "orange" ? "text-[var(--orange)]" :
+                    a.count > 0 && a.variant === "cyan" ? "text-[var(--cyan-d)]" :
+                    "text-[var(--ink)]"
+                  )}>
+                    {a.count}
+                  </span>
+                  <Pill variant={a.count > 0 ? a.variant : "neutral"}>
+                    {a.count > 0 ? "Action" : "Clear"}
+                  </Pill>
+                </div>
+                <div className="mt-2">
+                  <div className="text-[13px] font-bold text-[var(--ink)]">
+                    {a.label}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-[var(--ink-faint)]">
+                    {a.hint}
+                  </div>
+                </div>
+                <span className="mt-3 text-[12px] font-semibold text-[var(--cyan-d)] group-hover:underline">
+                  {a.cta} →
                 </span>
-                <Pill variant={a.count > 0 ? a.variant : "neutral"}>
-                  {a.count > 0 ? "Action" : "Clear"}
-                </Pill>
-              </div>
-              <div className="mt-2">
-                <div className="text-[13px] font-bold text-[var(--ink)]">
-                  {a.label}
-                </div>
-                <div className="mt-0.5 text-[11px] text-[var(--ink-faint)]">
-                  {a.hint}
-                </div>
-              </div>
-              <span className="mt-3 text-[12px] font-semibold text-[var(--cyan-d)] group-hover:underline">
-                {a.cta} →
-              </span>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatBlock label="In progress" value={stats.inProgress} icon="📋" />
-        <StatBlock label="Selected" value={stats.selected} icon="✓" />
-        <StatBlock label="All cases" value={stats.total} icon="📁" />
+        <StatBlock label="In progress" value={stats.inProgress} icon={<IcClock />}       variant="cyan" />
+        <StatBlock label="Selected"    value={stats.selected}   icon={<IcCheckCircle />} variant="green" />
+        <StatBlock label="All cases"   value={stats.total}      icon={<IcFolder />}      />
         <StatBlock
           label="Open now"
           value={inProgress.length}
-          icon="◎"
+          icon={<IcEye />}
           className="hidden md:block"
         />
       </div>
@@ -390,20 +447,50 @@ type HistoryRow = {
   hasReport: boolean;
 };
 
+type AssignmentRow = {
+  id: string;
+  status: string;
+  label: string;
+  dueAt: string | null;
+  handoffNote: string | null;
+  roleName: string | null;
+  projectName: string | null;
+  candidate: { id: string; name: string };
+};
+
+function urgencyFor(dueAt: string | null): "overdue" | "soon" | "none" {
+  if (!dueAt) return "none";
+  const due = new Date(dueAt).getTime();
+  const now = Date.now();
+  if (due < now) return "overdue";
+  if (due - now < 24 * 60 * 60 * 1000) return "soon";
+  return "none";
+}
+
+function UrgencyPill({ dueAt }: { dueAt: string | null }) {
+  const urgency = urgencyFor(dueAt);
+  if (urgency === "overdue") {
+    const days = Math.floor((Date.now() - new Date(dueAt!).getTime()) / 86400000);
+    return (
+      <Pill variant="orange">
+        Overdue{days > 0 ? ` · ${days}d ago` : ""}
+      </Pill>
+    );
+  }
+  if (urgency === "soon") {
+    const hrs = Math.max(1, Math.round((new Date(dueAt!).getTime() - Date.now()) / 3600000));
+    return <Pill variant="cyan">Due in {hrs}h</Pill>;
+  }
+  return <Pill variant="cyan">To review</Pill>;
+}
+
 export function InterviewerDashboard({
   assignments,
   counts,
   history = [],
   today,
 }: {
-  assignments: {
-    id: string;
-    status: string;
-    label: string;
-    dueAt: string | null;
-    handoffNote: string | null;
-    candidate: { id: string; name: string };
-  }[];
+  assignments: AssignmentRow[];
   counts?: {
     today: number;
     month: number;
@@ -415,13 +502,21 @@ export function InterviewerDashboard({
   today: string;
 }) {
   const pending = assignments.filter((a) => a.status === "active");
-  const period = counts ?? {
-    today: 0,
-    month: 0,
-    quarter: 0,
-    year: 0,
-    total: 0,
-  };
+  const overdue = pending.filter((a) => urgencyFor(a.dueAt) === "overdue");
+  const period = counts ?? { today: 0, month: 0, quarter: 0, year: 0, total: 0 };
+
+  const sortedPending = [...pending].sort((a, b) => {
+    const ua = urgencyFor(a.dueAt);
+    const ub = urgencyFor(b.dueAt);
+    const rank = { overdue: 0, soon: 1, none: 2 };
+    if (rank[ua] !== rank[ub]) return rank[ua] - rank[ub];
+    if (a.dueAt && b.dueAt) return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    if (a.dueAt) return -1;
+    if (b.dueAt) return 1;
+    return 0;
+  });
+
+  const alertOverdue = overdue.length > 0;
 
   return (
     <CabinetPage
@@ -433,140 +528,263 @@ export function InterviewerDashboard({
         </ButtonLink>
       }
     >
-      <div className="case-alert mb-5 case-fade-in">
-        <div>
-          <h2 className="font-serif text-xl font-bold">Your interview queue</h2>
-          <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
-            Candidates assigned to you for interviews
-          </p>
+      {/* ── Queue status banner ────────────────────────────────────── */}
+      {pending.length === 0 ? (
+        <div className="mb-5 flex items-center gap-4 rounded-xl border border-[var(--green)]/25 bg-gradient-to-r from-[var(--green-soft)] to-white p-5 case-fade-in">
+          <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[var(--green)] text-xl text-white shadow-md">
+            ✓
+          </div>
+          <div>
+            <h2 className="font-serif text-xl font-bold">Queue clear</h2>
+            <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+              Assignments will appear here when a recruiter books you for a candidate.
+            </p>
+          </div>
         </div>
-        <div className="font-serif text-[3.5rem] leading-none text-[var(--cyan-d)] opacity-30">
-          {String(pending.length).padStart(2, "0")}
+      ) : (
+        <div className={cn(
+          "mb-5 flex items-center justify-between gap-4 rounded-xl border p-5 case-fade-in",
+          alertOverdue
+            ? "border-[var(--orange)]/30 bg-gradient-to-r from-[var(--orange-soft)] to-white"
+            : "border-[var(--cyan)]/25 bg-gradient-to-r from-[var(--cyan-soft)] to-white",
+        )}>
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "grid size-12 shrink-0 place-items-center rounded-full text-xl text-white shadow-md",
+              alertOverdue ? "bg-[var(--orange)]" : "bg-[var(--cyan)]",
+            )}>
+              {alertOverdue ? "⚠" : "◎"}
+            </div>
+            <div>
+              <h2 className="font-serif text-xl font-bold">
+                {alertOverdue ? `${overdue.length} overdue` : "Your interview queue"}
+              </h2>
+              <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+                {alertOverdue
+                  ? `${pending.length} total pending — please complete overdue evaluations`
+                  : `${pending.length} candidate${pending.length !== 1 ? "s" : ""} awaiting your evaluation`}
+              </p>
+            </div>
+          </div>
+          <div className={cn(
+            "font-serif text-[3.5rem] font-bold leading-none opacity-20",
+            alertOverdue ? "text-[var(--orange)]" : "text-[var(--cyan-d)]",
+          )}>
+            {String(pending.length).padStart(2, "0")}
+          </div>
         </div>
+      )}
+
+      {/* ── Stat tiles ─────────────────────────────────────────────── */}
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatBlock
+          label="Pending"
+          value={pending.length}
+          icon={<IcClock />}
+          variant="cyan"
+        />
+        <StatBlock
+          label="Overdue"
+          value={overdue.length}
+          icon={<IcAlert />}
+          variant={overdue.length > 0 ? "orange" : "default"}
+        />
+        <StatBlock
+          label="Completed"
+          value={period.total}
+          icon={<IcCheckCircle />}
+          variant="green"
+        />
+        <StatBlock
+          label="Total assigned"
+          value={assignments.length}
+          icon={<IcUsers />}
+        />
       </div>
 
+      {/* ── Completion stats ───────────────────────────────────────── */}
       <section className="mb-5">
-        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
           Interviews completed
         </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <StatBlock label="Today" value={period.today} icon="☀" />
-          <StatBlock label="This month" value={period.month} icon="◔" />
-          <StatBlock label="This quarter" value={period.quarter} icon="◑" />
-          <StatBlock label="This year" value={period.year} icon="◕" />
-          <StatBlock
-            label="All time"
-            value={period.total}
-            icon="✓"
-            className="hidden md:block"
-          />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatBlock label="Today"        value={period.today}   icon={<IcCalendarDay />}   variant="cyan" />
+          <StatBlock label="This month"   value={period.month}   icon={<IcCalendarMonth />} />
+          <StatBlock label="This quarter" value={period.quarter} icon={<IcBarChart />}       />
+          <StatBlock label="This year"    value={period.year}    icon={<IcTrendUp />}        variant="green" />
         </div>
       </section>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatBlock label="Pending" value={pending.length} icon="◎" />
-        <StatBlock label="Completed" value={period.total} icon="✓" />
-        <StatBlock label="Total assigned" value={assignments.length} icon="📋" />
-      </div>
+      {/* ── Interview queue (card style, aligned with Assignments page) ── */}
+      <section className="mb-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            Pending interviews ({sortedPending.length})
+          </h2>
+          {sortedPending.length > 5 && (
+            <ButtonLink href="/assignments" variant="ghost" className="px-3 py-1 text-[11px]">
+              View all →
+            </ButtonLink>
+          )}
+        </div>
 
+        {sortedPending.length === 0 ? (
+          <div className="case-card flex items-center gap-4 p-5">
+            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--green-soft)] text-lg">✓</div>
+            <p className="text-sm text-[var(--ink-faint)]">No active assignments. Check back soon.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sortedPending.slice(0, 6).map((a) => {
+              const urgency = urgencyFor(a.dueAt);
+              const context = [a.roleName, a.projectName].filter(Boolean).join(" · ");
+              return (
+                <Link
+                  key={a.id}
+                  href={`/evaluate/${a.candidate.id}`}
+                  className="block no-underline"
+                >
+                  <div className={cn(
+                    "case-card overflow-hidden transition-all hover:shadow-sm",
+                    urgency === "overdue"
+                      ? "border-[var(--orange)]/30 hover:border-[var(--orange)]"
+                      : "hover:border-[var(--cyan)]/40",
+                  )}>
+                    {urgency === "overdue" && (
+                      <div className="h-1 w-full bg-gradient-to-r from-[var(--orange)] to-[#f5b88a]" />
+                    )}
+                    {urgency === "soon" && (
+                      <div className="h-1 w-full bg-gradient-to-r from-[var(--cyan)] to-[#7dd8f5]" />
+                    )}
+                    <div className="flex items-center gap-3 p-4">
+                      <FaceAvatar name={a.candidate.name} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="text-[var(--ink)]">{a.candidate.name}</strong>
+                          {context && (
+                            <span className="text-[11px] text-[var(--ink-faint)]">{context}</span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-[var(--cyan-d)]">{a.label}</span>
+                        </div>
+                        {a.dueAt && (
+                          <p className={cn(
+                            "mt-0.5 text-[11px] font-semibold",
+                            urgency === "overdue"
+                              ? "text-[var(--orange)]"
+                              : urgency === "soon"
+                                ? "text-[var(--cyan-d)]"
+                                : "text-[var(--ink-faint)]",
+                          )}>
+                            Due:{" "}
+                            {new Date(a.dueAt).toLocaleString("en-GB", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        )}
+                        {a.handoffNote && (
+                          <p className="mt-1 truncate rounded bg-[var(--cream)] px-2 py-0.5 text-[11px] italic text-[var(--ink-soft)]">
+                            &ldquo;{a.handoffNote}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <UrgencyPill dueAt={a.dueAt} />
+                        <span className="text-[11px] font-bold text-[var(--cyan-d)]">Open →</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── History & exports ──────────────────────────────────────── */}
       {history.length > 0 && (
         <section className="mb-5">
-          <CasePanel title="History & exports">
-            {history.slice(0, 10).map((h) => (
-              <div key={h.stageId} className="case-row">
-                <strong>{h.candidateName}</strong>
-                <span className="truncate text-[var(--ink-soft)]">
-                  {h.label}
-                  {h.roleName ? ` · ${h.roleName}` : ""}
-                  {h.decidedAt
-                    ? ` · ${new Date(h.decidedAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}`
-                    : ""}
-                </span>
-                <Pill
-                  variant={
-                    h.decision === "yes"
-                      ? "green"
-                      : h.decision === "no"
-                        ? "orange"
-                        : "neutral"
-                  }
-                >
-                  {h.decision === "yes"
-                    ? "Passed"
-                    : h.decision === "no"
-                      ? "Not selected"
-                      : "Reviewed"}
-                </Pill>
-                {h.hasReport ? (
-                  <a
-                    href={`/api/stages/${h.stageId}/report`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 text-[11px] font-semibold text-[var(--cyan-d)] hover:underline"
-                  >
-                    PDF ↓
-                  </a>
-                ) : (
-                  <ButtonLink
-                    href={`/evaluate/${h.candidateId}`}
-                    variant="ghost"
-                    className="px-3 py-1 text-[11px]"
-                  >
-                    Open
-                  </ButtonLink>
+          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            Completed interviews ({history.length})
+          </h2>
+          <div className="case-card overflow-hidden">
+            {history.slice(0, 8).map((h, idx) => (
+              <div
+                key={h.stageId}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--cream)]",
+                  idx < history.slice(0, 8).length - 1
+                    ? "border-b border-[var(--cream-2)]"
+                    : "",
                 )}
+              >
+                <FaceAvatar name={h.candidateName} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="text-[var(--ink)]">{h.candidateName}</strong>
+                    {h.roleName && (
+                      <span className="text-[11px] text-[var(--ink-faint)]">· {h.roleName}</span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-[var(--ink-soft)]">{h.label}</span>
+                    {h.decidedAt && (
+                      <span className="text-[11px] text-[var(--ink-faint)]">
+                        ·{" "}
+                        {new Date(h.decidedAt).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Pill
+                    variant={
+                      h.decision === "yes"
+                        ? "green"
+                        : h.decision === "no"
+                          ? "orange"
+                          : "neutral"
+                    }
+                  >
+                    {h.decision === "yes"
+                      ? "Proceeded"
+                      : h.decision === "no"
+                        ? "Not selected"
+                        : "Reviewed"}
+                  </Pill>
+                  {h.hasReport ? (
+                    <a
+                      href={`/api/stages/${h.stageId}/report`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white"
+                    >
+                      PDF
+                    </a>
+                  ) : (
+                    <Link
+                      href={`/evaluate/${h.candidateId}`}
+                      className="text-[11px] font-semibold text-[var(--ink-faint)] hover:text-[var(--cyan-d)]"
+                    >
+                      Open
+                    </Link>
+                  )}
+                </div>
               </div>
             ))}
-          </CasePanel>
+          </div>
         </section>
       )}
 
-      <CasePanel title="Upcoming interviews">
-        {assignments.length === 0 ? (
-          <p className="p-5 text-sm text-[var(--ink-faint)]">
-            No assignments yet. Your TA will assign candidates when ready.
-          </p>
-        ) : (
-          assignments.slice(0, 8).map((a) => (
-            <div key={a.id} className="case-row">
-              <strong>{a.candidate.name}</strong>
-              <span className="truncate text-[var(--ink-soft)]">
-                {a.label}
-                {a.dueAt
-                  ? ` · ${new Date(a.dueAt).toLocaleString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}`
-                  : ""}
-              </span>
-              <Pill
-                variant={
-                  a.status === "active"
-                    ? "cyan"
-                    : a.status === "passed"
-                      ? "green"
-                      : "neutral"
-                }
-              >
-                {a.status === "active" ? "To review" : a.status}
-              </Pill>
-              <ButtonLink
-                href={`/evaluate/${a.candidate.id}`}
-                variant="ghost"
-                className="px-3 py-1 text-[11px]"
-              >
-                Open
-              </ButtonLink>
-            </div>
-          ))
-        )}
-      </CasePanel>
     </CabinetPage>
   );
 }

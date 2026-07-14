@@ -9,6 +9,12 @@ import { ButtonLink } from "@/components/Button";
 import { CandidatesGrid } from "./CandidatesGrid";
 import Link from "next/link";
 
+const S = { viewBox:"0 0 20 20", fill:"none", stroke:"currentColor", strokeWidth:1.75, strokeLinecap:"round" as const, strokeLinejoin:"round" as const };
+const IcPeople    = () => <svg {...S}><circle cx="7.5" cy="7" r="2.8"/><path d="M2 17c0-3 2.5-5.2 5.5-5.2S13 14 13 17"/><path d="M14.5 6a2.5 2.5 0 0 1 0 5M17.5 17c0-2.5-1.2-4.5-3-5.2"/></svg>;
+const IcActive    = () => <svg {...S}><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3" fill="currentColor" stroke="none"/></svg>;
+const IcCheck     = () => <svg {...S}><circle cx="10" cy="10" r="7"/><path d="m6.5 10 2.5 2.5 4-5"/></svg>;
+const IcChart     = () => <svg {...S}><path d="M3 15.5V10M7.5 15.5V5.5M12 15.5V9.5M16.5 15.5V7"/><path d="M1.5 17h17"/></svg>;
+
 export default async function CandidatesPage() {
   const session = await requireRole(["admin", "ta"]);
   const [candidates, projects, roles] = await Promise.all([
@@ -54,13 +60,13 @@ export default async function CandidatesPage() {
       }
     >
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatBlock label="All candidates" value={candidates.length} icon="👥" />
-        <StatBlock label="Active" value={active} icon="◎" />
-        <StatBlock label="Selected" value={selected} icon="✓" />
+        <StatBlock label="All candidates" value={candidates.length} icon={<IcPeople />} />
+        <StatBlock label="Active"         value={active}           icon={<IcActive />} variant="cyan" />
+        <StatBlock label="Selected"       value={selected}         icon={<IcCheck />}  variant="green" />
         <StatBlock
           label="Avg. match"
           value={`${avgMatch}%`}
-          icon="📊"
+          icon={<IcChart />}
           className="hidden md:block"
         />
       </div>

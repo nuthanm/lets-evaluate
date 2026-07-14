@@ -5,6 +5,7 @@ import { questions } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { getOrgQuestions } from "@/lib/db/queries";
 
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
     visibility: body.visibility ?? "org",
     createdById: session.user.id,
   });
+  revalidatePath("/library");
   return NextResponse.json({ id });
 }
 
@@ -87,5 +89,6 @@ export async function DELETE(req: Request) {
   }
 
   await db.delete(questions).where(eq(questions.id, id));
+  revalidatePath("/library");
   return NextResponse.json({ ok: true });
 }
