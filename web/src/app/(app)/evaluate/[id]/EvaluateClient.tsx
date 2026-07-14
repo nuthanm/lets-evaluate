@@ -61,6 +61,7 @@ export function EvaluateClient({
   canFinalize: boolean;
   myActiveStageId: string | null;
   roleOpen?: boolean;
+  resumeText?: string;
   initialQuestions?: {
     standard: unknown[];
     resume: unknown[];
@@ -80,6 +81,8 @@ export function EvaluateClient({
   const [resumeReady, setResumeReady] = useState(initialHasResume);
   const [resumeName, setResumeName] = useState(resumeFilename);
   const [uploading, setUploading] = useState(false);
+  const [splitView, setSplitView] = useState(false);
+  const [wsStep, setWsStep] = useState<number>(1);
   const [questions, setQuestions] = useState<{
     standard: unknown[];
     resume: unknown[];
@@ -224,6 +227,12 @@ export function EvaluateClient({
   const activeInterviewStage = stages.find(
     (s) => s.status === "active" && s.kind !== "screening" && s.kind !== "final",
   );
+
+  // Show the tech-stack score sidebar only when viewing the AI Analysis step.
+  const showSidebar =
+    score != null &&
+    ((showWizard && step === 2) ||
+     (!showWizard && myActiveStage != null && wsStep === 1));
 
   // A single, plain-language read on where the candidate has landed. Drives the
   // outcome banner so a rejection / hold / selection is never mistaken for an
