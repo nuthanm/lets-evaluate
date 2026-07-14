@@ -222,7 +222,10 @@ export function ScheduleClient({
         return;
       }
       const data = await res.json();
-      if (data.mails?.length) setPreparedMails(data.mails as RenderedMail[]);
+      if (data.mails?.length) {
+        setPreparedMails(data.mails as RenderedMail[]);
+        setPending(null);
+      }
       if (data.icsUrl) setIcsUrl(data.icsUrl as string);
       if (!data.mails?.length) {
         router.push(`/evaluate/${candidate.id}`);
