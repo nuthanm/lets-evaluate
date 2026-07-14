@@ -103,7 +103,6 @@ export default async function EvaluatePage({ params }: Params) {
       role={roleRow?.name ?? "Role"}
       projectName={projectRow?.name ?? undefined}
       resumeFilename={detail.candidate.resumeFilename ?? undefined}
-      resumeText={detail.candidate.resumeText ?? undefined}
       hasResume={Boolean(
         detail.candidate.resumeText?.trim() ||
           detail.candidate.resumeStorageKey,

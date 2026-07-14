@@ -496,6 +496,239 @@ export const drafts = pgTable(
   (t) => [index("drafts_user_idx").on(t.userId)],
 );
 
+export const bulkJobStatusEnum = pgEnum("bulk_job_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const bulkJobItemStatusEnum = pgEnum("bulk_job_item_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "retry_pending",
+  "disqualified",
+]);
+
+export const pipelineStepEnum = pgEnum("pipeline_step", [
+  "queued",
+  "creating_profile",
+  "analyzing",
+  "generating_questions",
+  "preparing_email",
+  "awaiting_email",
+  "awaiting_interview",
+  "evaluating",
+  "applying_verdict",
+  "completed",
+]);
+
+export const aiScreeningSessionStatusEnum = pgEnum("ai_screening_session_status", [
+  "pending",
+  "in_progress",
+  "submitted",
+  "evaluating",
+  "completed",
+  "disqualified",
+  "expired",
+]);
+
+export const violationTypeEnum = pgEnum("violation_type", [
+  "tab_switch",
+  "idle",
+  "camera",
+]);
+
+export const emailDeliveryStatusEnum = pgEnum("email_delivery_status", [
+  "prepared",
+  "sent",
+  "failed",
+]);
+
+export const emailProviderEnum = pgEnum("email_provider", [
+  "none",
+  "graph",
+  "manual",
+]);
+
+export const bulkJobs = pgTable(
+  "bulk_jobs",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    roleId: text("role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    createdById: text("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    status: bulkJobStatusEnum("status").notNull().default("pending"),
+    totalCount: integer("total_count").notNull().default(0),
+    completedCount: integer("completed_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("bulk_jobs_org_idx").on(t.organizationId),
+    index("bulk_jobs_status_idx").on(t.status),
+  ],
+);
+
+export const bulkJobItems = pgTable(
+  "bulk_job_items",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => bulkJobs.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id").references(() => candidates.id, {
+      onDelete: "set null",
+    }),
+    rowIndex: integer("row_index").notNull().default(0),
+    candidateName: text("candidate_name").default(""),
+    candidateEmail: text("candidate_email").default(""),
+    currentStep: pipelineStepEnum("current_step").notNull().default("queued"),
+    status: bulkJobItemStatusEnum("status").notNull().default("queued"),
+    error: text("error").default(""),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    resumeFilename: text("resume_filename").default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("bulk_job_items_job_idx").on(t.jobId),
+    index("bulk_job_items_candidate_idx").on(t.candidateId),
+    index("bulk_job_items_status_idx").on(t.status),
+  ],
+);
+
+export const aiScreeningSessions = pgTable(
+  "ai_screening_sessions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id")
+      .notNull()
+      .references(() => candidates.id, { onDelete: "cascade" }),
+    bulkJobItemId: text("bulk_job_item_id").references(() => bulkJobItems.id, {
+      onDelete: "set null",
+    }),
+    token: text("token").notNull().unique(),
+    status: aiScreeningSessionStatusEnum("status").notNull().default("pending"),
+    questions: jsonb("questions").$type<unknown[]>().default([]),
+    answers: jsonb("answers").$type<unknown[]>().default([]),
+    evaluation: jsonb("evaluation").$type<Record<string, unknown>>().default({}),
+    strikeCount: integer("strike_count").notNull().default(0),
+    retryCount: integer("retry_count").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("ai_screening_sessions_candidate_idx").on(t.candidateId),
+    index("ai_screening_sessions_token_idx").on(t.token),
+  ],
+);
+
+export const screeningViolations = pgTable(
+  "screening_violations",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => aiScreeningSessions.id, { onDelete: "cascade" }),
+    type: violationTypeEnum("type").notNull(),
+    strikeNumber: integer("strike_number").notNull().default(1),
+    message: text("message").default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("screening_violations_session_idx").on(t.sessionId)],
+);
+
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id").references(() => candidates.id, {
+      onDelete: "set null",
+    }),
+    bulkJobItemId: text("bulk_job_item_id").references(() => bulkJobItems.id, {
+      onDelete: "set null",
+    }),
+    slug: text("slug").notNull(),
+    recipient: text("recipient").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    status: emailDeliveryStatusEnum("status").notNull().default("prepared"),
+    provider: emailProviderEnum("provider").notNull().default("manual"),
+    graphMessageId: text("graph_message_id"),
+    error: text("error").default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("email_deliveries_org_idx").on(t.organizationId),
+    index("email_deliveries_candidate_idx").on(t.candidateId),
+  ],
+);
+
+export const orgEmailConfig = pgTable(
+  "org_email_config",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .unique(),
+    provider: emailProviderEnum("provider").notNull().default("none"),
+    tenantId: text("tenant_id").default(""),
+    clientId: text("client_id").default(""),
+    clientSecret: text("client_secret").default(""),
+    senderEmail: text("sender_email").default(""),
+    configured: boolean("configured").notNull().default(false),
+    graphEnabled: boolean("graph_enabled").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [uniqueIndex("org_email_config_organization_id_unique").on(t.organizationId)],
+);
+
 /* Auth.js tables */
 export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),

@@ -197,7 +197,6 @@ export async function sendScreeningInvite(input: {
       orgName: vars.orgName,
       taName: vars.taName,
       caseUrl: vars.screeningLink,
-      screeningLink: vars.screeningLink,
     },
   );
 
