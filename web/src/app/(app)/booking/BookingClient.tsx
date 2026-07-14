@@ -11,6 +11,8 @@ type Candidate = {
   name: string;
   email: string;
   status: string;
+  roleName: string | null;
+  roleClosed: boolean;
   techMatchScore: number | null;
   recommendation: string | null;
   summary: string | null;
@@ -40,13 +42,14 @@ export function BookingClient({
     <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
       <section>
         <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-          Ready for interview ({candidates.length})
+          Ready to schedule ({candidates.length})
         </h2>
         {candidates.length === 0 ? (
           <CaseCard className="p-6 text-sm text-[var(--ink-faint)]">
             No candidates are ready for booking yet. Candidates appear here once TA
             screening marks them as{" "}
-            <span className="font-semibold">ready for interview</span>.
+            <span className="font-semibold">ready for interview</span>, or when
+            rescheduling an assigned round.
           </CaseCard>
         ) : (
           <ul className="space-y-3">
@@ -76,6 +79,10 @@ export function BookingClient({
                         {c.techMatchScore}% match
                       </Pill>
                     )}
+                    {c.roleClosed && <Pill variant="orange">Opening closed</Pill>}
+                    {c.status === "assigned" && (
+                      <Pill variant="neutral">Reschedule</Pill>
+                    )}
                   </div>
 
                   {c.summary && (
@@ -95,7 +102,9 @@ export function BookingClient({
                       href={`/booking/${c.id}`}
                       className="px-4 py-2 text-[12px]"
                     >
-                      Assign interviewer & book →
+                      {c.status === "assigned"
+                        ? "Reschedule slot →"
+                        : "Assign interviewer & book →"}
                     </ButtonLink>
                   </div>
                 </CaseCard>

@@ -13,6 +13,9 @@ export function NewCandidateClient() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [source, setSource] = useState("");
+  const [consent, setConsent] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [roleId, setRoleId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -43,6 +46,9 @@ export function NewCandidateClient() {
     const fd = new FormData();
     fd.set("name", name);
     fd.set("email", email);
+    if (phone) fd.set("phone", phone);
+    if (source) fd.set("source", source);
+    if (consent) fd.set("consent", "true");
     if (projectId) fd.set("projectId", projectId);
     if (roleId) fd.set("roleId", roleId);
     if (file) fd.set("resume", file);
@@ -80,6 +86,32 @@ export function NewCandidateClient() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
+          <div>
+            <FieldLabel htmlFor="candidate-phone">Phone</FieldLabel>
+            <FieldInput
+              id="candidate-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="candidate-source">Source</FieldLabel>
+            <FieldInput
+              id="candidate-source"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              placeholder="e.g. LinkedIn, referral, agency"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-[13px] text-[var(--ink-soft)]">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
+            Candidate has consented to data processing
+          </label>
           <div>
             <FieldLabel htmlFor="candidate-project">Project</FieldLabel>
             <FieldSelect

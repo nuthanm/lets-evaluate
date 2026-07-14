@@ -49,9 +49,14 @@ export default async function CandidatesPage() {
       title="Candidate details"
       subtitle="Profiles and AI evaluation reports for every candidate"
       actions={
-        <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
-          + New candidate
-        </ButtonLink>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/candidates/import" variant="ghost" className="px-4 py-2 text-[13px]">
+            Import CSV
+          </ButtonLink>
+          <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
+            + New candidate
+          </ButtonLink>
+        </div>
       }
     >
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">

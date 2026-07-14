@@ -5,9 +5,10 @@ import { EvaluateClient } from "./EvaluateClient";
 import { NewCandidateClient } from "./NewCandidateClient";
 import { CabinetPage } from "@/components/CabinetPage";
 import { db } from "@/lib/db";
-import { projects, roles } from "@/lib/db/schema";
+import { candidates, projects, roles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { ResumeMetrics } from "@/lib/ai";
+import { getRoleOpeningStatus } from "@/lib/db/opening-guard";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -78,6 +79,19 @@ export default async function EvaluatePage({ params }: Params) {
         s.stage.assignedToId === session.user.id && s.stage.status === "active",
     )?.stage.id ?? null;
 
+  if (
+    myActiveStageId &&
+    detail.candidate.status === "assigned"
+  ) {
+    await db
+      .update(candidates)
+      .set({ status: "interview_in_progress", updatedAt: new Date() })
+      .where(eq(candidates.id, id));
+    detail.candidate.status = "interview_in_progress";
+  }
+
+  const { open: roleOpen } = await getRoleOpeningStatus(detail.candidate.roleId);
+
   const canFinalize =
     (session.user.role === "admin" || session.user.role === "ta") &&
     detail.candidate.status === "interview_complete";
@@ -105,7 +119,15 @@ export default async function EvaluatePage({ params }: Params) {
       candidateEmail={detail.candidate.email ?? undefined}
       canFinalize={canFinalize}
       myActiveStageId={myActiveStageId}
-      userRole={session.user.role}
+      roleOpen={roleOpen}
+      initialQuestions={
+        detail.screening
+          ? {
+              standard: (detail.screening.standardQuestions as unknown[]) ?? [],
+              resume: (detail.screening.resumeQuestions as unknown[]) ?? [],
+            }
+          : undefined
+      }
     />
   );
 }

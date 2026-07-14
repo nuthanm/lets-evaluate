@@ -177,6 +177,28 @@ body {
   color: var(--cyan-d);
 }
 
+.eval-step.fail {
+  background: var(--orange-soft);
+  color: var(--orange);
+  opacity: 1;
+}
+
+.eval-step.skip {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--cream),
+    var(--cream) 6px,
+    var(--cream-2) 6px,
+    var(--cream-2) 12px
+  );
+  color: var(--ink-faint);
+}
+
+.eval-step.fail .num,
+.eval-step.skip .num {
+  color: inherit;
+}
+
 .eval-step .num {
   display: block;
   font-family: var(--font-fraunces), Georgia, serif;

@@ -12,6 +12,7 @@ import {
   users,
   pipelineStages,
   candidateStages,
+  interviewerAvailability,
 } from "@/lib/db/schema";
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
@@ -165,16 +166,16 @@ export async function getCandidatesForUser(
   }
 
   const assignedIds = await db
-    .select({ candidateId: interviewAssignments.candidateId })
-    .from(interviewAssignments)
+    .select({ candidateId: candidateStages.candidateId })
+    .from(candidateStages)
     .where(
       and(
-        eq(interviewAssignments.organizationId, organizationId),
-        eq(interviewAssignments.assignedToId, userId),
+        eq(candidateStages.organizationId, organizationId),
+        eq(candidateStages.assignedToId, userId),
       ),
     );
 
-  const ids = assignedIds.map((a) => a.candidateId);
+  const ids = [...new Set(assignedIds.map((a) => a.candidateId))];
   if (!ids.length) return [];
 
   return db
@@ -241,15 +242,15 @@ export async function getCandidatesGridForUser(
     condition = and(condition, eq(candidates.createdById, userId))!;
   } else if (role !== "admin") {
     const assignedIds = await db
-      .select({ candidateId: interviewAssignments.candidateId })
-      .from(interviewAssignments)
+      .select({ candidateId: candidateStages.candidateId })
+      .from(candidateStages)
       .where(
         and(
-          eq(interviewAssignments.organizationId, organizationId),
-          eq(interviewAssignments.assignedToId, userId),
+          eq(candidateStages.organizationId, organizationId),
+          eq(candidateStages.assignedToId, userId),
         ),
       );
-    const ids = assignedIds.map((a) => a.candidateId);
+    const ids = [...new Set(assignedIds.map((a) => a.candidateId))];
     if (!ids.length) return [];
     condition = and(condition, inArray(candidates.id, ids))!;
   }
@@ -584,13 +585,16 @@ export async function getBookableCandidates(organizationId: string) {
       candidate: candidates,
       metrics: screenings.metrics,
       decision: screenings.decision,
+      roleStatus: roles.status,
+      roleName: roles.name,
     })
     .from(candidates)
     .leftJoin(screenings, eq(screenings.candidateId, candidates.id))
+    .leftJoin(roles, eq(candidates.roleId, roles.id))
     .where(
       and(
         eq(candidates.organizationId, organizationId),
-        eq(candidates.status, "ready_for_interview"),
+        inArray(candidates.status, ["ready_for_interview", "assigned"]),
       ),
     )
     .orderBy(desc(candidates.updatedAt));
@@ -840,6 +844,7 @@ export async function getStageBookings(organizationId: string) {
       kind: candidateStages.kind,
       status: candidateStages.status,
       dueAt: candidateStages.dueAt,
+      slaDueAt: candidateStages.slaDueAt,
       assigneeId: candidateStages.assignedToId,
       assigneeName: users.name,
     })
@@ -961,4 +966,90 @@ export async function getStageAssignmentsForUser(
       ),
     )
     .orderBy(asc(candidateStages.dueAt));
+}
+
+/** Pending active stages per assignee (panel load). */
+export async function getInterviewerLoad(organizationId: string) {
+  const rows = await db
+    .select({
+      userId: candidateStages.assignedToId,
+      status: candidateStages.status,
+    })
+    .from(candidateStages)
+    .where(
+      and(
+        eq(candidateStages.organizationId, organizationId),
+        eq(candidateStages.status, "active"),
+      ),
+    );
+
+  const load: Record<string, number> = {};
+  for (const r of rows) {
+    if (!r.userId) continue;
+    load[r.userId] = (load[r.userId] ?? 0) + 1;
+  }
+  return load;
+}
+
+export async function getAvailabilityForUser(
+  organizationId: string,
+  userId: string,
+) {
+  return db
+    .select()
+    .from(interviewerAvailability)
+    .where(
+      and(
+        eq(interviewerAvailability.organizationId, organizationId),
+        eq(interviewerAvailability.userId, userId),
+      ),
+    )
+    .orderBy(
+      interviewerAvailability.dayOfWeek,
+      interviewerAvailability.startMinute,
+    );
+}
+
+export async function saveAvailabilityForUser(
+  organizationId: string,
+  userId: string,
+  windows: { dayOfWeek: number; startMinute: number; endMinute: number }[],
+) {
+  await db
+    .delete(interviewerAvailability)
+    .where(
+      and(
+        eq(interviewerAvailability.organizationId, organizationId),
+        eq(interviewerAvailability.userId, userId),
+      ),
+    );
+  if (!windows.length) return;
+  await db.insert(interviewerAvailability).values(
+    windows.map((w) => ({
+      id: uuid(),
+      organizationId,
+      userId,
+      dayOfWeek: w.dayOfWeek,
+      startMinute: w.startMinute,
+      endMinute: w.endMinute,
+    })),
+  );
+}
+
+export async function getAuditLog(
+  organizationId: string,
+  limit = 100,
+  offset = 0,
+) {
+  return db
+    .select({
+      event: evaluationEvents,
+      actorName: users.name,
+    })
+    .from(evaluationEvents)
+    .leftJoin(users, eq(evaluationEvents.actorId, users.id))
+    .where(eq(evaluationEvents.organizationId, organizationId))
+    .orderBy(desc(evaluationEvents.createdAt))
+    .limit(limit)
+    .offset(offset);
 }

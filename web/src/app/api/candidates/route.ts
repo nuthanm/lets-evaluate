@@ -57,6 +57,9 @@ export async function POST(req: Request) {
     const email = String(form.get("email") ?? "");
     const projectId = String(form.get("projectId") ?? "") || null;
     const roleId = String(form.get("roleId") ?? "") || null;
+    const phone = String(form.get("phone") ?? "");
+    const source = String(form.get("source") ?? "");
+    const consent = form.get("consent") === "true" || form.get("consent") === "on";
     const file = form.get("resume") as File | null;
 
     if (!name) return apiError("Name required", 400);
@@ -87,6 +90,9 @@ export async function POST(req: Request) {
       organizationId: session.user.organizationId,
       name,
       email,
+      phone: phone || "",
+      source: source || "",
+      consentAt: consent ? new Date() : null,
       projectId,
       roleId,
       resumeStorageKey,

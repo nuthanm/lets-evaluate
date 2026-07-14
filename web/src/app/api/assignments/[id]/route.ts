@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { candidates, candidateStages, organizationMembers } from "@/lib/db/schema";
+import {
+  candidates,
+  candidateStages,
+  organizationMembers,
+  projects,
+  roles,
+  users,
+} from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
@@ -12,6 +19,9 @@ import {
   rolesForStageKind,
   type StageKind,
 } from "@/lib/db/queries";
+import { assertRoleOpen } from "@/lib/db/opening-guard";
+import { prepareMails } from "@/lib/email";
+import { buildMailVars } from "@/lib/email/vars";
 
 const assignSchema = z.object({
   assignedToId: z.string().min(1),
@@ -42,6 +52,8 @@ export async function POST(req: Request, { params }: Params) {
     )
     .limit(1);
   if (!candidate) return apiError("Not found", 404);
+  const openingErr = await assertRoleOpen(candidate.roleId);
+  if (openingErr) return apiError(openingErr, 400);
   if (!["ready_for_interview", "assigned"].includes(candidate.status)) {
     return apiError("Candidate must pass TA screening first", 400);
   }
@@ -58,7 +70,6 @@ export async function POST(req: Request, { params }: Params) {
     return apiError("The current stage is not an interview round", 400);
   }
 
-  // The assignee's role must match the stage kind (manager round → manager, etc).
   const allowed = rolesForStageKind(active.stage.kind as StageKind);
   const [member] = await db
     .select({ role: organizationMembers.role })
@@ -77,13 +88,19 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
+  const dueAt = body.dueAt ? new Date(body.dueAt) : null;
+  const slaDueAt = dueAt
+    ? new Date(dueAt.getTime() + 48 * 60 * 60 * 1000)
+    : null;
+
   await db
     .update(candidateStages)
     .set({
       assignedToId: body.assignedToId,
       assignedById: session.user.id,
       handoffNote: body.handoffNote ?? active.stage.handoffNote ?? "",
-      dueAt: body.dueAt ? new Date(body.dueAt) : null,
+      dueAt,
+      slaDueAt,
       updatedAt: new Date(),
     })
     .where(eq(candidateStages.id, active.stage.id));
@@ -106,5 +123,55 @@ export async function POST(req: Request, { params }: Params) {
     },
   });
 
-  return NextResponse.json({ stageId: active.stage.id });
+  const [assignee] = await db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, body.assignedToId))
+    .limit(1);
+  const [roleRow] = candidate.roleId
+    ? await db
+        .select({ name: roles.name })
+        .from(roles)
+        .where(eq(roles.id, candidate.roleId))
+        .limit(1)
+    : [null];
+  const [projectRow] = candidate.projectId
+    ? await db
+        .select({ name: projects.name })
+        .from(projects)
+        .where(eq(projects.id, candidate.projectId))
+        .limit(1)
+    : [null];
+
+  const interviewDate = dueAt
+    ? dueAt.toLocaleString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "TBD";
+
+  const baseVars = buildMailVars({
+    candidate,
+    roleName: roleRow?.name ?? "Role",
+    projectName: projectRow?.name ?? "Project",
+    taName: session.user.name ?? undefined,
+    interviewDate,
+    interviewStage: active.stage.label,
+    interviewer: assignee ?? undefined,
+    handoffNote: body.handoffNote ?? "",
+  });
+
+  const mails = await prepareMails(session.user.organizationId, [
+    { slug: "interviewer_assigned", vars: baseVars },
+    { slug: "candidate_scheduled", vars: baseVars },
+  ]);
+
+  return NextResponse.json({
+    stageId: active.stage.id,
+    mails,
+    icsUrl: `/api/stages/${active.stage.id}/ics`,
+  });
 }

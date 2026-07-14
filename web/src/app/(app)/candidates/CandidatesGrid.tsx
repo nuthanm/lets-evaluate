@@ -6,6 +6,10 @@ import { FaceAvatar } from "@/components/FaceAvatar";
 import { Button } from "@/components/Button";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
 import { cn } from "@/lib/utils";
+import {
+  candidateNeedsAction,
+  nextActionForCandidate,
+} from "@/lib/recruiter/tasks";
 
 export type GridCandidate = {
   id: string;
@@ -106,7 +110,7 @@ const TONE_PILL: Record<Tone, string> = {
   draft: "border-[var(--cream-2)] bg-[var(--cream-2)] text-[var(--ink-soft)]",
 };
 
-type ToneFilter = "all" | Tone;
+type ToneFilter = "all" | Tone | "action";
 
 const LEGEND: { tone: Tone; label: string }[] = [
   { tone: "active", label: "In progress" },
@@ -143,7 +147,7 @@ export function CandidatesGrid({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [toneFilter, setToneFilter] = useState<ToneFilter>("all");
+  const [toneFilter, setToneFilter] = useState<ToneFilter>("action");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "updated",
     dir: "desc",
@@ -154,6 +158,7 @@ export function CandidatesGrid({
   const toneCounts = useMemo(() => {
     const counts: Record<ToneFilter, number> = {
       all: candidates.length,
+      action: candidates.filter((c) => candidateNeedsAction(c.status)).length,
       active: 0,
       selected: 0,
       hold: 0,
@@ -167,8 +172,12 @@ export function CandidatesGrid({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = candidates.filter((c) => {
-      const tone = stageMeta(c.status).tone;
-      if (toneFilter !== "all" && tone !== toneFilter) return false;
+      if (toneFilter === "action") {
+        if (!candidateNeedsAction(c.status)) return false;
+      } else if (toneFilter !== "all") {
+        const tone = stageMeta(c.status).tone;
+        if (tone !== toneFilter) return false;
+      }
       if (!q) return true;
       return [c.name, c.email, c.projectName, c.roleName]
         .filter(Boolean)
@@ -251,10 +260,18 @@ export function CandidatesGrid({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {(["all", "active", "selected", "hold", "rejected", "draft"] as const).map(
+          {(["action", "all", "active", "selected", "hold", "rejected", "draft"] as const).map(
             (t) => {
               const active = toneFilter === t;
-              const dotTone = t === "all" ? null : (t as Tone);
+              const dotTone = t === "all" || t === "action" ? null : (t as Tone);
+              const label =
+                t === "all"
+                  ? "All"
+                  : t === "action"
+                    ? "Needs action"
+                    : t === "active"
+                      ? "In progress"
+                      : t;
               return (
                 <button
                   key={t}
@@ -276,7 +293,7 @@ export function CandidatesGrid({
                       )}
                     />
                   ) : null}
-                  {t === "all" ? "All" : t === "active" ? "In progress" : t}
+                  {label}
                   <span className={cn(active ? "text-white/70" : "text-[var(--ink-faint)]")}>
                     {toneCounts[t]}
                   </span>
@@ -336,6 +353,9 @@ export function CandidatesGrid({
                   dir={sort.dir}
                   onClick={() => toggleSort("updated")}
                 />
+                <th className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
+                  Next action
+                </th>
                 <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
                   Actions
                 </th>
@@ -345,7 +365,7 @@ export function CandidatesGrid({
               {visible.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-10 text-center text-sm text-[var(--ink-faint)]"
                   >
                     No candidates match your search.
@@ -467,6 +487,23 @@ export function CandidatesGrid({
                       </td>
                       <td className="px-3 py-3 text-[11px] text-[var(--ink-faint)]">
                         {formatDate(c.updatedAt)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {(() => {
+                          const next = nextActionForCandidate(c.id, c.status);
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(next.href);
+                              }}
+                              className="text-[11px] font-semibold text-[var(--cyan-d)] hover:underline"
+                            >
+                              {next.label} →
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-end gap-1.5">

@@ -456,7 +456,7 @@ draft → screening → screened_hold / screened_rejected
 
 | Feature Area | Implementation Location |
 |--------------|-------------------------|
-| Branding / white-label | `web/src/lib/brand.ts`, `BrandTheme.tsx`, `.env.example` |
+| Branding / white-label | `web/src/lib/brand.ts`, `BrandTheme.tsx`, `web/.env.example` |
 | Auth + domain restriction | `web/src/app/login/`, `web/src/app/register/` |
 | Projects / Roles / Questions | `web/src/app/setup/`, API routes |
 | AI resume analysis | `web/src/lib/ai/index.ts` (`analyzeResume`, GPT-4o) |
