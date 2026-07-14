@@ -26,7 +26,9 @@ If `RESUME_STORAGE_PROVIDER=s3`:
 aws s3 sync s3://old-bucket/resumes s3://new-bucket/resumes
 ```
 
-Update `S3_BUCKET`, `S3_ENDPOINT`, and credentials in env.
+Update `S2_BUCKET`, `S2_ENDPOINT`, and credentials in env.
+
+For Cloudflare R2, set `S2_ENDPOINT` to `https://<account-id>.r2.cloudflarestorage.com` and keep `S2_REGION=auto`.
 
 ## Verify after migration
 

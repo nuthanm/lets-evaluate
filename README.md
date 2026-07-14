@@ -22,7 +22,7 @@
 | Audit log | Organization-wide activity history |
 | Archives | Browse past evaluations and outcomes |
 | White-label branding | Per-deployment org name, colors, logo, and domain restrictions |
-| Resume storage | Local filesystem (dev) or S3-compatible object storage (prod) |
+| Resume storage | Local filesystem (dev) or S3-compatible object storage like Cloudflare R2 (prod) |
 
 ---
 
@@ -148,7 +148,18 @@ NEXT_PUBLIC_BRAND_PRIMARY=#4F46E5
 | Variable | Description |
 |---|---|
 | `RESUME_STORAGE_PROVIDER` | `local` (default) or `s3` |
-| `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Required when using S3 |
+| `S2_BUCKET`, `S2_REGION`, `S2_ENDPOINT`, `S2_ACCESS_KEY_ID`, `S2_SECRET_ACCESS_KEY` | Required when using S2-compatible storage settings for Cloudflare R2 |
+
+**Cloudflare R2 example**
+
+```env
+RESUME_STORAGE_PROVIDER=s3
+S2_BUCKET=your-bucket-name
+S2_REGION=auto
+S2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+S2_ACCESS_KEY_ID=your-r2-access-key
+S2_SECRET_ACCESS_KEY=your-r2-secret-key
+```
 
 ### Microsoft Entra ID SSO (optional)
 
