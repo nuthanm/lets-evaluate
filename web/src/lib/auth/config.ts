@@ -4,7 +4,7 @@ import {
   organizations,
   users,
 } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
 import type { NextAuthConfig } from "next-auth";
