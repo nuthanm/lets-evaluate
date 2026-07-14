@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile } from "fs/promises";
+import { mkdir, writeFile, readFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { v4 as uuid } from "uuid";
@@ -63,6 +63,65 @@ export async function readResume(key: string): Promise<Buffer> {
     return Buffer.from(bytes);
   }
   return readFile(path.join(LOCAL_DIR, key));
+}
+
+export async function deleteResume(key: string): Promise<void> {
+  const provider = process.env.RESUME_STORAGE_PROVIDER ?? "local";
+  if (provider === "s3") {
+    const { S3Client, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = new S3Client({
+      region: process.env.S2_REGION ?? "auto",
+      endpoint: process.env.S2_ENDPOINT || undefined,
+      credentials: {
+        accessKeyId: process.env.S2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.S2_SECRET_ACCESS_KEY!,
+      },
+    });
+    await client.send(
+      new DeleteObjectCommand({ Bucket: process.env.S2_BUCKET!, Key: key }),
+    );
+    return;
+  }
+
+  try {
+    await unlink(path.join(LOCAL_DIR, key));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
+}
+
+export async function putResumeAtKey(
+  key: string,
+  file: Buffer,
+  filename: string,
+): Promise<void> {
+  const provider = process.env.RESUME_STORAGE_PROVIDER ?? "local";
+
+  if (provider === "s3") {
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = new S3Client({
+      region: process.env.S2_REGION ?? "auto",
+      endpoint: process.env.S2_ENDPOINT || undefined,
+      credentials: {
+        accessKeyId: process.env.S2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.S2_SECRET_ACCESS_KEY!,
+      },
+    });
+    await client.send(
+      new PutObjectCommand({
+        Bucket: process.env.S2_BUCKET!,
+        Key: key,
+        Body: file,
+        ContentType: guessMime(filename),
+      }),
+    );
+    return;
+  }
+
+  await mkdir(LOCAL_DIR, { recursive: true });
+  await writeFile(path.join(LOCAL_DIR, key), file);
 }
 
 function guessMime(filename: string) {

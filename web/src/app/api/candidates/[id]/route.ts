@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { candidates, projects, roles, candidateStages, screenings } from "@/lib/db/schema";
+import {
+  candidates,
+  projects,
+  roles,
+  candidateStages,
+  screenings,
+  evaluationEvents,
+} from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
-import { storeResume, readResume } from "@/lib/storage/resumes";
+import {
+  storeResume,
+  readResume,
+  deleteResume,
+  putResumeAtKey,
+} from "@/lib/storage/resumes";
 import { extractResumeText } from "@/lib/resume/parse";
 import {
   isAllowedResumeFilename,
@@ -657,24 +669,85 @@ export async function DELETE(_req: Request, { params }: Params) {
     }),
   );
 
-  // Related screenings, assignments, reviews and drafts cascade on delete.
-  await db
-    .delete(candidates)
-    .where(
-      and(
-        eq(candidates.id, id),
-        eq(candidates.organizationId, session.user.organizationId),
-      ),
-    );
+  let resumeBackup: Buffer | null = null;
+  if (existing.resumeStorageKey) {
+    try {
+      resumeBackup = await readResume(existing.resumeStorageKey);
+    } catch (err) {
+      const error = err as NodeJS.ErrnoException & { name?: string };
+      const msg = error.message ?? "";
+      const isMissingObject =
+        error.code === "ENOENT" ||
+        error.name === "NoSuchKey" ||
+        error.name === "NotFound" ||
+        /NoSuchKey|not found|does not exist/i.test(msg);
+      if (!isMissingObject) {
+        console.error("Resume backup read failed", {
+          candidateId: id,
+          key: existing.resumeStorageKey,
+          err,
+        });
+        return apiError("Failed to prepare resume deletion rollback", 500);
+      }
+    }
 
-  await logEvent({
-    organizationId: session.user.organizationId,
-    actorId: session.user.id,
-    entityType: "candidate",
-    entityId: id,
-    action: "candidate.deleted",
-    payload: { name: existing.name, noticeSlug, hadAnalysis, hadInterviewRounds },
-  });
+    try {
+      await deleteResume(existing.resumeStorageKey);
+    } catch (err) {
+      console.error("Resume storage delete failed", {
+        candidateId: id,
+        key: existing.resumeStorageKey,
+        err,
+      });
+      return apiError("Failed to delete resume from storage", 500);
+    }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // Related screenings, assignments, reviews and drafts cascade on delete.
+      await tx
+        .delete(candidates)
+        .where(
+          and(
+            eq(candidates.id, id),
+            eq(candidates.organizationId, session.user.organizationId),
+          ),
+        );
+
+      await tx.insert(evaluationEvents).values({
+        id: uuid(),
+        organizationId: session.user.organizationId,
+        actorId: session.user.id,
+        entityType: "candidate",
+        entityId: id,
+        action: "candidate.deleted",
+        payload: { name: existing.name, noticeSlug, hadAnalysis, hadInterviewRounds },
+      });
+    });
+  } catch (err) {
+    if (existing.resumeStorageKey && resumeBackup) {
+      try {
+        await putResumeAtKey(
+          existing.resumeStorageKey,
+          resumeBackup,
+          existing.resumeFilename || "resume.bin",
+        );
+      } catch (restoreErr) {
+        console.error("Resume rollback restore failed", {
+          candidateId: id,
+          key: existing.resumeStorageKey,
+          restoreErr,
+        });
+      }
+    }
+
+    console.error("Candidate delete transaction failed", {
+      candidateId: id,
+      err,
+    });
+    return apiError("Candidate delete failed. Changes were rolled back.", 500);
+  }
 
   return NextResponse.json({ ok: true, mail });
 }
