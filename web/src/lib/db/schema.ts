@@ -382,10 +382,8 @@ export const screenings = pgTable(
     // NEW: Resume deduplication — hash of normalized resume text
     resumeHash: text("resume_hash"),
     // NEW: Link to prior analysis if this resume was analyzed before
-    previousScreeningId: text("previous_screening_id").references(
-      () => screenings.id,
-      { onDelete: "set null" },
-    ),
+    // Note: Self-referential FK defined in constraints section below
+    previousScreeningId: text("previous_screening_id"),
     metrics: jsonb("metrics").$type<Record<string, unknown>>().default({}),
     standardQuestions: jsonb("standard_questions").$type<unknown[]>().default([]),
     resumeQuestions: jsonb("resume_questions").$type<unknown[]>().default([]),
