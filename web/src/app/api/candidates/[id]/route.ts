@@ -518,6 +518,7 @@ export async function PUT(req: Request, { params }: Params) {
       resumeStorageKey = await storeResume(buf, file.name);
     } catch (err) {
       console.error("Resume storage failed", err);
+      return apiError("Resume upload failed. Check the storage connection and try again.", 502);
     }
     resumeText = await extractResumeText(buf, file.name);
   }
