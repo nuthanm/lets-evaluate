@@ -219,73 +219,172 @@ export type AnalyzeOptions = {
   otherProjects?: { name: string; techStack: string[] }[];
 };
 
-export async function analyzeResume(
+/**
+ * PHASE 1: Extract structured data from resume (fast, deterministic).
+ * Uses gpt-4o-mini for cost efficiency (~$0.00015/1K tokens).
+ */
+async function extractResumeData(resumeText: string) {
+  const openai = client();
+  if (!openai) {
+    return null;
+  }
+
+  const extractionPrompt = `Extract structured data from the resume below. Return ONLY valid JSON (no markdown).
+
+Resume text:
+${resumeText.slice(0, MAX_RESUME)}
+
+CRITICAL RULES:
+1. Extract facts EXACTLY as written in the resume
+2. Never invent or infer data not explicitly present
+3. For dates, use format "YYYY-MM" or "YYYY" or "Not specified"
+4. For current roles, set is_current: true if end_date is missing or says "Present"/"Till Date"/"Current"
+5. List technologies mentioned anywhere: skills, certifications, project descriptions
+
+Return JSON object:
+{
+  "employment": [
+    {
+      "company": "Company Name",
+      "title": "Job Title",
+      "start_date": "YYYY-MM",
+      "end_date": "YYYY-MM or empty string for current",
+      "description": "Excerpt from resume describing the role",
+      "is_current": boolean
+    }
+  ],
+  "education": [
+    {
+      "degree": "Degree Name",
+      "school": "University",
+      "graduation_year": "YYYY"
+    }
+  ],
+  "technologies_mentioned": ["Tech1", "Tech2", ...],
+  "certifications": ["Cert1", ...],
+  "experience_claims": ["5 years Java", ...]
+}`;
+
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      seed: 7,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a resume data extractor. Extract facts exactly as written. Never fabricate. Return valid JSON only.",
+        },
+        { role: "user", content: extractionPrompt },
+      ],
+    });
+
+    return parseJson<any>(res.choices[0]?.message?.content ?? "{}");
+  } catch (e) {
+    console.error("Extraction failed:", e);
+    return null;
+  }
+}
+
+/**
+ * PHASE 2: Analyze extracted data with deterministic rules.
+ * Uses gpt-4o for judgment and reasoning (~$0.003/1K tokens).
+ */
+async function analyzeExtractedData(
+  extractedData: any,
   resumeText: string,
   projectTechStack: string[],
   roleRequirements: string,
-  opts: AnalyzeOptions = {},
+  roleName: string,
+  projectName: string,
+  otherProjects: { name: string; techStack: string[] }[],
 ): Promise<ResumeMetrics> {
   const openai = client();
   if (!openai) {
     return emptyMetrics(projectTechStack, "OpenAI API key not configured");
   }
 
-  const roleName = opts.roleName?.trim() || "the role";
-  const projectName = opts.projectName?.trim() || "the project";
   const otherProjectsBlock =
-    opts.otherProjects && opts.otherProjects.length
-      ? opts.otherProjects
-          .map((p) => `- ${p.name}: ${p.techStack.join(", ") || "n/a"}`)
-          .join("\n")
-      : "None provided";
+    otherProjects && otherProjects.length
+      ? otherProjects.map((p) => `- ${p.name}: ${p.techStack.join(", ") || "n/a"}`).join("\n")
+      : "None";
 
-  const prompt = `You are an expert technical recruiter performing a rigorous, evidence-based resume evaluation.
+  const analysisPrompt = `You are a technical recruiter evaluating a candidate for "${roleName}" on project "${projectName}".
 
-STRICT GROUNDING RULES — follow exactly to avoid hallucination:
-1. Base EVERY statement only on facts explicitly present in the resume text below. Never invent employers, job titles, dates, degrees, certifications, or skills.
-2. If a piece of information is not present, use an empty string "", an empty array [], or "Not specified" — never guess.
-3. Only list a technology under matched_technologies if it is clearly evidenced in the resume. Otherwise it is missing.
-4. Derive total_experience_calculated and per-technology years only from dated roles/skills in the resume; if dates are missing, return "Not specified".
-5. Be deterministic and consistent: identical input must always yield the same evaluation. Do not add creative embellishment.
+EXTRACTED CANDIDATE DATA:
+${JSON.stringify(extractedData, null, 2)}
 
-Role being evaluated: ${roleName} on project "${projectName}".
+REQUIRED TECH STACK: ${projectTechStack.join(", ")}
 
-Resume:
-${resumeText.slice(0, MAX_RESUME)}
-
-Required Tech Stack: ${projectTechStack.join(", ")}
-
-Role Requirements:
+ROLE REQUIREMENTS:
 ${roleRequirements.slice(0, MAX_ROLE)}
 
-Other open projects (for cross-suggestions):
+OTHER OPEN PROJECTS:
 ${otherProjectsBlock}
 
-Return ONLY a valid JSON object (no markdown) with EXACTLY these keys:
-- tech_match_score (number)
-- experience_level (string)
-- matched_technologies (string[])
-- missing_technologies (string[])
-- tech_comparison: array of { technology, status } covering ALL Required Tech Stack items. status is "Matched" when clearly evidenced, "Unmatched" when absent, or "Clarification" when the resume only mentions it generically/vaguely (e.g. a bare keyword list) without concrete real-world usage.
-- tech_experience: array of { technology, first_year, last_year, total_years } for the candidate's most-used technologies, computed from dated experience. Use "Present" for last_year when still in use. Include the top technologies by usage. If dates are unavailable, use "Not specified".
-- clarifications: array of { technology, reason } for every technology the candidate listed only generically and where real-world, hands-on depth must be confirmed. reason briefly states why clarification is needed.
-- domain_expertise: string[] of business/industry domains explicitly evidenced (e.g. Banking, Healthcare). Empty if none.
-- strengths (string[])
-- concerns (string[])  // weaknesses / gaps from the resume
-- recommendation: one of "Proceed", "Hold", "Reject", justified strictly by resume evidence.
-- summary (string)
-- certifications (string[])
-- career_history: array of { company, title, start, end, duration, is_current } ordered most recent first.
-- total_experience_mentioned (string)
-- total_experience_calculated (string)
-- is_currently_employed (boolean)
-- current_employer (string)  // current or, if not employed, most recent employer
-- current_role (string)      // role/title at that employer
-- current_tenure (string)    // duration at that employer
-- suitability: { verdict, description } where verdict is "Suitable", "Partially suitable" or "Not suitable" for ${roleName} on "${projectName}", and description explains why in 1-3 sentences grounded in the resume.
-- project_suggestions: array of { project, reason } naming which of the "Other open projects" above better match this candidate's skills. Empty array if none are provided or none match.
+---
 
-CONSISTENCY RULE: recommendation and suitability.verdict MUST agree. Use "Suitable" -> "Proceed", "Partially suitable" -> "Proceed" or "Hold", "Not suitable" -> "Reject". Never pair "Proceed" with "Not suitable" or "Reject" with "Suitable".`;
+ANALYSIS RULES (Follow EXACTLY):
+
+1. TECH MATCHING (For each tech in Required Stack):
+   - "Matched": Technology explicitly mentioned in employment descriptions (not just skills)
+   - "Unmatched": Never mentioned
+   - "Clarification": Mentioned in skills/certifications but NOT tied to dated project work
+
+2. EXPERIENCE CALCULATION (Do NOT estimate):
+   - Parse employment start_date and end_date
+   - If unparseable, leave as "Not specified"
+   - Calculate months between start and end for each role
+   - Sum all months for total
+   - Convert to "X years Y months" format
+
+3. RECOMMENDATION TREE (Deterministic):
+   Calculate tech_match_score = (count Matched) / (required stack length) * 100
+   
+   IF tech_match_score >= 80 AND clarification_count == 0:
+     recommendation = "Proceed"
+     suitability.verdict = "Suitable"
+   ELSE IF tech_match_score >= 80 AND clarification_count > 0:
+     recommendation = "Hold"
+     suitability.verdict = "Partially suitable"
+   ELSE IF tech_match_score >= 60:
+     recommendation = "Hold"
+     suitability.verdict = "Partially suitable"
+   ELSE:
+     recommendation = "Reject"
+     suitability.verdict = "Not suitable"
+
+4. CLARIFICATIONS:
+   - For EVERY "Clarification" tech: create entry explaining why certainty is needed
+   - Do NOT include Matched or Unmatched techs
+
+Return ONLY valid JSON with exactly these keys:
+{
+  "tech_match_score": <number 0-100>,
+  "matched_technologies": <array>,
+  "missing_technologies": <array>,
+  "tech_comparison": [{ "technology": "...", "status": "Matched"|"Unmatched"|"Clarification" }],
+  "clarifications": [{ "technology": "...", "reason": "..." }],
+  "tech_experience": [{ "technology": "...", "first_year": "...", "last_year": "...", "total_years": "..." }],
+  "career_history": [{ "company": "...", "title": "...", "start": "...", "end": "...", "duration": "...", "is_current": boolean }],
+  "total_experience_mentioned": "...",
+  "total_experience_calculated": "...",
+  "is_currently_employed": boolean,
+  "current_employer": "...",
+  "current_role": "...",
+  "current_tenure": "...",
+  "experience_level": "Junior|Mid|Senior|Not specified",
+  "domain_expertise": [],
+  "strengths": ["Strength1", ...],
+  "concerns": ["Concern1", ...],
+  "recommendation": "Proceed"|"Hold"|"Reject",
+  "suitability": { "verdict": "Suitable"|"Partially suitable"|"Not suitable", "description": "..." },
+  "certifications": [],
+  "summary": "...",
+  "project_suggestions": []
+}`;
 
   try {
     const res = await openai.chat.completions.create({
@@ -297,27 +396,14 @@ CONSISTENCY RULE: recommendation and suitability.verdict MUST agree. Use "Suitab
         {
           role: "system",
           content:
-            "You are a meticulous technical recruiter. You never fabricate information and you produce deterministic, reproducible JSON evaluations grounded only in the provided resume.",
+            "You are a meticulous technical recruiter. Apply the decision rules exactly. Return valid JSON only.",
         },
-        { role: "user", content: prompt },
+        { role: "user", content: analysisPrompt },
       ],
     });
+
     const raw = res.choices[0]?.message?.content ?? "{}";
     const result = withDefaults(parseJson<Partial<ResumeMetrics>>(raw));
-    if (!result.tech_comparison?.length) {
-      result.tech_comparison = projectTechStack.map((t) => ({
-        technology: t,
-        status: result.matched_technologies?.includes(t)
-          ? "Matched"
-          : "Unmatched",
-      }));
-    }
-    const matched = result.tech_comparison.filter(
-      (t) => t.status === "Matched",
-    ).length;
-    result.tech_match_score = result.tech_comparison.length
-      ? Math.round((matched / result.tech_comparison.length) * 100)
-      : 0;
     return computeExperience(result);
   } catch (e) {
     return emptyMetrics(
@@ -325,6 +411,38 @@ CONSISTENCY RULE: recommendation and suitability.verdict MUST agree. Use "Suitab
       `Analysis failed: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+}
+
+/**
+ * Main entry point: Extract, then analyze with deterministic rules.
+ * PHASE 1 implementation for consistency & cost reduction.
+ */
+export async function analyzeResume(
+  resumeText: string,
+  projectTechStack: string[],
+  roleRequirements: string,
+  opts: AnalyzeOptions = {},
+): Promise<ResumeMetrics> {
+  // Phase 1: Extract structured data (fast, cheap, deterministic)
+  const extracted = await extractResumeData(resumeText);
+  if (!extracted) {
+    return emptyMetrics(projectTechStack, "Failed to extract resume data");
+  }
+
+  // Phase 2: Analyze with deterministic rules (gpt-4o)
+  const roleName = opts.roleName?.trim() || "the role";
+  const projectName = opts.projectName?.trim() || "the project";
+  const otherProjects = opts.otherProjects ?? [];
+
+  return analyzeExtractedData(
+    extracted,
+    resumeText,
+    projectTechStack,
+    roleRequirements,
+    roleName,
+    projectName,
+    otherProjects,
+  );
 }
 
 /** Ensure every field exists so the UI never crashes on a partial model reply. */

@@ -379,6 +379,13 @@ export const screenings = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    // NEW: Resume deduplication — hash of normalized resume text
+    resumeHash: text("resume_hash"),
+    // NEW: Link to prior analysis if this resume was analyzed before
+    previousScreeningId: text("previous_screening_id").references(
+      () => screenings.id,
+      { onDelete: "set null" },
+    ),
     metrics: jsonb("metrics").$type<Record<string, unknown>>().default({}),
     standardQuestions: jsonb("standard_questions").$type<unknown[]>().default([]),
     resumeQuestions: jsonb("resume_questions").$type<unknown[]>().default([]),
@@ -392,7 +399,14 @@ export const screenings = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("screenings_org_idx").on(t.organizationId)],
+  (t) => [
+    index("screenings_org_idx").on(t.organizationId),
+    // NEW: Index for deduplication lookups (resume hash within org)
+    index("screenings_resume_hash_idx").on(
+      t.organizationId,
+      t.resumeHash,
+    ),
+  ],
 );
 
 export const interviewAssignments = pgTable(

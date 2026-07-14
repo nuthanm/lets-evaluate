@@ -19,6 +19,7 @@ import {
   putResumeAtKey,
 } from "@/lib/storage/resumes";
 import { extractResumeText } from "@/lib/resume/parse";
+import { hashResumeText } from "@/lib/resume/hash";
 import {
   isAllowedResumeFilename,
   RESUME_UPLOAD_FRIENDLY_ERROR,
@@ -168,6 +169,82 @@ export async function POST(req: Request, { params }: Params) {
         .where(eq(candidates.id, id));
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Check for existing analysis of this exact resume (deduplication)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const resumeHash = hashResumeText(resumeText);
+
+    const [existingAnalysis] = await db
+      .select()
+      .from(screenings)
+      .where(
+        and(
+          eq(screenings.organizationId, session.user.organizationId),
+          eq(screenings.resumeHash, resumeHash),
+        ),
+      )
+      .limit(1);
+
+    if (existingAnalysis) {
+      // Reuse existing analysis instead of re-analyzing
+      const [existingScreening] = await db
+        .select()
+        .from(screenings)
+        .where(eq(screenings.candidateId, id))
+        .limit(1);
+
+      if (existingScreening) {
+        // Link this candidate to the prior analysis
+        await db
+          .update(screenings)
+          .set({
+            previousScreeningId: existingAnalysis.id,
+            metrics: existingAnalysis.metrics,
+            screenedById: session.user.id,
+          })
+          .where(eq(screenings.id, existingScreening.id));
+      } else {
+        // First analysis for this candidate
+        await db.insert(screenings).values({
+          id: uuid(),
+          candidateId: id,
+          organizationId: session.user.organizationId,
+          resumeHash,
+          previousScreeningId: existingAnalysis.id,
+          metrics: existingAnalysis.metrics,
+          screenedById: session.user.id,
+        });
+      }
+
+      await db
+        .update(candidates)
+        .set({ status: "screening", updatedAt: new Date() })
+        .where(eq(candidates.id, id));
+
+      await logEvent({
+        organizationId: session.user.organizationId,
+        actorId: session.user.id,
+        entityType: "candidate",
+        entityId: id,
+        action: "screening.reused_analysis",
+        payload: {
+          resumeHash: resumeHash.substring(0, 16),
+          reuseFromScreeningId: existingAnalysis.id,
+        },
+      });
+
+      return NextResponse.json({
+        metrics: existingAnalysis.metrics,
+        model: ANALYSIS_MODEL,
+        reused: true,
+        message: "Reused existing analysis for this resume",
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // First time analyzing this resume — proceed normally
+    // ═══════════════════════════════════════════════════════════════════════════
+
     const otherProjects = await db
       .select({ name: projects.name, techStack: projects.techStack })
       .from(projects)
@@ -198,13 +275,18 @@ export async function POST(req: Request, { params }: Params) {
     if (existing) {
       await db
         .update(screenings)
-        .set({ metrics, screenedById: session.user.id })
+        .set({
+          resumeHash,
+          metrics,
+          screenedById: session.user.id,
+        })
         .where(eq(screenings.id, existing.id));
     } else {
       await db.insert(screenings).values({
         id: uuid(),
         candidateId: id,
         organizationId: session.user.organizationId,
+        resumeHash,
         metrics,
         screenedById: session.user.id,
       });
@@ -221,10 +303,17 @@ export async function POST(req: Request, { params }: Params) {
       entityType: "candidate",
       entityId: id,
       action: "screening.analyzed",
-      payload: { score: metrics.tech_match_score },
+      payload: {
+        score: metrics.tech_match_score,
+        resumeHash: resumeHash.substring(0, 16),
+      },
     });
 
-    return NextResponse.json({ metrics, model: ANALYSIS_MODEL });
+    return NextResponse.json({
+      metrics,
+      model: ANALYSIS_MODEL,
+      reused: false,
+    });
   }
 
   if (body.action === "questions") {
