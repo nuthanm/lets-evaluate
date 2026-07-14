@@ -96,8 +96,6 @@ export function EvaluateClient({
   );
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [preparedMails, setPreparedMails] = useState<RenderedMail[] | null>(null);
-  const [splitView, setSplitView] = useState(false);
-  const [wsStep, setWsStep] = useState<number>(1);
 
   useEffect(() => {
     if (canScreen) {
@@ -226,7 +224,6 @@ export function EvaluateClient({
   const showWizard = canScreen && screeningOpen;
 
   const myActiveStage = stages.find((s) => s.id === myActiveStageId) ?? null;
-  const showSidebar = showWizard || !myActiveStage || wsStep <= 1;
   const activeInterviewStage = stages.find(
     (s) => s.status === "active" && s.kind !== "screening" && s.kind !== "final",
   );
