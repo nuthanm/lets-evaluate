@@ -159,8 +159,9 @@ export function CandidatesGrid({
     key: "updated",
     dir: "desc",
   });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<GridCandidate | null>(null);
-  const [deleting, setDeleting] = useState<GridCandidate | null>(null);
+  const [deleting, setDeleting] = useState<GridCandidate[] | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -222,6 +223,13 @@ export function CandidatesGrid({
     return [...filtered].sort(cmp);
   }, [candidates, query, toneFilter, sort]);
 
+  const selectedVisibleCount = useMemo(
+    () => visible.filter((c) => selectedIds.has(c.id)).length,
+    [visible, selectedIds],
+  );
+  const allVisibleSelected = visible.length > 0 && selectedVisibleCount === visible.length;
+  const hasSelected = selectedIds.size > 0;
+
   function toggleSort(key: SortKey) {
     setSort((prev) =>
       prev.key === key
@@ -241,7 +249,7 @@ export function CandidatesGrid({
   }
 
   async function confirmDelete() {
-    if (!deleting) return;
+    if (!deleting || deleting.length === 0) return;
     if (deleteConfirm.trim() !== "DELETE") {
       setDeleteError('Type DELETE exactly to confirm the removal.');
       return;
@@ -249,34 +257,102 @@ export function CandidatesGrid({
 
     setDeleteBusy(true);
     setDeleteError(null);
-    setBusyId(deleting.id);
-    const res = await fetch(`/api/candidates/${deleting.id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmText: deleteConfirm.trim() }),
-    });
-    const data = await res.json().catch(() => ({}));
+    const mails: RenderedMail[] = [];
+    const deletedNames: string[] = [];
+    const failed: string[] = [];
+
+    for (const candidate of deleting) {
+      setBusyId(candidate.id);
+      const res = await fetch(`/api/candidates/${candidate.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmText: deleteConfirm.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        failed.push(`${candidate.name}${data.error ? ` (${data.error as string})` : ""}`);
+        continue;
+      }
+
+      deletedNames.push(candidate.name);
+      if (data.mail) mails.push(data.mail as RenderedMail);
+    }
+
     setBusyId(null);
     setDeleteBusy(false);
 
-    if (!res.ok) {
-      setDeleteError(data.error ?? "Could not delete the candidate.");
+    if (deletedNames.length === 0) {
+      setDeleteError(
+        failed.length
+          ? `Could not delete candidates: ${failed.join(", ")}`
+          : "Could not delete selected candidates.",
+      );
       return;
     }
 
-    setPreparedDeleteMails(data.mail ? [data.mail as RenderedMail] : null);
+    setPreparedDeleteMails(mails.length ? mails : null);
+    const summary =
+      deletedNames.length === 1
+        ? `Removed ${deletedNames[0]}`
+        : `Removed ${deletedNames.length} candidates`;
+    const suffix =
+      mails.length > 0
+        ? " and prepared candidate notice email drafts."
+        : ".";
     setDeleteBanner(
-      `Removed ${deleting.name}${data.mail ? " and prepared the candidate notice email." : "."}`,
+      `${summary}${suffix}`,
     );
+
+    if (failed.length > 0) {
+      setDeleteError(
+        `Deleted ${deletedNames.length}. Could not delete ${failed.length}: ${failed.join(", ")}`,
+      );
+    }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      deleting.forEach((c) => next.delete(c.id));
+      return next;
+    });
     setDeleting(null);
     setDeleteConfirm("");
     router.refresh();
   }
 
   function openDeleteModal(candidate: GridCandidate) {
-    setDeleting(candidate);
+    setDeleting([candidate]);
     setDeleteConfirm("");
     setDeleteError(null);
+  }
+
+  function openBulkDeleteModal() {
+    const targets = candidates.filter((c) => selectedIds.has(c.id));
+    if (targets.length === 0) return;
+    setDeleting(targets);
+    setDeleteConfirm("");
+    setDeleteError(null);
+  }
+
+  function toggleRowSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visible.forEach((c) => next.delete(c.id));
+      } else {
+        visible.forEach((c) => next.add(c.id));
+      }
+      return next;
+    });
   }
 
   return (
@@ -364,11 +440,48 @@ export function CandidatesGrid({
         </div>
       </div>
 
+      {hasSelected ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#c0392b]/20 bg-[#c0392b]/5 px-3 py-2.5">
+          <p className="text-xs font-semibold text-[var(--ink)]">
+            {selectedIds.size} selected
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setSelectedIds(new Set())}
+              disabled={deleteBusy}
+              className="px-3 py-1.5 text-xs"
+            >
+              Clear selection
+            </Button>
+            <Button
+              onClick={openBulkDeleteModal}
+              disabled={deleteBusy}
+              className="bg-[#c0392b] px-3 py-1.5 text-xs hover:bg-[#a93226]"
+            >
+              Delete selected
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse text-sm">
+          <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--cream-2)] bg-[var(--cream)] text-left">
+                <th className="w-10 px-2 py-2.5 text-center">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible candidates"
+                    checked={allVisibleSelected}
+                    ref={(node) => {
+                      if (node) node.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected;
+                    }}
+                    onChange={toggleVisibleSelection}
+                    className="h-4 w-4 cursor-pointer rounded border-[var(--cream-2)] text-[var(--cyan-d)] focus:ring-[var(--cyan)]"
+                  />
+                </th>
                 <SortHeader
                   label="Candidate"
                   active={sort.key === "name"}
@@ -425,7 +538,7 @@ export function CandidatesGrid({
               {visible.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-10 text-center text-sm text-[var(--ink-faint)]"
                   >
                     No candidates match your search.
@@ -434,12 +547,23 @@ export function CandidatesGrid({
               ) : (
                 visible.map((c) => {
                   const meta = stageMeta(c.status);
+                  const checked = selectedIds.has(c.id);
                   return (
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/evaluate/${c.id}`)}
                       className="group cursor-pointer border-b border-[var(--cream-2)] transition-colors last:border-b-0 hover:bg-[var(--cyan-soft)]/40"
                     >
+                      <td className="px-2 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${c.name}`}
+                          checked={checked}
+                          onChange={() => toggleRowSelection(c.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 cursor-pointer rounded border-[var(--cream-2)] text-[var(--cyan-d)] focus:ring-[var(--cyan)]"
+                        />
+                      </td>
                       <td className="py-3 pl-4 pr-3">
                         <div className="flex items-center gap-2.5">
                           <FaceAvatar name={c.name} size="sm" />
@@ -668,9 +792,11 @@ export function CandidatesGrid({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-serif text-xl font-bold">Delete candidate</h2>
+                <h2 className="font-serif text-xl font-bold">
+                  {deleting.length > 1 ? "Delete candidates" : "Delete candidate"}
+                </h2>
                 <p className="mt-0.5 text-[13px] text-[var(--ink-faint)]">
-                  This action permanently removes the candidate record and related workflow data.
+                  This action permanently removes candidate records and related workflow data.
                 </p>
               </div>
               <button
@@ -687,13 +813,41 @@ export function CandidatesGrid({
             </div>
 
             <div className="mt-4 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-4 text-[13px] text-[var(--ink-soft)]">
-              <div className="font-bold text-[var(--ink)]">{deleting.name}</div>
-              <div>{deleting.email || "No email on file"}</div>
-              <div>{deleting.projectName ?? "No project"}{deleting.roleName ? ` · ${deleting.roleName}` : ""}</div>
-              <div className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
-                Current stage: {deleting.status.replace(/_/g, " ")}
-              </div>
-              <p className="mt-3 text-[12px] text-[var(--ink-faint)]">{deleteScopeText(deleting)}</p>
+              {deleting.length > 1 ? (
+                <>
+                  <div className="font-bold text-[var(--ink)]">{deleting.length} candidates selected</div>
+                  <div className="mt-1 text-[12px] text-[var(--ink-faint)]">
+                    Includes profile, screening, stage progression, and attached resume references.
+                  </div>
+                  <div className="mt-3 max-h-32 overflow-y-auto rounded-lg border border-[var(--cream-2)] bg-white p-2 text-[12px]">
+                    {deleting.slice(0, 8).map((candidate) => (
+                      <div key={candidate.id} className="truncate py-0.5">
+                        {candidate.name}
+                      </div>
+                    ))}
+                    {deleting.length > 8 ? (
+                      <div className="pt-1 text-[var(--ink-faint)]">
+                        +{deleting.length - 8} more
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-bold text-[var(--ink)]">{deleting[0].name}</div>
+                  <div>{deleting[0].email || "No email on file"}</div>
+                  <div>
+                    {deleting[0].projectName ?? "No project"}
+                    {deleting[0].roleName ? ` · ${deleting[0].roleName}` : ""}
+                  </div>
+                  <div className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
+                    Current stage: {deleting[0].status.replace(/_/g, " ")}
+                  </div>
+                  <p className="mt-3 text-[12px] text-[var(--ink-faint)]">
+                    {deleteScopeText(deleting[0])}
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="mt-4 rounded-xl border border-[var(--orange)]/20 bg-[var(--orange-soft)] p-4 text-[13px] text-[var(--ink)]">
@@ -725,7 +879,11 @@ export function CandidatesGrid({
                 disabled={deleteBusy || deleteConfirm.trim() !== "DELETE"}
                 className="bg-[#c0392b] hover:bg-[#a93226]"
               >
-                {deleteBusy ? "Deleting…" : "Delete candidate"}
+                {deleteBusy
+                  ? "Deleting…"
+                  : deleting.length > 1
+                    ? `Delete ${deleting.length} candidates`
+                    : "Delete candidate"}
               </Button>
             </div>
           </div>

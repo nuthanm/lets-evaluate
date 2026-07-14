@@ -24,6 +24,11 @@ import {
   RESUME_UPLOAD_FRIENDLY_ERROR,
 } from "@/lib/resume/formats";
 import {
+  validateCandidateEmail,
+  validateCandidateName,
+  validateResumeTextLength,
+} from "@/lib/candidates/validation";
+import {
   ANALYSIS_MODEL,
   analyzeResume,
   generateResumeQuestions,
@@ -151,6 +156,8 @@ export async function POST(req: Request, { params }: Params) {
         400,
       );
     }
+    const resumeLengthError = validateResumeTextLength(resumeText);
+    if (resumeLengthError) return apiError(resumeLengthError, 400);
 
     // Backfill persisted text for legacy candidates so future analyses no
     // longer depend on the (possibly ephemeral) stored file.
@@ -227,6 +234,10 @@ export async function POST(req: Request, { params }: Params) {
       .where(eq(screenings.candidateId, id))
       .limit(1);
     const resumeText = await resolveResumeText(candidate, body.resumeText);
+    if (resumeText) {
+      const resumeLengthError = validateResumeTextLength(resumeText);
+      if (resumeLengthError) return apiError(resumeLengthError, 400);
+    }
     const std = await generateStandardQuestions(
       role?.name ?? "Engineer",
       techStack,
@@ -502,13 +513,13 @@ export async function PUT(req: Request, { params }: Params) {
 
   const { id } = await params;
   const form = await req.formData();
-  const name = String(form.get("name") ?? "");
-  const email = String(form.get("email") ?? "");
+  const name = String(form.get("name") ?? "").trim();
+  const email = String(form.get("email") ?? "").trim();
   const projectId = String(form.get("projectId") ?? "") || null;
   const roleId = String(form.get("roleId") ?? "") || null;
-  const phone = String(form.get("phone") ?? "");
-  const source = String(form.get("source") ?? "");
-  const notes = String(form.get("notes") ?? "");
+  const phone = String(form.get("phone") ?? "").trim();
+  const source = String(form.get("source") ?? "").trim();
+  const notes = String(form.get("notes") ?? "").trim();
   const consent = form.get("consent") === "true" || form.get("consent") === "on";
   const file = form.get("resume") as File | null;
 
@@ -532,6 +543,10 @@ export async function PUT(req: Request, { params }: Params) {
       return apiError("Resume upload failed. Check the storage connection and try again.", 502);
     }
     resumeText = await extractResumeText(buf, file.name);
+    if (resumeText) {
+      const resumeLengthError = validateResumeTextLength(resumeText);
+      if (resumeLengthError) return apiError(resumeLengthError, 400);
+    }
   }
 
   const [existing] = await db
@@ -546,11 +561,18 @@ export async function PUT(req: Request, { params }: Params) {
     .limit(1);
 
   if (existing) {
+    const nextName = name || existing.name || "";
+    const nextEmail = email || existing.email || "";
+    const nameError = validateCandidateName(nextName);
+    if (nameError) return apiError(nameError, 400);
+    const emailError = validateCandidateEmail(nextEmail);
+    if (emailError) return apiError(emailError, 400);
+
     await db
       .update(candidates)
       .set({
-        name: name || existing.name,
-        email: email || existing.email,
+        name: nextName,
+        email: nextEmail,
         phone: phone || existing.phone,
         source: source || existing.source,
         notes: notes || existing.notes,
@@ -565,6 +587,11 @@ export async function PUT(req: Request, { params }: Params) {
       .where(eq(candidates.id, id));
     return NextResponse.json({ id, resumeText });
   }
+
+  const nameError = validateCandidateName(name);
+  if (nameError) return apiError(nameError, 400);
+  const emailError = validateCandidateEmail(email);
+  if (emailError) return apiError(emailError, 400);
 
   const newId = id === "new" ? uuid() : id;
   await db.insert(candidates).values({

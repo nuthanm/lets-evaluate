@@ -16,6 +16,11 @@ import {
   isAllowedResumeFilename,
   RESUME_UPLOAD_FRIENDLY_ERROR,
 } from "@/lib/resume/formats";
+import {
+  validateCandidateEmail,
+  validateCandidateName,
+  validateResumeTextLength,
+} from "@/lib/candidates/validation";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -57,16 +62,20 @@ export async function POST(req: Request) {
 
   try {
     const form = await req.formData();
-    const name = String(form.get("name") ?? "");
-    const email = String(form.get("email") ?? "");
+    const name = String(form.get("name") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
     const projectId = String(form.get("projectId") ?? "") || null;
     const roleId = String(form.get("roleId") ?? "") || null;
-    const phone = String(form.get("phone") ?? "");
-    const source = String(form.get("source") ?? "");
+    const phone = String(form.get("phone") ?? "").trim();
+    const source = String(form.get("source") ?? "").trim();
     const consent = form.get("consent") === "true" || form.get("consent") === "on";
     const file = form.get("resume") as File | null;
 
-    if (!name) return apiError("Name required", 400);
+    const nameError = validateCandidateName(name);
+    if (nameError) return apiError(nameError, 400);
+
+    const emailError = validateCandidateEmail(email);
+    if (emailError) return apiError(emailError, 400);
 
     let resumeStorageKey: string | undefined;
     let resumeFilename = "";
@@ -89,6 +98,10 @@ export async function POST(req: Request) {
         console.error("Resume storage failed", err);
       }
       resumeText = await extractResumeText(buf, file.name);
+      if (resumeText) {
+        const resumeLengthError = validateResumeTextLength(resumeText);
+        if (resumeLengthError) return apiError(resumeLengthError, 400);
+      }
     }
 
     const id = uuid();

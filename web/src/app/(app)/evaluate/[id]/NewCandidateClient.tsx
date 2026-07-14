@@ -10,11 +10,16 @@ import {
   RESUME_UPLOAD_ACCEPT,
   RESUME_UPLOAD_FRIENDLY_ERROR,
 } from "@/lib/resume/formats";
+import {
+  validateCandidateEmail,
+  validateCandidateName,
+} from "@/lib/candidates/validation";
 
 type Project = { id: string; name: string };
 type Role = { id: string; name: string; projectId: string | null };
 
 export function NewCandidateClient() {
+  const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,6 +33,15 @@ export function NewCandidateClient() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    email?: string;
+    resume?: string;
+  }>({});
+  const [touched, setTouched] = useState<{ name: boolean; email: boolean }>({
+    name: false,
+    email: false,
+  });
 
   useEffect(() => {
     fetch("/api/projects")
@@ -46,17 +60,37 @@ export function NewCandidateClient() {
       .catch(() => {});
   }, [projectId]);
 
+  function validateField(field: "name" | "email", value: string) {
+    if (field === "name") return validateCandidateName(value);
+    return validateCandidateEmail(value);
+  }
+
+  function validateForm() {
+    const nextErrors: typeof fieldErrors = {
+      name: validateCandidateName(name),
+      email: validateCandidateEmail(email),
+    };
+
+    if (file && !isAllowedResumeFilename(file.name)) {
+      nextErrors.resume = RESUME_UPLOAD_FRIENDLY_ERROR;
+    } else if (file && file.size > MAX_RESUME_FILE_BYTES) {
+      nextErrors.resume = "Resume must be under 10MB.";
+    }
+
+    setFieldErrors(nextErrors);
+    return !nextErrors.name && !nextErrors.email && !nextErrors.resume;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (file && !isAllowedResumeFilename(file.name)) {
-      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
-      return;
-    }
+    setTouched({ name: true, email: true });
+    if (!validateForm()) return;
+
     setLoading(true);
     setError(null);
     const fd = new FormData();
-    fd.set("name", name);
-    fd.set("email", email);
+    fd.set("name", name.trim());
+    fd.set("email", email.trim());
     if (phone) fd.set("phone", phone);
     if (source) fd.set("source", source);
     if (consent) fd.set("consent", "true");
@@ -74,7 +108,7 @@ export function NewCandidateClient() {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} noValidate>
       <CaseCard className="max-w-lg p-6">
         <h2 className="font-serif text-lg font-bold">Open a new case file</h2>
         <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
@@ -85,11 +119,32 @@ export function NewCandidateClient() {
             <FieldLabel htmlFor="candidate-name">Candidate name</FieldLabel>
             <FieldInput
               id="candidate-name"
-              required
               placeholder="e.g. Jordan Rivera"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (touched.name) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    name: validateCandidateName(e.target.value) ?? undefined,
+                  }));
+                }
+              }}
+              onBlur={() => {
+                setTouched((prev) => ({ ...prev, name: true }));
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  name: validateField("name", name) ?? undefined,
+                }));
+              }}
+              aria-invalid={!!fieldErrors.name && touched.name}
+              className={fieldErrors.name && touched.name ? "border-red-400" : undefined}
             />
+            {fieldErrors.name && touched.name ? (
+              <p className="mt-1.5 text-sm text-red-600" role="alert">
+                {fieldErrors.name}
+              </p>
+            ) : null}
           </div>
           <div>
             <FieldLabel htmlFor="candidate-email">Email</FieldLabel>
@@ -98,8 +153,30 @@ export function NewCandidateClient() {
               type="email"
               placeholder="name@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (touched.email) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    email: validateCandidateEmail(e.target.value) ?? undefined,
+                  }));
+                }
+              }}
+              onBlur={() => {
+                setTouched((prev) => ({ ...prev, email: true }));
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  email: validateField("email", email) ?? undefined,
+                }));
+              }}
+              aria-invalid={!!fieldErrors.email && touched.email}
+              className={fieldErrors.email && touched.email ? "border-red-400" : undefined}
             />
+            {fieldErrors.email && touched.email ? (
+              <p className="mt-1.5 text-sm text-red-600" role="alert">
+                {fieldErrors.email}
+              </p>
+            ) : null}
           </div>
           <div>
             <FieldLabel htmlFor="candidate-phone">Phone</FieldLabel>
@@ -181,15 +258,33 @@ export function NewCandidateClient() {
                 const nextFile = e.target.files?.[0] ?? null;
                 if (nextFile && !isAllowedResumeFilename(nextFile.name)) {
                   setFile(null);
-                  setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    resume: RESUME_UPLOAD_FRIENDLY_ERROR,
+                  }));
+                  e.target.value = "";
+                  return;
+                }
+                if (nextFile && nextFile.size > MAX_RESUME_FILE_BYTES) {
+                  setFile(null);
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    resume: "Resume must be under 10MB.",
+                  }));
                   e.target.value = "";
                   return;
                 }
                 setFile(nextFile);
+                setFieldErrors((prev) => ({ ...prev, resume: undefined }));
                 setError(null);
               }}
               className="sr-only"
             />
+            {fieldErrors.resume ? (
+              <p className="mt-1.5 text-sm text-red-600" role="alert">
+                {fieldErrors.resume}
+              </p>
+            ) : null}
           </div>
           {error ? <p className="text-sm font-semibold text-[#c0392b]">{error}</p> : null}
           <Button type="submit" disabled={loading} className="w-full">
