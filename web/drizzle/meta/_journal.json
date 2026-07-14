@@ -43,6 +43,13 @@
       "when": 1783702400000,
       "tag": "0005_templates_phase_cd",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783958400000,
+      "tag": "0007_member_lifecycle",
+      "breakpoints": true
     }
   ]
 }

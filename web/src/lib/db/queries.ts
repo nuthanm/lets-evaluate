@@ -547,12 +547,16 @@ export async function getInterviewers(organizationId: string) {
       name: users.name,
       email: users.email,
       role: organizationMembers.role,
+      joinedAt: organizationMembers.createdAt,
+      lastActiveAt: organizationMembers.lastActiveAt,
+      deletedAt: organizationMembers.deletedAt,
     })
     .from(organizationMembers)
     .innerJoin(users, eq(organizationMembers.userId, users.id))
     .where(
       and(
         eq(organizationMembers.organizationId, organizationId),
+        isNull(organizationMembers.deletedAt),
         inArray(organizationMembers.role, ["interviewer", "manager", "hr"]),
       ),
     );
@@ -828,6 +832,7 @@ export async function getAssignableUsers(
     .where(
       and(
         eq(organizationMembers.organizationId, organizationId),
+        isNull(organizationMembers.deletedAt),
         inArray(organizationMembers.role, allowed),
       ),
     )

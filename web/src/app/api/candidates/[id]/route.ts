@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { candidates, projects, roles, candidateStages } from "@/lib/db/schema";
+import { candidates, projects, roles, candidateStages, screenings } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -17,7 +17,6 @@ import {
   generateResumeQuestions,
   generateStandardQuestions,
 } from "@/lib/ai";
-import { screenings } from "@/lib/db/schema";
 import { logEvent } from "@/lib/events";
 import { apiError, rateLimit, requireApiRole } from "@/lib/api/helpers";
 import {
@@ -580,6 +579,10 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (forbidden) return forbidden;
 
   const { id } = await params;
+  const body = await _req.json().catch(() => ({}));
+  if (body?.confirmText !== "DELETE") {
+    return apiError("Type DELETE to confirm candidate removal.", 400);
+  }
 
   const [existing] = await db
     .select()
@@ -593,6 +596,66 @@ export async function DELETE(_req: Request, { params }: Params) {
     .limit(1);
 
   if (!existing) return apiError("Not found", 404);
+
+  const [screening] = await db
+    .select({
+      decision: screenings.decision,
+      comments: screenings.comments,
+      metrics: screenings.metrics,
+    })
+    .from(screenings)
+    .where(eq(screenings.candidateId, id))
+    .limit(1);
+
+  const [project] = existing.projectId
+    ? await db
+        .select({ name: projects.name })
+        .from(projects)
+        .where(eq(projects.id, existing.projectId))
+        .limit(1)
+    : [null];
+  const [role] = existing.roleId
+    ? await db
+        .select({ name: roles.name })
+        .from(roles)
+        .where(eq(roles.id, existing.roleId))
+        .limit(1)
+    : [null];
+
+  const hadAnalysis = Boolean(screening?.decision) || existing.status !== "draft";
+  const hadInterviewRounds = [
+    "ready_for_interview",
+    "assigned",
+    "interview_in_progress",
+    "interview_complete",
+    "selected",
+    "rejected",
+    "hold",
+  ].includes(existing.status);
+  const noticeSlug = hadInterviewRounds
+    ? "candidate_deleted_post_interview"
+    : hadAnalysis
+      ? "candidate_deleted_post_analysis"
+      : "candidate_deleted_pre_analysis";
+
+  const mail = await prepareMail(
+    session.user.organizationId,
+    noticeSlug,
+    buildMailVars({
+      candidate: {
+        name: existing.name,
+        email: existing.email,
+        phone: existing.phone,
+        source: existing.source,
+        id: existing.id,
+      },
+      roleName: role?.name ?? undefined,
+      projectName: project?.name ?? undefined,
+      taName: session.user.name ?? undefined,
+      screeningComments: screening?.comments ?? undefined,
+      techMatchScore: (screening?.metrics as Record<string, unknown> | undefined)?.tech_match_score as number | undefined,
+    }),
+  );
 
   // Related screenings, assignments, reviews and drafts cascade on delete.
   await db
@@ -610,8 +673,8 @@ export async function DELETE(_req: Request, { params }: Params) {
     entityType: "candidate",
     entityId: id,
     action: "candidate.deleted",
-    payload: { name: existing.name },
+    payload: { name: existing.name, noticeSlug, hadAnalysis, hadInterviewRounds },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, mail });
 }

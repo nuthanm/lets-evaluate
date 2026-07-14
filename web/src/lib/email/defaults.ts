@@ -6,6 +6,9 @@ export type MailTemplateSlug =
   | "candidate_scheduled"
   | "candidate_selected"
   | "candidate_final_reject"
+  | "candidate_deleted_pre_analysis"
+  | "candidate_deleted_post_analysis"
+  | "candidate_deleted_post_interview"
   | "candidate_clarification"
   | "interviewer_assigned"
   | "interviewer_sla_reminder";
@@ -125,6 +128,55 @@ Thank you for taking the time to interview for the {{role}} role. After careful 
 We appreciate your interest in {{org_name}} and wish you success in your search.
 
 Best regards,
+{{org_name}} Talent Team`,
+  },
+  {
+    slug: "candidate_deleted_pre_analysis",
+    name: "Deletion — pre-analysis",
+    audience: "candidate",
+    description: "Sent when a candidate is removed before any AI or recruiter analysis.",
+    subject: "Your application record has been removed — {{org_name}}",
+    body: `Hi {{candidate_name}},
+
+Your application record for the {{role}} role has been removed from our active system.
+
+Important: no further profile, screening, or interview information is associated with this application.
+
+If you believe this was done in error, please reply to this message.
+
+Regards,
+{{org_name}} Talent Team`,
+  },
+  {
+    slug: "candidate_deleted_post_analysis",
+    name: "Deletion — after screening",
+    audience: "candidate",
+    description: "Sent when a screened candidate is removed after an AI or recruiter decision.",
+    subject: "Update to your application record — {{org_name}}",
+    body: `Hi {{candidate_name}},
+
+We have removed your application record for the {{role}} role from our active system.
+
+Important: the profile, screening notes, and interview records are no longer retained in the working application view.
+
+If you would like a clarification, please reply to this email.
+
+Regards,
+{{org_name}} Talent Team`,
+  },
+  {
+    slug: "candidate_deleted_post_interview",
+    name: "Deletion — after interview rounds",
+    audience: "candidate",
+    description: "Sent when a later-stage candidate is removed after interview rounds have begun.",
+    subject: "Application record closed — {{org_name}}",
+    body: `Hi {{candidate_name}},
+
+We have closed and removed your application record for the {{role}} role.
+
+Important: the application trail, interview notes, and attached details are no longer available in our active records.
+
+Thank you for your time,
 {{org_name}} Talent Team`,
   },
   {

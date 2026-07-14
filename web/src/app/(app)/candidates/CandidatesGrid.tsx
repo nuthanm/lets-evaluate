@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaceAvatar } from "@/components/FaceAvatar";
 import { Button } from "@/components/Button";
+import { EmailComposer } from "@/components/EmailComposer";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
+import type { RenderedMail } from "@/lib/email";
 import { cn } from "@/lib/utils";
 import {
   isAllowedResumeFilename,
@@ -158,6 +160,12 @@ export function CandidatesGrid({
     dir: "desc",
   });
   const [editing, setEditing] = useState<GridCandidate | null>(null);
+  const [deleting, setDeleting] = useState<GridCandidate | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBanner, setDeleteBanner] = useState<string | null>(null);
+  const [preparedDeleteMails, setPreparedDeleteMails] = useState<RenderedMail[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const toneCounts = useMemo(() => {
@@ -222,22 +230,69 @@ export function CandidatesGrid({
     );
   }
 
-  async function remove(c: GridCandidate) {
-    if (
-      !confirm(
-        `Delete candidate "${c.name}"? This permanently removes their profile, screening and interview records.`,
-      )
-    ) {
+  function deleteScopeText(candidate: GridCandidate) {
+    if (["draft", "screening"].includes(candidate.status) && !candidate.screeningDecision) {
+      return "No AI or recruiter analysis has been recorded yet.";
+    }
+    if (["screened_hold", "screened_rejected"].includes(candidate.status) || candidate.screeningDecision) {
+      return "Screening analysis already exists. A candidate notice email will be prepared before removal.";
+    }
+    return "Interview-stage records and follow-up notes will also be removed. A candidate notice email will be prepared before removal.";
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    if (deleteConfirm.trim() !== "DELETE") {
+      setDeleteError('Type DELETE exactly to confirm the removal.');
       return;
     }
-    setBusyId(c.id);
-    const res = await fetch(`/api/candidates/${c.id}`, { method: "DELETE" });
+
+    setDeleteBusy(true);
+    setDeleteError(null);
+    setBusyId(deleting.id);
+    const res = await fetch(`/api/candidates/${deleting.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmText: deleteConfirm.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
     setBusyId(null);
-    if (res.ok) router.refresh();
+    setDeleteBusy(false);
+
+    if (!res.ok) {
+      setDeleteError(data.error ?? "Could not delete the candidate.");
+      return;
+    }
+
+    setPreparedDeleteMails(data.mail ? [data.mail as RenderedMail] : null);
+    setDeleteBanner(
+      `Removed ${deleting.name}${data.mail ? " and prepared the candidate notice email." : "."}`,
+    );
+    setDeleting(null);
+    setDeleteConfirm("");
+    router.refresh();
+  }
+
+  function openDeleteModal(candidate: GridCandidate) {
+    setDeleting(candidate);
+    setDeleteConfirm("");
+    setDeleteError(null);
   }
 
   return (
     <div className="space-y-4">
+      {deleteBanner && (
+        <div className="case-alert border-[var(--orange)]/30 bg-[var(--orange-soft)] text-[var(--ink)]">
+          <strong>Deletion recorded.</strong> {deleteBanner}
+        </div>
+      )}
+      {preparedDeleteMails && (
+        <EmailComposer
+          mails={preparedDeleteMails}
+          title="Deletion notice prepared"
+          onClose={() => setPreparedDeleteMails(null)}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-xs">
           <svg
@@ -540,7 +595,7 @@ export function CandidatesGrid({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              remove(c);
+                              openDeleteModal(c);
                             }}
                             disabled={busyId === c.id}
                             title="Delete candidate"
@@ -598,6 +653,83 @@ export function CandidatesGrid({
             router.refresh();
           }}
         />
+      ) : null}
+
+      {deleting ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          onClick={() => {
+            if (!deleteBusy) setDeleting(null);
+          }}
+        >
+          <div
+            className="case-card w-full max-w-lg p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-xl font-bold">Delete candidate</h2>
+                <p className="mt-0.5 text-[13px] text-[var(--ink-faint)]">
+                  This action permanently removes the candidate record and related workflow data.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleting(null)}
+                disabled={deleteBusy}
+                aria-label="Close"
+                className="grid size-8 place-items-center rounded-lg text-[var(--ink-faint)] transition-colors hover:bg-[var(--cream)] hover:text-[var(--ink)] disabled:opacity-50"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-4 text-[13px] text-[var(--ink-soft)]">
+              <div className="font-bold text-[var(--ink)]">{deleting.name}</div>
+              <div>{deleting.email || "No email on file"}</div>
+              <div>{deleting.projectName ?? "No project"}{deleting.roleName ? ` · ${deleting.roleName}` : ""}</div>
+              <div className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
+                Current stage: {deleting.status.replace(/_/g, " ")}
+              </div>
+              <p className="mt-3 text-[12px] text-[var(--ink-faint)]">{deleteScopeText(deleting)}</p>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--orange)]/20 bg-[var(--orange-soft)] p-4 text-[13px] text-[var(--ink)]">
+              <strong>Type DELETE to continue.</strong> This prevents accidental removal.
+            </div>
+
+            <div className="mt-4">
+              <FieldLabel htmlFor="delete-confirm">Confirmation text</FieldLabel>
+              <FieldInput
+                id="delete-confirm"
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+            </div>
+
+            {deleteError && <p className="mt-3 text-sm font-semibold text-red-600">{deleteError}</p>}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                disabled={deleteBusy || deleteConfirm.trim() !== "DELETE"}
+                className="bg-[#c0392b] hover:bg-[#a93226]"
+              >
+                {deleteBusy ? "Deleting…" : "Delete candidate"}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

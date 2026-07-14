@@ -76,6 +76,14 @@ export default async function InterviewersPage() {
                     </div>
                   </div>
                 </div>
+                <div className="mt-4 space-y-1 text-[11px] text-[var(--ink-faint)]">
+                  <p>
+                    Joined: {new Date(iv.joinedAt).toLocaleDateString("en-GB")}
+                  </p>
+                  <p>
+                    Last active: {new Date(iv.lastActiveAt ?? iv.joinedAt).toLocaleDateString("en-GB")}
+                  </p>
+                </div>
               </CaseCard>
             );
           })}

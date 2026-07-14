@@ -66,7 +66,12 @@ async function resolveMembership(userId: string) {
       role: organizationMembers.role,
     })
     .from(organizationMembers)
-    .where(eq(organizationMembers.userId, userId))
+    .where(
+      and(
+        eq(organizationMembers.userId, userId),
+        isNull(organizationMembers.deletedAt),
+      ),
+    )
     .limit(1);
   return rows[0] ?? null;
 }
@@ -157,6 +162,11 @@ export const authConfig: NextAuthConfig = {
           const entraGroups = (profile as { groups?: string[] } | undefined)
             ?.groups;
           const mappedRole = roleFromEntraGroups(entraGroups);
+          const [org] = await db
+            .select()
+            .from(organizations)
+            .where(eq(organizations.slug, process.env.ORG_SLUG ?? "kanini"))
+            .limit(1);
 
           if (!userId) {
             userId = uuid();
@@ -184,7 +194,11 @@ export const authConfig: NextAuthConfig = {
             if (membership && entraGroups?.length) {
               await db
                 .update(organizationMembers)
-                .set({ role: mappedRole })
+                .set({
+                  role: mappedRole,
+                  deletedAt: null,
+                  lastActiveAt: new Date(),
+                })
                 .where(
                   and(
                     eq(organizationMembers.userId, userId),
@@ -194,6 +208,15 @@ export const authConfig: NextAuthConfig = {
                     ),
                   ),
                 );
+            } else if (!membership && org) {
+              await db.insert(organizationMembers).values({
+                id: uuid(),
+                organizationId: org.id,
+                userId,
+                role: mappedRole,
+                deletedAt: null,
+                lastActiveAt: new Date(),
+              });
             }
           }
           const membership = await resolveMembership(userId);

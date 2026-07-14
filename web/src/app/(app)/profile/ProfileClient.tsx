@@ -23,11 +23,17 @@ export function ProfileClient({
   email,
   role,
   hasPassword,
+  joinedAt,
+  lastActiveAt,
+  isDeleted,
 }: {
   name: string;
   email: string;
   role: MemberRole;
   hasPassword: boolean;
+  joinedAt: string | null;
+  lastActiveAt: string | null;
+  isDeleted: boolean;
 }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -103,6 +109,27 @@ export function ProfileClient({
               <Pill variant="cyan" className="mt-1.5">
                 {getRoleDisplayName(role)}
               </Pill>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-[var(--cream)] px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">Joined</div>
+              <div className="mt-1 text-sm font-semibold text-[var(--ink)]">
+                {joinedAt ? new Date(joinedAt).toLocaleDateString("en-GB") : "—"}
+              </div>
+            </div>
+            <div className="rounded-xl bg-[var(--cream)] px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">Last active</div>
+              <div className="mt-1 text-sm font-semibold text-[var(--ink)]">
+                {lastActiveAt ? new Date(lastActiveAt).toLocaleDateString("en-GB") : "—"}
+              </div>
+            </div>
+            <div className="rounded-xl bg-[var(--cream)] px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">State</div>
+              <div className="mt-1 text-sm font-semibold text-[var(--ink)]">
+                {isDeleted ? "Deleted" : "Active"}
+              </div>
             </div>
           </div>
 

@@ -5,7 +5,7 @@ import {
   organizationMembers,
   users,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import {
   getEmailDomain,
   registerBodySchema,
 } from "@/lib/auth/validation";
+import { logEvent } from "@/lib/events";
 
 export async function POST(req: Request) {
   try {
@@ -30,17 +31,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const [existing] = await db
+    const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
-    if (existing) {
-      return NextResponse.json(
-        { error: "An account with this username already exists" },
-        { status: 409 },
-      );
-    }
 
     const orgSlug = process.env.ORG_SLUG ?? "kanini";
     let [org] = await db
@@ -64,21 +59,71 @@ export async function POST(req: Request) {
       };
     }
 
-    const userId = uuid();
     const passwordHash = await bcrypt.hash(body.password, 12);
+    const now = new Date();
 
-    await db.insert(users).values({
-      id: userId,
-      name: body.name.trim(),
-      email,
-      passwordHash,
-    });
+    let userId = existingUser?.id ?? uuid();
 
-    await db.insert(organizationMembers).values({
-      id: uuid(),
+    if (existingUser) {
+      await db
+        .update(users)
+        .set({
+          name: body.name.trim(),
+          passwordHash,
+        })
+        .where(eq(users.id, existingUser.id));
+    } else {
+      await db.insert(users).values({
+        id: userId,
+        name: body.name.trim(),
+        email,
+        passwordHash,
+      });
+    }
+
+    const [existingMembership] = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org.id),
+          eq(organizationMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (existingMembership) {
+      await db
+        .update(organizationMembers)
+        .set({
+          role: body.role,
+          deletedAt: null,
+          lastActiveAt: now,
+        })
+        .where(eq(organizationMembers.id, existingMembership.id));
+    } else {
+      await db.insert(organizationMembers).values({
+        id: uuid(),
+        organizationId: org.id,
+        userId,
+        role: body.role,
+        deletedAt: null,
+        lastActiveAt: now,
+      });
+    }
+
+    await logEvent({
       organizationId: org.id,
-      userId,
-      role: body.role,
+      actorId: userId,
+      entityType: "user",
+      entityId: userId,
+      action: existingMembership?.deletedAt ? "user.reactivated" : existingUser ? "user.re-registered" : "user.registered",
+      payload: {
+        email,
+        role: body.role,
+        joinedAt: existingMembership?.createdAt ?? now,
+        lastActiveAt: now,
+      },
     });
 
     return NextResponse.json({ ok: true });
