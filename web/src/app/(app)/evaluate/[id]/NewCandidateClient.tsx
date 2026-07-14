@@ -67,8 +67,8 @@ export function NewCandidateClient() {
 
   function validateForm() {
     const nextErrors: typeof fieldErrors = {
-      name: validateCandidateName(name),
-      email: validateCandidateEmail(email),
+      name: validateCandidateName(name) ?? undefined,
+      email: validateCandidateEmail(email) ?? undefined,
     };
 
     if (file && !isAllowedResumeFilename(file.name)) {
