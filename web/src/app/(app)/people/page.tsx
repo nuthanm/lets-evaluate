@@ -35,6 +35,8 @@ export default async function PeoplePage() {
       label: r.stage.label,
       dueAt: r.stage.dueAt ? r.stage.dueAt.toISOString() : null,
       handoffNote: r.stage.handoffNote,
+      roleName: r.roleName ?? null,
+      projectName: r.projectName ?? null,
       candidate: { id: r.candidate.id, name: r.candidate.name },
     }));
     const historyRows = history.map((h) => ({

@@ -118,3 +118,13 @@ export function CollapseIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function LibraryIcon({ className }: IconProps) {
+  return (
+    <svg className={className} {...base} aria-hidden>
+      <path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14" />
+      <path d="M4 19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2" />
+      <path d="M9 7h6M9 11h6M9 15h4" />
+    </svg>
+  );
+}

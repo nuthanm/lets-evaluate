@@ -29,6 +29,13 @@
       "when": 1783529600000,
       "tag": "0003_interview_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1752192000000,
+      "tag": "0004_candidates_resume_text",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
 const colorMap = {
-  c1: "bg-gradient-to-br from-[var(--cyan)] to-[var(--cyan-d)]",
-  c2: "bg-gradient-to-br from-[var(--green)] to-[#4a8a1f]",
-  c3: "bg-gradient-to-br from-[var(--orange)] to-[#c9651a]",
-  c4: "bg-gradient-to-br from-[#7c6bcf] to-[#5a4db0]",
-  c5: "bg-gradient-to-br from-[#e05a7a] to-[#c43d5e]",
+  c1: "bg-gradient-to-br from-[#1dc6ee] to-[#0f9ec7]",
+  c2: "bg-gradient-to-br from-[#5ecb2e] to-[#3a9417]",
+  c3: "bg-gradient-to-br from-[#ff8c3a] to-[#d45d10]",
+  c4: "bg-gradient-to-br from-[#9a7af0] to-[#6a50d8]",
+  c5: "bg-gradient-to-br from-[#f0607a] to-[#d43860]",
 } as const;
 
 const sizeMap = {
@@ -49,7 +49,7 @@ export function FaceAvatar({
   return (
     <div
       className={cn(
-        "relative grid shrink-0 place-items-center rounded-full font-bold text-white ring-2 ring-white",
+        "relative grid shrink-0 place-items-center rounded-full font-bold text-white shadow-md ring-2 ring-white",
         sizeMap[size],
         colorMap[c],
         className,

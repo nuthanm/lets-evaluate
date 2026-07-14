@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: Params) {
     candidateId,
     candidate.projectId,
   );
-  const stages = await getCandidateStages(candidateId);
+  const stages = await getCandidateStages(candidateId, session.user.organizationId);
   const active = stages.find((s) => s.stage.status === "active");
   if (!active) return apiError("No active interview stage to book", 400);
   if (["screening", "final"].includes(active.stage.kind)) {

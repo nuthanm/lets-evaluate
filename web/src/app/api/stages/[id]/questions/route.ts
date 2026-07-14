@@ -24,9 +24,18 @@ const CATEGORY_IDS = QUESTION_CATEGORIES.map((c) => c.id) as string[];
 export async function POST(req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
+  if (!session.user.organizationId) return apiError("Unauthorized", 401);
 
   const { id: stageId } = await params;
-  const body = schema.parse(await req.json());
+
+  let body: z.infer<typeof schema>;
+  try {
+    body = schema.parse(await req.json());
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Invalid request body";
+    return apiError(msg, 400);
+  }
+
   if (!CATEGORY_IDS.includes(body.category)) {
     return apiError("Unknown category", 400);
   }
@@ -35,17 +44,22 @@ export async function POST(req: Request, { params }: Params) {
     return apiError("Rate limit exceeded", 429);
   }
 
-  const [stage] = await db
-    .select()
-    .from(candidateStages)
-    .where(
-      and(
-        eq(candidateStages.id, stageId),
-        eq(candidateStages.organizationId, session.user.organizationId),
-      ),
-    )
-    .limit(1);
-  if (!stage) return apiError("Not found", 404);
+  let stage: typeof candidateStages.$inferSelect | undefined;
+  try {
+    [stage] = await db
+      .select()
+      .from(candidateStages)
+      .where(
+        and(
+          eq(candidateStages.id, stageId),
+          eq(candidateStages.organizationId, session.user.organizationId),
+        ),
+      )
+      .limit(1);
+  } catch {
+    return apiError("Stage lookup failed", 500);
+  }
+  if (!stage) return apiError("Stage not found", 404);
 
   const isOwner = stage.assignedToId === session.user.id;
   const isLead = session.user.role === "admin" || session.user.role === "ta";
@@ -53,34 +67,64 @@ export async function POST(req: Request, { params }: Params) {
     return apiError("You are not assigned to this stage", 403);
   }
 
-  const [candidate] = await db
-    .select()
-    .from(candidates)
-    .where(eq(candidates.id, stage.candidateId))
-    .limit(1);
-  if (!candidate) return apiError("Not found", 404);
+  let candidate: { resumeText: string | null; projectId: string | null; roleId: string | null } | undefined;
+  try {
+    [candidate] = await db
+      .select({
+        resumeText: candidates.resumeText,
+        projectId: candidates.projectId,
+        roleId: candidates.roleId,
+      })
+      .from(candidates)
+      .where(eq(candidates.id, stage.candidateId))
+      .limit(1);
+  } catch {
+    return apiError("Candidate lookup failed", 500);
+  }
+  if (!candidate) return apiError("Candidate not found", 404);
 
-  const [project] = candidate.projectId
-    ? await db
-        .select()
+  let project: { techStack: unknown } | null | undefined = null;
+  if (candidate.projectId) {
+    try {
+      [project] = await db
+        .select({ techStack: projects.techStack })
         .from(projects)
         .where(eq(projects.id, candidate.projectId))
-        .limit(1)
-    : [null];
-  const [role] = candidate.roleId
-    ? await db.select().from(roles).where(eq(roles.id, candidate.roleId)).limit(1)
-    : [null];
+        .limit(1);
+    } catch {
+      project = null;
+    }
+  }
 
-  const questions = await generateCategoryQuestions(
-    body.category as QuestionCategory,
-    {
-      roleName: role?.name,
-      techStack: (project?.techStack as string[]) ?? [],
-      resumeText: candidate.resumeText ?? "",
-      roleRequirements: role?.requirements ?? "",
-    },
-    body.count ?? 5,
-  );
+  let role: { name: string; requirements: string | null } | null | undefined = null;
+  if (candidate.roleId) {
+    try {
+      [role] = await db
+        .select({ name: roles.name, requirements: roles.requirements })
+        .from(roles)
+        .where(eq(roles.id, candidate.roleId))
+        .limit(1);
+    } catch {
+      role = null;
+    }
+  }
+
+  let questions: Awaited<ReturnType<typeof generateCategoryQuestions>>;
+  try {
+    questions = await generateCategoryQuestions(
+      body.category as QuestionCategory,
+      {
+        roleName: role?.name,
+        techStack: (project?.techStack as string[]) ?? [],
+        resumeText: candidate.resumeText ?? "",
+        roleRequirements: role?.requirements ?? "",
+      },
+      body.count ?? 5,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Question generation failed.";
+    return apiError(msg, 500);
+  }
 
   return NextResponse.json({ questions });
 }
