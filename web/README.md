@@ -123,23 +123,38 @@ FROM screenings
 WHERE created_at >= NOW() - INTERVAL '30 days';
 ```
 
-### Next Phases (Planned)
+### Phases 2–4 (Implemented)
 
-**Phase 2 (1 week):** Clarification Workflow
-- Email templates for missing tech clarifications
-- Re-analysis after candidate responds
-- Status tracking ("clarification_pending")
+**Phase 2: Clarification Workflow**
+- Auto-detects clarification-required holds from AI `clarifications`
+- Prepares `candidate_clarification` email with line-item clarification asks
+- Marks screening as clarification pending with timestamps
+- Supports `reanalyze` action after candidate clarification response
 
-**Phase 3 (Few hours):** Token Optimization
-- Prompt caching (50% savings if multiple candidates per role)
-- Batch processing (10x latency improvement)
-- Context trimming (additional 5% token savings)
-- **Target: 60-70% total cost reduction**
+**Phase 3: Token Optimization + Telemetry**
+- Resume text normalization/compression before extraction
+- Project context trimming for prompt size control
+- Per-analysis usage capture (prompt/completion/cache tokens)
+- Estimated USD cost persisted in `ai_analysis_usage`
 
-**Phase 4 (Ongoing):** Feedback Loop
-- Track AI recommendations vs. actual outcomes
-- Monthly threshold adjustments based on data
-- Continuous accuracy improvement
+**Phase 4: Feedback Loop**
+- Structured table `screening_feedback` for model vs recruiter vs final outcome
+- Auto-upsert feedback on screening decision
+- Auto-close feedback when final decision is recorded
+- Supports explicit `record_outcome` action for recruiter updates
+
+### Runtime Stats API
+
+Use this endpoint to fetch 30-day token/cost and recommendation-agreement stats:
+
+```bash
+curl -X GET http://localhost:3000/api/ai/stats
+```
+
+Response includes:
+- `usage.totalAnalyses`, `usage.reusedAnalyses`, `usage.avgCostUsdPerAnalysis`
+- `usage.cacheHitRatePct`, token breakdowns, and total estimated cost
+- `feedback.recommendationAgreementPct` and closed-outcome counts
 
 ### Architecture References
 

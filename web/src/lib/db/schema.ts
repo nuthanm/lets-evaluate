@@ -391,6 +391,13 @@ export const screenings = pgTable(
     qSatisfaction: jsonb("q_satisfaction").$type<Record<string, unknown>>().default({}),
     decision: screeningDecisionEnum("decision"),
     comments: text("comments").default(""),
+    clarificationRequestedAt: timestamp("clarification_requested_at", {
+      withTimezone: true,
+    }),
+    clarificationResolvedAt: timestamp("clarification_resolved_at", {
+      withTimezone: true,
+    }),
+    clarificationRequestNote: text("clarification_request_note").default(""),
     screenedById: text("screened_by_id").references(() => users.id),
     screenedAt: timestamp("screened_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -487,6 +494,84 @@ export const evaluationEvents = pgTable(
   (t) => [
     index("events_org_idx").on(t.organizationId),
     index("events_created_idx").on(t.createdAt),
+  ],
+);
+
+/** Token/cost telemetry for AI resume analysis (Phase 3 optimization). */
+export const aiAnalysisUsage = pgTable(
+  "ai_analysis_usage",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id").references(() => candidates.id, {
+      onDelete: "set null",
+    }),
+    screeningId: text("screening_id").references(() => screenings.id, {
+      onDelete: "set null",
+    }),
+    extractionModel: text("extraction_model").notNull().default("gpt-4o-mini"),
+    analysisModel: text("analysis_model").notNull().default("gpt-4o"),
+    extractionPromptTokens: integer("extraction_prompt_tokens").notNull().default(0),
+    extractionCompletionTokens: integer("extraction_completion_tokens")
+      .notNull()
+      .default(0),
+    extractionTotalTokens: integer("extraction_total_tokens").notNull().default(0),
+    analysisPromptTokens: integer("analysis_prompt_tokens").notNull().default(0),
+    analysisCompletionTokens: integer("analysis_completion_tokens")
+      .notNull()
+      .default(0),
+    analysisTotalTokens: integer("analysis_total_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    estimatedCostUsd: text("estimated_cost_usd").notNull().default("0"),
+    reusedAnalysis: boolean("reused_analysis").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("ai_analysis_usage_org_idx").on(t.organizationId),
+    index("ai_analysis_usage_candidate_idx").on(t.candidateId),
+    index("ai_analysis_usage_created_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * Feedback loop table (Phase 4): track model recommendation vs recruiter
+ * decision and final interview outcome for continuous tuning.
+ */
+export const screeningFeedback = pgTable(
+  "screening_feedback",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id")
+      .notNull()
+      .references(() => candidates.id, { onDelete: "cascade" })
+      .unique(),
+    screeningId: text("screening_id").references(() => screenings.id, {
+      onDelete: "set null",
+    }),
+    modelRecommendation: text("model_recommendation").default(""),
+    recruiterDecision: text("recruiter_decision").default(""),
+    finalOutcome: text("final_outcome").default(""),
+    recruiterNotes: text("recruiter_notes").default(""),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("screening_feedback_org_idx").on(t.organizationId),
+    index("screening_feedback_candidate_idx").on(t.candidateId),
+    index("screening_feedback_recommendation_idx").on(t.modelRecommendation),
   ],
 );
 

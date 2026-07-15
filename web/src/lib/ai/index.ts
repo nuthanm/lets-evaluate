@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-const MAX_RESUME = 4000;
+const MAX_RESUME = 3200;
 const MAX_ROLE = 2000;
 const MAX_RESUME_Q = 3000;
 const MAX_NOTES = 2000;
@@ -38,6 +38,72 @@ function parseJson<T>(text: string): T {
       .trim();
   }
   return JSON.parse(t) as T;
+}
+
+function compressResumeText(input: string): string {
+  let t = input || "";
+  t = t.replace(/\r\n/g, "\n");
+  t = t.replace(/\n{3,}/g, "\n\n");
+  t = t.replace(/[ \t]{2,}/g, " ");
+  return t.trim();
+}
+
+function trimOtherProjects(projects: { name: string; techStack: string[] }[]) {
+  return projects.slice(0, 4).map((p) => ({
+    name: p.name,
+    techStack: p.techStack.slice(0, 5),
+  }));
+}
+
+type OpenAIUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  prompt_tokens_details?: {
+    cached_tokens?: number;
+  };
+};
+
+export type AiUsageSummary = {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cacheReadTokens: number;
+  estimatedInputCostUsd: number;
+  estimatedOutputCostUsd: number;
+  estimatedTotalCostUsd: number;
+};
+
+export type AnalyzeResumeDetailedResult = {
+  metrics: ResumeMetrics;
+  extraction: AiUsageSummary;
+  analysis: AiUsageSummary;
+  estimatedTotalCostUsd: number;
+};
+
+function usageSummary(
+  usage: OpenAIUsage | undefined,
+  model: string,
+  inputPer1k: number,
+  outputPer1k: number,
+): AiUsageSummary {
+  const promptTokens = usage?.prompt_tokens ?? 0;
+  const completionTokens = usage?.completion_tokens ?? 0;
+  const totalTokens = usage?.total_tokens ?? promptTokens + completionTokens;
+  const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens ?? 0;
+  const estimatedInputCostUsd = (promptTokens / 1000) * inputPer1k;
+  const estimatedOutputCostUsd = (completionTokens / 1000) * outputPer1k;
+  return {
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    cacheReadTokens,
+    estimatedInputCostUsd,
+    estimatedOutputCostUsd,
+    estimatedTotalCostUsd: estimatedInputCostUsd + estimatedOutputCostUsd,
+  };
 }
 
 const UNKNOWN = new Set(["unknown", "n/a", "-", "none", ""]);
@@ -223,16 +289,21 @@ export type AnalyzeOptions = {
  * PHASE 1: Extract structured data from resume (fast, deterministic).
  * Uses gpt-4o-mini for cost efficiency (~$0.00015/1K tokens).
  */
-async function extractResumeData(resumeText: string) {
+async function extractResumeData(resumeText: string): Promise<{
+  data: Record<string, unknown>;
+  usage: AiUsageSummary;
+} | null> {
   const openai = client();
   if (!openai) {
     return null;
   }
 
+  const cleanedResume = compressResumeText(resumeText);
+
   const extractionPrompt = `Extract structured data from the resume below. Return ONLY valid JSON (no markdown).
 
 Resume text:
-${resumeText.slice(0, MAX_RESUME)}
+${cleanedResume.slice(0, MAX_RESUME)}
 
 CRITICAL RULES:
 1. Extract facts EXACTLY as written in the resume
@@ -281,7 +352,17 @@ Return JSON object:
       ],
     });
 
-    return parseJson<any>(res.choices[0]?.message?.content ?? "{}");
+    return {
+      data: parseJson<Record<string, unknown>>(
+        res.choices[0]?.message?.content ?? "{}",
+      ),
+      usage: usageSummary(
+        res.usage as OpenAIUsage | undefined,
+        "gpt-4o-mini",
+        0.00015,
+        0.0006,
+      ),
+    };
   } catch (e) {
     console.error("Extraction failed:", e);
     return null;
@@ -293,22 +374,27 @@ Return JSON object:
  * Uses gpt-4o for judgment and reasoning (~$0.003/1K tokens).
  */
 async function analyzeExtractedData(
-  extractedData: any,
-  resumeText: string,
+  extractedData: Record<string, unknown>,
   projectTechStack: string[],
   roleRequirements: string,
   roleName: string,
   projectName: string,
   otherProjects: { name: string; techStack: string[] }[],
-): Promise<ResumeMetrics> {
+): Promise<{ metrics: ResumeMetrics; usage: AiUsageSummary }> {
   const openai = client();
   if (!openai) {
-    return emptyMetrics(projectTechStack, "OpenAI API key not configured");
+    return {
+      metrics: emptyMetrics(projectTechStack, "OpenAI API key not configured"),
+      usage: usageSummary(undefined, analysisModel(), 0.0025, 0.01),
+    };
   }
 
+  const compactProjects = trimOtherProjects(otherProjects);
   const otherProjectsBlock =
-    otherProjects && otherProjects.length
-      ? otherProjects.map((p) => `- ${p.name}: ${p.techStack.join(", ") || "n/a"}`).join("\n")
+    compactProjects && compactProjects.length
+      ? compactProjects
+          .map((p) => `- ${p.name}: ${p.techStack.join(", ") || "n/a"}`)
+          .join("\n")
       : "None";
 
   const analysisPrompt = `You are a technical recruiter evaluating a candidate for "${roleName}" on project "${projectName}".
@@ -404,12 +490,23 @@ Return ONLY valid JSON with exactly these keys:
 
     const raw = res.choices[0]?.message?.content ?? "{}";
     const result = withDefaults(parseJson<Partial<ResumeMetrics>>(raw));
-    return computeExperience(result);
+    return {
+      metrics: computeExperience(result),
+      usage: usageSummary(
+        res.usage as OpenAIUsage | undefined,
+        analysisModel(),
+        0.0025,
+        0.01,
+      ),
+    };
   } catch (e) {
-    return emptyMetrics(
-      projectTechStack,
-      `Analysis failed: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    return {
+      metrics: emptyMetrics(
+        projectTechStack,
+        `Analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+      ),
+      usage: usageSummary(undefined, analysisModel(), 0.0025, 0.01),
+    };
   }
 }
 
@@ -417,16 +514,23 @@ Return ONLY valid JSON with exactly these keys:
  * Main entry point: Extract, then analyze with deterministic rules.
  * PHASE 1 implementation for consistency & cost reduction.
  */
-export async function analyzeResume(
+export async function analyzeResumeDetailed(
   resumeText: string,
   projectTechStack: string[],
   roleRequirements: string,
   opts: AnalyzeOptions = {},
-): Promise<ResumeMetrics> {
+): Promise<AnalyzeResumeDetailedResult> {
   // Phase 1: Extract structured data (fast, cheap, deterministic)
   const extracted = await extractResumeData(resumeText);
   if (!extracted) {
-    return emptyMetrics(projectTechStack, "Failed to extract resume data");
+    const fallback = emptyMetrics(projectTechStack, "Failed to extract resume data");
+    const emptyUsage = usageSummary(undefined, analysisModel(), 0.0025, 0.01);
+    return {
+      metrics: fallback,
+      extraction: usageSummary(undefined, "gpt-4o-mini", 0.00015, 0.0006),
+      analysis: emptyUsage,
+      estimatedTotalCostUsd: 0,
+    };
   }
 
   // Phase 2: Analyze with deterministic rules (gpt-4o)
@@ -434,15 +538,37 @@ export async function analyzeResume(
   const projectName = opts.projectName?.trim() || "the project";
   const otherProjects = opts.otherProjects ?? [];
 
-  return analyzeExtractedData(
-    extracted,
-    resumeText,
+  const analyzed = await analyzeExtractedData(
+    extracted.data,
     projectTechStack,
     roleRequirements,
     roleName,
     projectName,
     otherProjects,
   );
+
+  return {
+    metrics: analyzed.metrics,
+    extraction: extracted.usage,
+    analysis: analyzed.usage,
+    estimatedTotalCostUsd:
+      extracted.usage.estimatedTotalCostUsd + analyzed.usage.estimatedTotalCostUsd,
+  };
+}
+
+export async function analyzeResume(
+  resumeText: string,
+  projectTechStack: string[],
+  roleRequirements: string,
+  opts: AnalyzeOptions = {},
+): Promise<ResumeMetrics> {
+  const result = await analyzeResumeDetailed(
+    resumeText,
+    projectTechStack,
+    roleRequirements,
+    opts,
+  );
+  return result.metrics;
 }
 
 /** Ensure every field exists so the UI never crashes on a partial model reply. */

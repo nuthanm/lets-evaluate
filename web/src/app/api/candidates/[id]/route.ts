@@ -8,6 +8,8 @@ import {
   candidateStages,
   screenings,
   evaluationEvents,
+  aiAnalysisUsage,
+  screeningFeedback,
 } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
@@ -31,7 +33,7 @@ import {
 } from "@/lib/candidates/validation";
 import {
   ANALYSIS_MODEL,
-  analyzeResume,
+  analyzeResumeDetailed,
   generateResumeQuestions,
   generateStandardQuestions,
 } from "@/lib/ai";
@@ -62,6 +64,8 @@ const screenSchema = z.object({
     "analyze",
     "questions",
     "decide",
+    "reanalyze",
+    "record_outcome",
     "finalize",
     "reassign",
     "handoff",
@@ -71,6 +75,7 @@ const screenSchema = z.object({
   finalDecision: z.enum(["selected", "rejected", "hold"]).optional(),
   resumeText: z.string().optional(),
   ratings: z.record(z.string(), z.unknown()).optional(),
+  outcome: z.enum(["selected", "rejected", "hold"]).optional(),
   projectId: z.string().optional(),
   roleId: z.string().optional(),
   createdById: z.string().optional(),
@@ -216,6 +221,17 @@ export async function POST(req: Request, { params }: Params) {
         });
       }
 
+      await db.insert(aiAnalysisUsage).values({
+        id: uuid(),
+        organizationId: session.user.organizationId,
+        candidateId: id,
+        screeningId: existingScreening?.id ?? existingAnalysis.id,
+        extractionModel: "gpt-4o-mini",
+        analysisModel: ANALYSIS_MODEL,
+        estimatedCostUsd: "0",
+        reusedAnalysis: true,
+      });
+
       await db
         .update(candidates)
         .set({ status: "screening", updatedAt: new Date() })
@@ -257,14 +273,20 @@ export async function POST(req: Request, { params }: Params) {
         ),
       );
 
-    const metrics = await analyzeResume(resumeText, techStack, requirements, {
+    const analyzed = await analyzeResumeDetailed(
+      resumeText,
+      techStack,
+      requirements,
+      {
       roleName: role?.name,
       projectName: project?.name,
       otherProjects: otherProjects.map((p) => ({
         name: p.name,
         techStack: (p.techStack as string[]) ?? [],
       })),
-    });
+      },
+    );
+    const metrics = analyzed.metrics;
 
     const [existing] = await db
       .select()
@@ -272,6 +294,7 @@ export async function POST(req: Request, { params }: Params) {
       .where(eq(screenings.candidateId, id))
       .limit(1);
 
+    let screeningId = existing?.id ?? "";
     if (existing) {
       await db
         .update(screenings)
@@ -282,8 +305,9 @@ export async function POST(req: Request, { params }: Params) {
         })
         .where(eq(screenings.id, existing.id));
     } else {
+      screeningId = uuid();
       await db.insert(screenings).values({
-        id: uuid(),
+        id: screeningId,
         candidateId: id,
         organizationId: session.user.organizationId,
         resumeHash,
@@ -291,6 +315,24 @@ export async function POST(req: Request, { params }: Params) {
         screenedById: session.user.id,
       });
     }
+
+    await db.insert(aiAnalysisUsage).values({
+      id: uuid(),
+      organizationId: session.user.organizationId,
+      candidateId: id,
+      screeningId: screeningId || undefined,
+      extractionModel: analyzed.extraction.model,
+      analysisModel: analyzed.analysis.model,
+      extractionPromptTokens: analyzed.extraction.promptTokens,
+      extractionCompletionTokens: analyzed.extraction.completionTokens,
+      extractionTotalTokens: analyzed.extraction.totalTokens,
+      analysisPromptTokens: analyzed.analysis.promptTokens,
+      analysisCompletionTokens: analyzed.analysis.completionTokens,
+      analysisTotalTokens: analyzed.analysis.totalTokens,
+      cacheReadTokens: analyzed.analysis.cacheReadTokens,
+      estimatedCostUsd: analyzed.estimatedTotalCostUsd.toFixed(6),
+      reusedAnalysis: false,
+    });
 
     await db
       .update(candidates)
@@ -306,6 +348,9 @@ export async function POST(req: Request, { params }: Params) {
       payload: {
         score: metrics.tech_match_score,
         resumeHash: resumeHash.substring(0, 16),
+        estimatedCostUsd: analyzed.estimatedTotalCostUsd.toFixed(6),
+        totalTokens:
+          analyzed.extraction.totalTokens + analyzed.analysis.totalTokens,
       },
     });
 
@@ -352,6 +397,38 @@ export async function POST(req: Request, { params }: Params) {
     const openingErr = await assertRoleOpen(candidate.roleId);
     if (openingErr) return apiError(openingErr, 400);
 
+    const [existingScreening] = await db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, id))
+      .limit(1);
+    const metrics = existingScreening?.metrics as
+      | Record<string, unknown>
+      | undefined;
+    const clarifications =
+      (metrics?.clarifications as Array<{ technology?: string; reason?: string }>) ??
+      [];
+    const clarificationNeeded =
+      body.decision === "hold" && clarifications.length > 0;
+
+    const clarificationText = clarificationNeeded
+      ? clarifications
+          .slice(0, 6)
+          .map(
+            (c, i) =>
+              `${i + 1}. ${c.technology ?? "Technology"}: ${c.reason ?? "Please share project evidence and duration."}`,
+          )
+          .join("\n")
+      : "";
+    const screeningComment = clarificationNeeded
+      ? [
+          "Clarification is pending from Candidate.",
+          body.comments?.trim() ?? "",
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : body.comments ?? "";
+
     const statusMap = {
       proceed: "ready_for_interview" as const,
       hold: "screened_hold" as const,
@@ -362,7 +439,12 @@ export async function POST(req: Request, { params }: Params) {
       .update(screenings)
       .set({
         decision: body.decision,
-        comments: body.comments ?? "",
+        comments: screeningComment,
+        clarificationRequestedAt: clarificationNeeded ? new Date() : null,
+        clarificationResolvedAt: clarificationNeeded ? null : new Date(),
+        clarificationRequestNote: clarificationNeeded
+          ? clarificationText
+          : "",
         qSatisfaction: body.ratings ?? {},
         screenedAt: new Date(),
         screenedById: session.user.id,
@@ -449,24 +531,56 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
-    const [screening] = await db
-      .select()
-      .from(screenings)
-      .where(eq(screenings.candidateId, id))
-      .limit(1);
-    const metrics = screening?.metrics as Record<string, unknown> | undefined;
+    const slug = clarificationNeeded
+      ? "candidate_clarification"
+      : MAIL_SLUG_FOR_DECISION[body.decision];
+
     const mail = await prepareMail(
       session.user.organizationId,
-      MAIL_SLUG_FOR_DECISION[body.decision],
+      slug,
       buildMailVars({
         candidate,
         roleName: role?.name ?? "Role",
         projectName: project?.name ?? "Project",
         taName: session.user.name ?? undefined,
-        screeningComments: body.comments,
+        screeningComments: clarificationNeeded
+          ? clarificationText
+          : screeningComment,
         techMatchScore: metrics?.tech_match_score as number | undefined,
       }),
     );
+
+    const [existingFeedback] = await db
+      .select()
+      .from(screeningFeedback)
+      .where(eq(screeningFeedback.candidateId, id))
+      .limit(1);
+    const modelRecommendation =
+      typeof metrics?.recommendation === "string"
+        ? metrics.recommendation
+        : "";
+    if (existingFeedback) {
+      await db
+        .update(screeningFeedback)
+        .set({
+          screeningId: existingScreening?.id ?? existingFeedback.screeningId,
+          modelRecommendation,
+          recruiterDecision: body.decision,
+          recruiterNotes: screeningComment,
+          updatedAt: new Date(),
+        })
+        .where(eq(screeningFeedback.id, existingFeedback.id));
+    } else {
+      await db.insert(screeningFeedback).values({
+        id: uuid(),
+        organizationId: session.user.organizationId,
+        candidateId: id,
+        screeningId: existingScreening?.id ?? null,
+        modelRecommendation,
+        recruiterDecision: body.decision,
+        recruiterNotes: screeningComment,
+      });
+    }
 
     await logEvent({
       organizationId: session.user.organizationId,
@@ -483,10 +597,162 @@ export async function POST(req: Request, { params }: Params) {
       entityType: "candidate",
       entityId: id,
       action: "mail.prepared",
-      payload: { slug: MAIL_SLUG_FOR_DECISION[body.decision] },
+      payload: { slug, clarificationNeeded },
     });
 
-    return NextResponse.json({ ok: true, mail });
+    return NextResponse.json({ ok: true, mail, clarificationNeeded });
+  }
+
+  if (body.action === "reanalyze") {
+    const resumeText = await resolveResumeText(candidate, body.resumeText);
+    if (!resumeText) {
+      return apiError(
+        "No resume found. Re-upload the resume for this candidate.",
+        400,
+      );
+    }
+    const resumeLengthError = validateResumeTextLength(resumeText);
+    if (resumeLengthError) return apiError(resumeLengthError, 400);
+
+    const [screening] = await db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, id))
+      .limit(1);
+    if (!screening) return apiError("Analyze before re-analyzing", 400);
+
+    const clarificationBlock = body.comments?.trim()
+      ? `\n\nCandidate clarification response:\n${body.comments.trim()}`
+      : "";
+
+    const otherProjects = await db
+      .select({ name: projects.name, techStack: projects.techStack })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, session.user.organizationId),
+          candidate.projectId
+            ? ne(projects.id, candidate.projectId)
+            : undefined,
+        ),
+      );
+
+    const analyzed = await analyzeResumeDetailed(
+      `${resumeText}${clarificationBlock}`,
+      techStack,
+      requirements,
+      {
+        roleName: role?.name,
+        projectName: project?.name,
+        otherProjects: otherProjects.map((p) => ({
+          name: p.name,
+          techStack: (p.techStack as string[]) ?? [],
+        })),
+      },
+    );
+
+    await db
+      .update(screenings)
+      .set({
+        metrics: analyzed.metrics,
+        decision: null,
+        comments: body.comments ?? screening.comments,
+        clarificationResolvedAt: new Date(),
+        screenedById: session.user.id,
+      })
+      .where(eq(screenings.id, screening.id));
+
+    await db
+      .update(candidates)
+      .set({ status: "screening", updatedAt: new Date() })
+      .where(eq(candidates.id, id));
+
+    await db.insert(aiAnalysisUsage).values({
+      id: uuid(),
+      organizationId: session.user.organizationId,
+      candidateId: id,
+      screeningId: screening.id,
+      extractionModel: analyzed.extraction.model,
+      analysisModel: analyzed.analysis.model,
+      extractionPromptTokens: analyzed.extraction.promptTokens,
+      extractionCompletionTokens: analyzed.extraction.completionTokens,
+      extractionTotalTokens: analyzed.extraction.totalTokens,
+      analysisPromptTokens: analyzed.analysis.promptTokens,
+      analysisCompletionTokens: analyzed.analysis.completionTokens,
+      analysisTotalTokens: analyzed.analysis.totalTokens,
+      cacheReadTokens: analyzed.analysis.cacheReadTokens,
+      estimatedCostUsd: analyzed.estimatedTotalCostUsd.toFixed(6),
+      reusedAnalysis: false,
+    });
+
+    await logEvent({
+      organizationId: session.user.organizationId,
+      actorId: session.user.id,
+      entityType: "candidate",
+      entityId: id,
+      action: "screening.reanalyzed",
+      payload: {
+        estimatedCostUsd: analyzed.estimatedTotalCostUsd.toFixed(6),
+        hasClarificationInput: Boolean(body.comments?.trim()),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      metrics: analyzed.metrics,
+      model: ANALYSIS_MODEL,
+      reanalyzed: true,
+    });
+  }
+
+  if (body.action === "record_outcome") {
+    if (!body.outcome) return apiError("Outcome required", 400);
+    const [screening] = await db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, id))
+      .limit(1);
+
+    const [existingFeedback] = await db
+      .select()
+      .from(screeningFeedback)
+      .where(eq(screeningFeedback.candidateId, id))
+      .limit(1);
+
+    if (existingFeedback) {
+      await db
+        .update(screeningFeedback)
+        .set({
+          screeningId: screening?.id ?? existingFeedback.screeningId,
+          finalOutcome: body.outcome,
+          recruiterNotes: body.comments ?? existingFeedback.recruiterNotes,
+          closedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(screeningFeedback.id, existingFeedback.id));
+    } else {
+      await db.insert(screeningFeedback).values({
+        id: uuid(),
+        organizationId: session.user.organizationId,
+        candidateId: id,
+        screeningId: screening?.id ?? null,
+        recruiterDecision: screening?.decision ?? "",
+        finalOutcome: body.outcome,
+        recruiterNotes: body.comments ?? "",
+        closedAt: new Date(),
+      });
+    }
+
+    await logEvent({
+      organizationId: session.user.organizationId,
+      actorId: session.user.id,
+      entityType: "candidate",
+      entityId: id,
+      action: "screening.outcome_recorded",
+      payload: { outcome: body.outcome },
+    });
+
+    return NextResponse.json({ ok: true });
   }
 
   if (body.action === "reassign") {
@@ -564,6 +830,30 @@ export async function POST(req: Request, { params }: Params) {
       .update(candidates)
       .set({ status: fd, updatedAt: new Date() })
       .where(eq(candidates.id, id));
+
+    const [screening] = await db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, id))
+      .limit(1);
+    const [feedback] = await db
+      .select()
+      .from(screeningFeedback)
+      .where(eq(screeningFeedback.candidateId, id))
+      .limit(1);
+    if (feedback) {
+      await db
+        .update(screeningFeedback)
+        .set({
+          screeningId: screening?.id ?? feedback.screeningId,
+          recruiterDecision:
+            feedback.recruiterDecision || screening?.decision || "",
+          finalOutcome: fd,
+          closedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(screeningFeedback.id, feedback.id));
+    }
 
     const slug =
       fd === "selected" ? "candidate_selected" : "candidate_final_reject";
