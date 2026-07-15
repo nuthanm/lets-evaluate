@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { candidates } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { apiError } from "@/lib/api/helpers";
 import { readResume } from "@/lib/storage/resumes";
 
@@ -85,41 +85,53 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { id } = await params;
 
-  const [row] = await db
-    .select({
-      resumeStorageKey: candidates.resumeStorageKey,
-      resumeFilename: candidates.resumeFilename,
-      resumeText: candidates.resumeText,
-    })
-    .from(candidates)
-    .where(
-      and(
-        eq(candidates.id, id),
-        eq(candidates.organizationId, session.user.organizationId),
-      ),
-    )
-    .limit(1);
+  try {
+    // Get the candidate
+    const candidateResult = await db
+      .select({
+        resumeStorageKey: candidates.resumeStorageKey,
+        resumeFilename: candidates.resumeFilename,
+        resumeText: candidates.resumeText,
+        organizationId: candidates.organizationId,
+      })
+      .from(candidates)
+      .where(eq(candidates.id, id))
+      .limit(1);
 
-  if (!row) return apiError("Not found", 404);
-
-  const filename = row.resumeFilename ?? "resume.docx";
-
-  // Path 1: stored file → mammoth rich HTML
-  if (row.resumeStorageKey) {
-    try {
-      const buf = await readResume(row.resumeStorageKey);
-      const mammoth = (await import("mammoth")).default;
-      const { value: bodyHtml } = await mammoth.convertToHtml({ buffer: buf });
-      return htmlResponse(filename, bodyHtml);
-    } catch (err) {
-      console.error("[resume/html] mammoth failed, using text fallback:", err);
+    if (!candidateResult || candidateResult.length === 0) {
+      return apiError("Not found", 404);
     }
-  }
 
-  // Path 2: plain-text fallback (always present after analysis)
-  if (row.resumeText?.trim()) {
-    return htmlResponse(filename, textToHtml(row.resumeText));
-  }
+    const candidate = candidateResult[0];
 
-  return apiError("Resume preview unavailable", 404);
+    // Check if candidate belongs to user's organization
+    // Admins can access candidates from any organization
+    if (session.user.role !== "admin" && candidate.organizationId !== session.user.organizationId) {
+      return apiError("Not found", 404);
+    }
+
+    // Serve the resume as HTML
+    const filename = candidate.resumeFilename ?? "resume.docx";
+
+    // Path 1: stored file → mammoth rich HTML
+    if (candidate.resumeStorageKey) {
+      try {
+        const buf = await readResume(candidate.resumeStorageKey);
+        const mammoth = (await import("mammoth")).default;
+        const { value: bodyHtml } = await mammoth.convertToHtml({ buffer: buf });
+        return htmlResponse(filename, bodyHtml);
+      } catch (err) {
+        console.error("[resume/html] mammoth failed, using text fallback:", err);
+      }
+    }
+
+    // Path 2: plain-text fallback (always present after analysis)
+    if (candidate.resumeText?.trim()) {
+      return htmlResponse(filename, textToHtml(candidate.resumeText));
+    }
+
+    return apiError("Resume preview unavailable", 404);
+  } catch {
+    return apiError("Resume preview unavailable", 404);
+  }
 }

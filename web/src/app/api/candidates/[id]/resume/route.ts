@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { candidates } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { apiError } from "@/lib/api/helpers";
 import { readResume } from "@/lib/storage/resumes";
 
@@ -23,26 +23,34 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { id } = await params;
 
-  const [row] = await db
-    .select({
-      resumeStorageKey: candidates.resumeStorageKey,
-      resumeFilename: candidates.resumeFilename,
-    })
-    .from(candidates)
-    .where(
-      and(
-        eq(candidates.id, id),
-        eq(candidates.organizationId, session.user.organizationId),
-      ),
-    )
-    .limit(1);
-
-  if (!row) return apiError("Not found", 404);
-  if (!row.resumeStorageKey) return apiError("No resume on file", 404);
-
   try {
-    const buf = await readResume(row.resumeStorageKey);
-    const filename = row.resumeFilename ?? "resume";
+    // Get the candidate
+    const candidateResult = await db
+      .select({
+        resumeStorageKey: candidates.resumeStorageKey,
+        resumeFilename: candidates.resumeFilename,
+        organizationId: candidates.organizationId,
+      })
+      .from(candidates)
+      .where(eq(candidates.id, id))
+      .limit(1);
+
+    if (!candidateResult || candidateResult.length === 0) {
+      return apiError("Not found", 404);
+    }
+
+    const candidate = candidateResult[0];
+    if (!candidate.resumeStorageKey) return apiError("No resume on file", 404);
+
+    // Check if candidate belongs to user's organization
+    // Admins can access candidates from any organization
+    if (session.user.role !== "admin" && candidate.organizationId !== session.user.organizationId) {
+      return apiError("Not found", 404);
+    }
+
+    // Serve the resume file
+    const buf = await readResume(candidate.resumeStorageKey);
+    const filename = candidate.resumeFilename ?? "resume";
     const contentType = guessMime(filename);
     const isPdf = contentType === "application/pdf";
 
@@ -50,7 +58,6 @@ export async function GET(_req: Request, { params }: Params) {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        // inline → browser renders it (PDF); attachment → forces download (DOCX)
         "Content-Disposition": `${isPdf ? "inline" : "attachment"}; filename="${filename}"`,
         "Cache-Control": "private, no-store",
       },

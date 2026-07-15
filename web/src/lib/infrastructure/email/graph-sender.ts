@@ -14,6 +14,8 @@ export class ManualEmailSender implements EmailSender {
       to: input.to,
       subject: input.subject,
       body: input.body,
+      bodyHtml: "",
+      attachments: [],
       mailto: buildMailto(input.to, input.subject, input.body),
     };
 
@@ -101,6 +103,8 @@ export class GraphEmailSender implements EmailSender {
         to: input.to,
         subject: input.subject,
         body: input.body,
+        bodyHtml: "",
+        attachments: [],
         mailto: buildMailto(input.to, input.subject, input.body),
       };
 
