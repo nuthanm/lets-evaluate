@@ -351,8 +351,9 @@ function drawFooter(
   if (footerImage) {
     const imageHeight = 60;
     const imageWidth = Math.min(CONTENT_WIDTH, (footerImage.width / footerImage.height) * imageHeight);
+    const imageX = MARGIN_X + (CONTENT_WIDTH - imageWidth) / 2;
     page.drawImage(footerImage.image, {
-      x: MARGIN_X,
+      x: imageX,
       y: MARGIN_BOTTOM + 22,
       width: imageWidth,
       height: imageHeight,
@@ -403,11 +404,14 @@ export async function buildJobDescriptionPdf(
       : await doc.embedJpg(assets.footer.data)
     : null;
 
+  const footerTopBoundary = footerImage ? MARGIN_BOTTOM + 90 : MARGIN_BOTTOM + 18;
+
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN_TOP;
 
   const ensure = (need = 20) => {
-    if (y > MARGIN_BOTTOM + need) return;
+    // Keep content above the footer image/text area to avoid overlap.
+    if (y - need > footerTopBoundary) return;
     drawFooter(
       page,
       `${brand.tagline} | Great Place to Work`,
