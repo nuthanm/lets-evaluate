@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   );
   const filename = getJobDescriptionFilename(body.jobDescription, "docx");
 
-  return new Response(file, {
+  return new Response(file as Uint8Array, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${filename}"`,

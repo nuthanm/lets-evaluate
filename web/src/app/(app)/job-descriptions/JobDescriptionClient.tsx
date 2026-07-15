@@ -44,6 +44,15 @@ type SavedPrompt = {
   updatedAt: string;
 };
 
+type SavedJobDescription = {
+  id: string;
+  title: string;
+  location: string;
+  experience: string;
+  updatedAt: string;
+  content: GeneratedJd;
+};
+
 type RoleOption = {
   id: string;
   name: string;
@@ -165,6 +174,8 @@ export function JobDescriptionClient({
   const [error, setError] = useState<string | null>(null);
   const [copiedPresetId, setCopiedPresetId] = useState<string | null>(null);
   const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [savedJobDescriptions, setSavedJobDescriptions] = useState<SavedJobDescription[]>([]);
+  const [selectedSavedJdId, setSelectedSavedJdId] = useState("");
   const [promptName, setPromptName] = useState("");
   const [promptTemplate, setPromptTemplate] = useState("");
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
@@ -216,9 +227,20 @@ export function JobDescriptionClient({
     setSavedPrompts(Array.isArray(rows) ? rows : []);
   }
 
+  async function reloadSavedJobDescriptions() {
+    const refreshed = await fetch("/api/job-descriptions");
+    const rows = (await refreshed.json().catch(() => [])) as SavedJobDescription[];
+    const normalized = Array.isArray(rows) ? rows : [];
+    setSavedJobDescriptions(normalized);
+    return normalized;
+  }
+
   useEffect(() => {
-    reloadSavedPrompts()
-      .catch(() => setSavedPrompts([]));
+    Promise.all([reloadSavedPrompts(), reloadSavedJobDescriptions()])
+      .catch(() => {
+        setSavedPrompts([]);
+        setSavedJobDescriptions([]);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -367,10 +389,41 @@ export function JobDescriptionClient({
         setError(payload.error ?? "Could not save job description.");
         return;
       }
-      setSaveMessage("Job description saved. It is now available as a Job ID in candidate creation.");
+
+      const refreshed = await reloadSavedJobDescriptions();
+      const savedId = (payload as { id?: string }).id;
+      const saved = savedId ? refreshed.find((item) => item.id === savedId) : null;
+
+      if (saved) {
+        setSelectedSavedJdId(saved.id);
+        if (saved.content) {
+          setGenerated(saved.content);
+          setUsage(null);
+        }
+        setSaveMessage("Job description saved and loaded in preview. It is now available as a Job ID in candidate creation.");
+      } else {
+        setSaveMessage("Job description saved. It is now available as a Job ID in candidate creation.");
+      }
     } finally {
       setSaveBusy(false);
     }
+  }
+
+  function loadSavedJobDescription() {
+    if (!selectedSavedJdId) {
+      setError("Select a saved job description to load.");
+      return;
+    }
+    const selected = savedJobDescriptions.find((item) => item.id === selectedSavedJdId);
+    if (!selected?.content) {
+      setError("Selected job description could not be loaded.");
+      return;
+    }
+
+    setGenerated(selected.content);
+    setUsage(null);
+    setError(null);
+    setSaveMessage(`Loaded saved job description: ${selected.title}.`);
   }
 
   async function generate() {
@@ -623,6 +676,42 @@ export function JobDescriptionClient({
             <ButtonLink href="/evaluate/new" variant="ghost" className="px-5 py-2.5 text-[13px]">
               Add candidate
             </ButtonLink>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-3">
+          <p className="text-[13px] font-semibold text-[var(--ink)]">Saved Job Descriptions</p>
+          {savedJobDescriptions.length === 0 ? (
+            <p className="mt-1 text-[12px] text-[var(--ink-soft)]">
+              No saved job descriptions yet. You can still generate, preview, and download directly on this page.
+            </p>
+          ) : (
+            <>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <FieldSelect
+                  value={selectedSavedJdId}
+                  onChange={(e) => setSelectedSavedJdId(e.target.value)}
+                >
+                  <option value="">Select saved job description</option>
+                  {savedJobDescriptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title} - {item.location} ({item.experience})
+                    </option>
+                  ))}
+                </FieldSelect>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="px-3 py-2 text-[12px]"
+                  onClick={loadSavedJobDescription}
+                >
+                  Load to preview
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--ink-faint)]">
+                Loading a saved JD updates the Preview pane on this page and enables DOCX/PDF download here.
+              </p>
+            </>
           )}
         </div>
       </CaseCard>

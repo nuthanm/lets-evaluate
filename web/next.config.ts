@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable compression for faster asset delivery
   compress: true,
+
+  // Pin Turbopack root to this app to avoid multi-lockfile root inference warnings.
+  turbopack: {
+    root: process.cwd(),
+  },
   
   // Power up Router performance for faster navigation
   experimental: {

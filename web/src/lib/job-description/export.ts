@@ -145,7 +145,7 @@ export function getJobDescriptionFilename(jd: JobDescription, ext: "docx" | "pdf
 export async function buildJobDescriptionDocx(
   jd: JobDescription,
   organizationId?: string,
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   const brand = getBrand();
   const assets = await getJobDescriptionAssets(organizationId);
 
@@ -289,7 +289,7 @@ export async function buildJobDescriptionDocx(
     ],
   });
 
-  return Buffer.from(await Packer.toBuffer(doc));
+  return await Packer.toBuffer(doc);
 }
 
 function wrap(text: string, maxChars = 92) {
