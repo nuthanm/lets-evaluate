@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import {
   candidates,
+  officeLocations,
   projects,
   roles,
   questions,
@@ -51,6 +52,14 @@ export async function getOrgProjects(organizationId: string) {
     .from(projects)
     .where(eq(projects.organizationId, organizationId))
     .orderBy(projects.name);
+}
+
+export async function getOrgOfficeLocations(organizationId: string) {
+  return db
+    .select()
+    .from(officeLocations)
+    .where(eq(officeLocations.organizationId, organizationId))
+    .orderBy(asc(officeLocations.name));
 }
 
 export async function getOrgRoles(organizationId: string, projectId?: string) {

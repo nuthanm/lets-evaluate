@@ -66,6 +66,7 @@ function navForRole(role: MemberRole): NavSection[] {
         items: [
           { href: "/pipeline", label: "Pipeline", icon: PipelineIcon },
           { href: "/library", label: "Question Library", icon: LibraryIcon },
+          { href: "/job-descriptions", label: "Job Descriptions", icon: RolesIcon },
           { href: "/archive", label: "Archives", icon: ArchivesIcon },
         ],
       },
@@ -80,6 +81,7 @@ function navForRole(role: MemberRole): NavSection[] {
       label: "Configuration",
       items: [
         { href: "/setup/projects", label: "Projects", icon: ProjectsIcon },
+        { href: "/setup/locations", label: "Office locations", icon: ProjectsIcon },
         { href: "/setup/roles", label: "Roles", icon: RolesIcon },
         { href: "/setup/pipeline", label: "Interview Process", icon: PipelineIcon },
         { href: "/setup/templates", label: "Mail templates", icon: RolesIcon },
@@ -100,6 +102,7 @@ function navForRole(role: MemberRole): NavSection[] {
       items: [
         { href: "/pipeline", label: "Pipeline", icon: PipelineIcon },
         { href: "/library", label: "Question Library", icon: LibraryIcon },
+        { href: "/job-descriptions", label: "Job Descriptions", icon: RolesIcon },
         { href: "/archive", label: "Archives", icon: ArchivesIcon },
       ],
     },
@@ -119,6 +122,7 @@ function mobileNavForRole(role: MemberRole) {
   return [
     { href: "/people", label: "Home" },
     { href: "/candidates", label: "People" },
+    { href: "/job-descriptions", label: "JD" },
     { href: "/evaluate/new", label: "+", accent: true as const },
     { href: "/booking", label: "Booking" },
     { href: "/archive", label: "Archive" },

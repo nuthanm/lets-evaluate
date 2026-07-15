@@ -146,6 +146,27 @@ export const projects = pgTable(
   (t) => [index("projects_org_idx").on(t.organizationId)],
 );
 
+export const officeLocations = pgTable(
+  "office_locations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("office_locations_org_idx").on(t.organizationId),
+    uniqueIndex("office_locations_org_name_unique").on(t.organizationId, t.name),
+  ],
+);
+
 export const roles = pgTable(
   "roles",
   {
@@ -869,6 +890,7 @@ export const verificationTokens = pgTable("verification_tokens", {
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(organizationMembers),
   projects: many(projects),
+  officeLocations: many(officeLocations),
   candidates: many(candidates),
 }));
 

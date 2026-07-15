@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FaceAvatar } from "@/components/FaceAvatar";
 import { Button } from "@/components/Button";
 import { EmailComposer } from "@/components/EmailComposer";
@@ -118,6 +118,7 @@ const TONE_PILL: Record<Tone, string> = {
 };
 
 type ToneFilter = "all" | Tone | "action";
+type QuickFilter = "all" | "unmapped";
 
 const LEGEND: { tone: Tone; label: string }[] = [
   { tone: "active", label: "In progress" },
@@ -153,8 +154,12 @@ export function CandidatesGrid({
   roles: GridRole[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuickFilter: QuickFilter =
+    searchParams.get("quick")?.toLowerCase() === "unmapped" ? "unmapped" : "all";
   const [query, setQuery] = useState("");
   const [toneFilter, setToneFilter] = useState<ToneFilter>("action");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "updated",
     dir: "desc",
@@ -186,6 +191,7 @@ export function CandidatesGrid({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = candidates.filter((c) => {
+      if (quickFilter === "unmapped" && c.projectId && c.roleId) return false;
       if (toneFilter === "action") {
         if (!candidateNeedsAction(c.status)) return false;
       } else if (toneFilter !== "all") {
@@ -221,7 +227,7 @@ export function CandidatesGrid({
       }
     };
     return [...filtered].sort(cmp);
-  }, [candidates, query, toneFilter, sort]);
+  }, [candidates, query, toneFilter, quickFilter, sort]);
 
   const selectedVisibleCount = useMemo(
     () => visible.filter((c) => selectedIds.has(c.id)).length,
@@ -396,6 +402,26 @@ export function CandidatesGrid({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setQuickFilter((prev) => (prev === "unmapped" ? "all" : "unmapped"))}
+            aria-pressed={quickFilter === "unmapped"}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
+              quickFilter === "unmapped"
+                ? "border-[var(--green)]/30 bg-[var(--green-soft)] text-[var(--green)]"
+                : "border-[var(--cream-2)] bg-white text-[var(--ink-faint)] hover:text-[var(--ink)]",
+            )}
+          >
+            Unmapped only
+            <span
+              className={cn(
+                quickFilter === "unmapped" ? "text-[var(--green)]/70" : "text-[var(--ink-faint)]",
+              )}
+            >
+              {candidates.filter((c) => !c.projectId || !c.roleId).length}
+            </span>
+          </button>
           {(["action", "all", "active", "selected", "hold", "rejected", "draft"] as const).map(
             (t) => {
               const active = toneFilter === t;
@@ -439,6 +465,12 @@ export function CandidatesGrid({
           )}
         </div>
       </div>
+
+      {quickFilter === "unmapped" ? (
+        <div className="rounded-xl border border-[var(--green)]/20 bg-[var(--green-soft)] px-3 py-2 text-xs text-[var(--ink)]">
+          Showing candidates missing project or role mapping so recruiters can complete assignment context faster.
+        </div>
+      ) : null}
 
       {hasSelected ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#c0392b]/20 bg-[#c0392b]/5 px-3 py-2.5">
