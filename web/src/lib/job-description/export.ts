@@ -16,6 +16,10 @@ import {
   type PDFPage,
 } from "pdf-lib";
 import { getBrand } from "@/lib/brand";
+import { db } from "@/lib/db";
+import { organizationMailAssets } from "@/lib/db/schema";
+import { readMailAsset } from "@/lib/storage/assets";
+import { eq } from "drizzle-orm";
 import type { JobDescription } from "./types";
 
 const PAGE_WIDTH = 595;
@@ -25,12 +29,48 @@ const MARGIN_TOP = 68;
 const MARGIN_BOTTOM = 58;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 
-type LogoAsset = {
+type ImageAsset = {
   data: Uint8Array;
   ext: "png" | "jpg";
 };
 
-async function fetchLogoAsset(logoUrl: string | undefined): Promise<LogoAsset | null> {
+type JobDescriptionAssets = {
+  logo: ImageAsset | null;
+  header: ImageAsset | null;
+  footer: ImageAsset | null;
+};
+
+function toImageAsset(
+  bytes: Uint8Array,
+  contentType: string,
+  pathHint = "",
+): ImageAsset | null {
+  const lowerType = (contentType || "").toLowerCase();
+  const lowerPath = pathHint.toLowerCase();
+  if (lowerType.includes("png") || lowerPath.endsWith(".png")) {
+    return { data: bytes, ext: "png" };
+  }
+  if (
+    lowerType.includes("jpeg") ||
+    lowerType.includes("jpg") ||
+    /\.(jpe?g)$/i.test(lowerPath)
+  ) {
+    return { data: bytes, ext: "jpg" };
+  }
+  return null;
+}
+
+async function fetchImageByKey(key: string | undefined): Promise<ImageAsset | null> {
+  if (!key?.trim()) return null;
+  try {
+    const file = await readMailAsset(key.trim());
+    return toImageAsset(file.body, file.contentType, key);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchImageByUrl(logoUrl: string | undefined): Promise<ImageAsset | null> {
   if (!logoUrl) return null;
 
   const brand = getBrand();
@@ -48,21 +88,45 @@ async function fetchLogoAsset(logoUrl: string | undefined): Promise<LogoAsset | 
     const contentType = (res.headers.get("content-type") || "").toLowerCase();
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (!bytes.length) return null;
-
-    if (contentType.includes("png") || url.pathname.toLowerCase().endsWith(".png")) {
-      return { data: bytes, ext: "png" };
-    }
-    if (
-      contentType.includes("jpeg") ||
-      contentType.includes("jpg") ||
-      /\.(jpe?g)$/i.test(url.pathname)
-    ) {
-      return { data: bytes, ext: "jpg" };
-    }
-    return null;
+    return toImageAsset(bytes, contentType, url.pathname);
   } catch {
     return null;
   }
+}
+
+async function getJobDescriptionAssets(
+  organizationId?: string,
+): Promise<JobDescriptionAssets> {
+  const brand = getBrand();
+  let logo: ImageAsset | null = null;
+  let header: ImageAsset | null = null;
+  let footer: ImageAsset | null = null;
+
+  if (organizationId) {
+    const [row] = await db
+      .select({
+        logoAssetKey: organizationMailAssets.logoAssetKey,
+        headerImageAssetKey: organizationMailAssets.headerImageAssetKey,
+        footerImageAssetKey: organizationMailAssets.footerImageAssetKey,
+      })
+      .from(organizationMailAssets)
+      .where(eq(organizationMailAssets.organizationId, organizationId))
+      .limit(1);
+
+    if (row) {
+      [logo, header, footer] = await Promise.all([
+        fetchImageByKey(row.logoAssetKey),
+        fetchImageByKey(row.headerImageAssetKey),
+        fetchImageByKey(row.footerImageAssetKey),
+      ]);
+    }
+  }
+
+  if (!logo) {
+    logo = await fetchImageByUrl(brand.logoUrl);
+  }
+
+  return { logo, header, footer };
 }
 
 function jdFilenameBase(jd: JobDescription) {
@@ -78,9 +142,12 @@ export function getJobDescriptionFilename(jd: JobDescription, ext: "docx" | "pdf
   return `${base}-kanini.${ext}`;
 }
 
-export async function buildJobDescriptionDocx(jd: JobDescription): Promise<Buffer> {
+export async function buildJobDescriptionDocx(
+  jd: JobDescription,
+  organizationId?: string,
+): Promise<Buffer> {
   const brand = getBrand();
-  const logo = await fetchLogoAsset(brand.logoUrl);
+  const assets = await getJobDescriptionAssets(organizationId);
 
   const sectionTitle = (value: string) =>
     new Paragraph({
@@ -97,13 +164,13 @@ export async function buildJobDescriptionDocx(jd: JobDescription): Promise<Buffe
     });
 
   const headerChildren: Paragraph[] = [];
-  if (logo) {
+  if (assets.logo) {
     headerChildren.push(
       new Paragraph({
         alignment: AlignmentType.LEFT,
         children: [
           new ImageRun({
-            data: logo.data,
+            data: assets.logo.data,
             transformation: { width: 122, height: 34 },
           }),
         ],
@@ -116,6 +183,42 @@ export async function buildJobDescriptionDocx(jd: JobDescription): Promise<Buffe
       }),
     );
   }
+  if (assets.header) {
+    headerChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new ImageRun({
+            data: assets.header.data,
+            transformation: { width: 470, height: 96 },
+          }),
+        ],
+      }),
+    );
+  }
+
+  const footerChildren: Paragraph[] = [];
+  if (assets.footer) {
+    footerChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new ImageRun({
+            data: assets.footer.data,
+            transformation: { width: 470, height: 74 },
+          }),
+        ],
+      }),
+    );
+  }
+  footerChildren.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [
+        new TextRun({ text: `${brand.tagline} | Great Place to Work`, size: 18 }),
+      ],
+    }),
+  );
 
   const doc = new Document({
     styles: {
@@ -143,16 +246,7 @@ export async function buildJobDescriptionDocx(jd: JobDescription): Promise<Buffe
           default: new Header({ children: headerChildren }),
         },
         footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({ text: `${brand.tagline} | Great Place to Work`, size: 18 }),
-                ],
-              }),
-            ],
-          }),
+          default: new Footer({ children: footerChildren }),
         },
         children: [
           new Paragraph({
@@ -237,33 +331,65 @@ function drawTextBlock(
   return cursor;
 }
 
-function drawFooter(page: PDFPage, text: string) {
+function drawFooter(
+  page: PDFPage,
+  text: string,
+  footerImage?: { image: Awaited<ReturnType<PDFDocument["embedPng"]>>; width: number; height: number },
+) {
+  let lineY = MARGIN_BOTTOM - 6;
+  if (footerImage) {
+    const imageHeight = 60;
+    const imageWidth = Math.min(CONTENT_WIDTH, (footerImage.width / footerImage.height) * imageHeight);
+    page.drawImage(footerImage.image, {
+      x: MARGIN_X,
+      y: MARGIN_BOTTOM + 22,
+      width: imageWidth,
+      height: imageHeight,
+    });
+    lineY = MARGIN_BOTTOM + 14;
+  }
+
   page.drawLine({
-    start: { x: MARGIN_X, y: MARGIN_BOTTOM - 6 },
-    end: { x: PAGE_WIDTH - MARGIN_X, y: MARGIN_BOTTOM - 6 },
+    start: { x: MARGIN_X, y: lineY },
+    end: { x: PAGE_WIDTH - MARGIN_X, y: lineY },
     thickness: 0.6,
     color: rgb(0.85, 0.85, 0.85),
   });
   page.drawText(text, {
     x: MARGIN_X,
-    y: MARGIN_BOTTOM - 24,
+    y: lineY - 18,
     size: 9,
     color: rgb(0.35, 0.35, 0.35),
   });
 }
 
-export async function buildJobDescriptionPdf(jd: JobDescription): Promise<Uint8Array> {
+export async function buildJobDescriptionPdf(
+  jd: JobDescription,
+  organizationId?: string,
+): Promise<Uint8Array> {
   const brand = getBrand();
-  const logo = await fetchLogoAsset(brand.logoUrl);
+  const assets = await getJobDescriptionAssets(organizationId);
 
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const logoImage = logo
-    ? logo.ext === "png"
-      ? await doc.embedPng(logo.data)
-      : await doc.embedJpg(logo.data)
+  const logoImage = assets.logo
+    ? assets.logo.ext === "png"
+      ? await doc.embedPng(assets.logo.data)
+      : await doc.embedJpg(assets.logo.data)
+    : null;
+
+  const headerImage = assets.header
+    ? assets.header.ext === "png"
+      ? await doc.embedPng(assets.header.data)
+      : await doc.embedJpg(assets.header.data)
+    : null;
+
+  const footerImage = assets.footer
+    ? assets.footer.ext === "png"
+      ? await doc.embedPng(assets.footer.data)
+      : await doc.embedJpg(assets.footer.data)
     : null;
 
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -271,7 +397,13 @@ export async function buildJobDescriptionPdf(jd: JobDescription): Promise<Uint8A
 
   const ensure = (need = 20) => {
     if (y > MARGIN_BOTTOM + need) return;
-    drawFooter(page, `${brand.tagline} | Great Place to Work`);
+    drawFooter(
+      page,
+      `${brand.tagline} | Great Place to Work`,
+      footerImage
+        ? { image: footerImage, width: footerImage.width, height: footerImage.height }
+        : undefined,
+    );
     page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = PAGE_HEIGHT - MARGIN_TOP;
     drawHeader();
@@ -311,7 +443,28 @@ export async function buildJobDescriptionPdf(jd: JobDescription): Promise<Uint8A
       thickness: 1,
       color: rgb(0.88, 0.9, 0.92),
     });
-    y = PAGE_HEIGHT - 84;
+
+    let nextY = PAGE_HEIGHT - 84;
+    if (headerImage) {
+      const imageHeight = 78;
+      const imageWidth = Math.min(CONTENT_WIDTH, (headerImage.width / headerImage.height) * imageHeight);
+      const imageY = PAGE_HEIGHT - 158;
+      page.drawImage(headerImage, {
+        x: MARGIN_X,
+        y: imageY,
+        width: imageWidth,
+        height: imageHeight,
+      });
+      page.drawLine({
+        start: { x: MARGIN_X, y: imageY - 8 },
+        end: { x: PAGE_WIDTH - MARGIN_X, y: imageY - 8 },
+        thickness: 0.8,
+        color: rgb(0.9, 0.9, 0.9),
+      });
+      nextY = imageY - 28;
+    }
+
+    y = nextY;
   };
 
   const title = (value: string) => {
@@ -383,7 +536,13 @@ export async function buildJobDescriptionPdf(jd: JobDescription): Promise<Uint8A
   title("Ready to Make an Impact");
   body(jd.readyToMakeImpact);
 
-  drawFooter(page, `${brand.tagline} | Great Place to Work`);
+  drawFooter(
+    page,
+    `${brand.tagline} | Great Place to Work`,
+    footerImage
+      ? { image: footerImage, width: footerImage.width, height: footerImage.height }
+      : undefined,
+  );
 
   return await doc.save();
 }

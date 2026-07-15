@@ -15,8 +15,12 @@ import {
   validateCandidateName,
 } from "@/lib/candidates/validation";
 
-type Project = { id: string; name: string };
-type Role = { id: string; name: string; projectId: string | null };
+type JobDescriptionOption = {
+  id: string;
+  label: string;
+  roleId: string;
+  projectId: string | null;
+};
 
 export function NewCandidateClient() {
   const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
@@ -26,10 +30,10 @@ export function NewCandidateClient() {
   const [phone, setPhone] = useState("");
   const [source, setSource] = useState("");
   const [consent, setConsent] = useState(false);
+  const [jobDescriptionId, setJobDescriptionId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [roleId, setRoleId] = useState("");
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionOption[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +41,7 @@ export function NewCandidateClient() {
     name?: string;
     email?: string;
     resume?: string;
+    jobDescription?: string;
   }>({});
   const [touched, setTouched] = useState<{ name: boolean; email: boolean }>({
     name: false,
@@ -44,21 +49,13 @@ export function NewCandidateClient() {
   });
 
   useEffect(() => {
-    fetch("/api/projects")
+    fetch("/api/job-descriptions?view=options")
       .then((r) => r.json())
-      .then(setProjects)
+      .then((rows: JobDescriptionOption[]) =>
+        setJobDescriptions(Array.isArray(rows) ? rows : []),
+      )
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    const url = projectId
-      ? `/api/roles?projectId=${projectId}`
-      : "/api/roles";
-    fetch(url)
-      .then((r) => r.json())
-      .then(setRoles)
-      .catch(() => {});
-  }, [projectId]);
 
   function validateField(field: "name" | "email", value: string) {
     if (field === "name") return validateCandidateName(value);
@@ -77,8 +74,17 @@ export function NewCandidateClient() {
       nextErrors.resume = "Resume must be under 10MB.";
     }
 
+    if (!jobDescriptionId) {
+      nextErrors.jobDescription = "Job ID is required.";
+    }
+
     setFieldErrors(nextErrors);
-    return !nextErrors.name && !nextErrors.email && !nextErrors.resume;
+    return (
+      !nextErrors.name &&
+      !nextErrors.email &&
+      !nextErrors.resume &&
+      !nextErrors.jobDescription
+    );
   }
 
   async function submit(e: React.FormEvent) {
@@ -94,8 +100,7 @@ export function NewCandidateClient() {
     if (phone) fd.set("phone", phone);
     if (source) fd.set("source", source);
     if (consent) fd.set("consent", "true");
-    if (projectId) fd.set("projectId", projectId);
-    if (roleId) fd.set("roleId", roleId);
+    fd.set("jobDescriptionId", jobDescriptionId);
     if (file) fd.set("resume", file);
     const res = await fetch("/api/candidates", { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
@@ -205,37 +210,47 @@ export function NewCandidateClient() {
             Candidate has consented to data processing
           </label>
           <div>
-            <FieldLabel htmlFor="candidate-project">Project</FieldLabel>
+            <FieldLabel htmlFor="candidate-job-id">Job ID</FieldLabel>
             <FieldSelect
-              id="candidate-project"
-              value={projectId}
+              id="candidate-job-id"
+              value={jobDescriptionId}
               onChange={(e) => {
-                setProjectId(e.target.value);
-                setRoleId("");
+                const nextJobId = e.target.value;
+                setJobDescriptionId(nextJobId);
+                const selected = jobDescriptions.find((job) => job.id === nextJobId);
+                setProjectId(selected?.projectId ?? "");
+                setRoleId(selected?.roleId ?? "");
+                setFieldErrors((prev) => ({ ...prev, jobDescription: undefined }));
               }}
             >
-              <option value="">Select project (optional)</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+              <option value="">Select Job ID (required)</option>
+              {jobDescriptions.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.label}
                 </option>
               ))}
             </FieldSelect>
+            {fieldErrors.jobDescription ? (
+              <p className="mt-1.5 text-sm text-red-600" role="alert">
+                {fieldErrors.jobDescription}
+              </p>
+            ) : null}
           </div>
           <div>
-            <FieldLabel htmlFor="candidate-role">Role</FieldLabel>
-            <FieldSelect
+            <FieldLabel htmlFor="candidate-role">Role mapping</FieldLabel>
+            <FieldInput
               id="candidate-role"
-              value={roleId}
-              onChange={(e) => setRoleId(e.target.value)}
-            >
-              <option value="">Select role (optional)</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </FieldSelect>
+              value={roleId ? "Mapped from selected Job ID" : "Select a Job ID to auto-map role"}
+              readOnly
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="candidate-project">Project mapping</FieldLabel>
+            <FieldInput
+              id="candidate-project"
+              value={projectId ? "Mapped from selected Job ID" : "No project mapped"}
+              readOnly
+            />
           </div>
           <div>
             <FieldLabel>Resume</FieldLabel>

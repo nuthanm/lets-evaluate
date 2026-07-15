@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { candidates } from "@/lib/db/schema";
+import { candidates, jobDescriptions } from "@/lib/db/schema";
 import {
   ensureCandidateStages,
   getActivityFeed,
@@ -12,6 +12,7 @@ import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { v4 as uuid } from "uuid";
 import { storeResume } from "@/lib/storage/resumes";
 import { extractResumeText } from "@/lib/resume/parse";
+import { and, eq } from "drizzle-orm";
 import {
   isAllowedResumeFilename,
   RESUME_UPLOAD_FRIENDLY_ERROR,
@@ -64,12 +65,41 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const name = String(form.get("name") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
-    const projectId = String(form.get("projectId") ?? "") || null;
-    const roleId = String(form.get("roleId") ?? "") || null;
+    const jobDescriptionId = String(form.get("jobDescriptionId") ?? "").trim() || null;
     const phone = String(form.get("phone") ?? "").trim();
     const source = String(form.get("source") ?? "").trim();
     const consent = form.get("consent") === "true" || form.get("consent") === "on";
     const file = form.get("resume") as File | null;
+
+    if (!jobDescriptionId) {
+      return apiError("Job ID selection is required before creating a candidate.", 400);
+    }
+
+    const [jobDescription] = await db
+      .select({
+        id: jobDescriptions.id,
+        roleId: jobDescriptions.roleId,
+        projectId: jobDescriptions.projectId,
+      })
+      .from(jobDescriptions)
+      .where(
+        and(
+          eq(jobDescriptions.id, jobDescriptionId),
+          eq(jobDescriptions.organizationId, session.user.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!jobDescription) {
+      return apiError("Selected Job ID was not found.", 400);
+    }
+
+    if (!jobDescription.roleId) {
+      return apiError(
+        "Selected Job ID is missing role mapping. Save JD with a mapped role to continue.",
+        400,
+      );
+    }
 
     const nameError = validateCandidateName(name);
     if (nameError) return apiError(nameError, 400);
@@ -113,8 +143,9 @@ export async function POST(req: Request) {
       phone: phone || "",
       source: source || "",
       consentAt: consent ? new Date() : null,
-      projectId,
-      roleId,
+      projectId: jobDescription.projectId,
+      roleId: jobDescription.roleId,
+      jobDescriptionId: jobDescription.id,
       resumeStorageKey,
       resumeFilename,
       resumeText: resumeText ?? null,
@@ -124,7 +155,11 @@ export async function POST(req: Request) {
 
     // Materialize the candidate's interview flow from their project (or the
     // org default) so the stage menu is available from the start.
-    await ensureCandidateStages(session.user.organizationId, id, projectId);
+    await ensureCandidateStages(
+      session.user.organizationId,
+      id,
+      jobDescription.projectId,
+    );
 
     return NextResponse.json({ id, resumeText }, { status: 201 });
   } catch (err) {

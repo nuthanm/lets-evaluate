@@ -1,18 +1,92 @@
 import { db } from "@/lib/db";
-import { mailTemplates } from "@/lib/db/schema";
+import { mailTemplates, organizationMailAssets } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
+import { getBrand } from "@/lib/brand";
 import {
   DEFAULT_MAIL_TEMPLATES,
   type MailTemplateSlug,
 } from "./defaults";
 import {
   buildMailto,
+  type MailAssets,
   renderStructuredMail,
   renderTemplateText,
   type MailVars,
   type RenderedMail,
 } from "./placeholders";
+
+async function getOrgMailAssets(organizationId: string): Promise<MailAssets | undefined> {
+  const [assets] = await db
+    .select({
+      logoAssetKey: organizationMailAssets.logoAssetKey,
+      headerImageAssetKey: organizationMailAssets.headerImageAssetKey,
+      footerImageAssetKey: organizationMailAssets.footerImageAssetKey,
+      applyScope: organizationMailAssets.applyScope,
+      templateSlugs: organizationMailAssets.templateSlugs,
+    })
+    .from(organizationMailAssets)
+    .where(eq(organizationMailAssets.organizationId, organizationId))
+    .limit(1);
+
+  if (!assets) return undefined;
+
+  const appUrl = getBrand().appUrl.trim().replace(/\/$/, "");
+  const keyToUrl = (key: string | null | undefined) => {
+    const normalized = key?.trim() ?? "";
+    if (!normalized.startsWith("Assets/")) return "";
+    const path = normalized.split("/").map(encodeURIComponent).join("/");
+    if (appUrl) return `${appUrl}/api/public/assets/${path}`;
+    return `/api/public/assets/${path}`;
+  };
+
+  const selectedSlugs = Array.isArray(assets.templateSlugs)
+    ? assets.templateSlugs
+    : [];
+
+  return {
+    logoUrl: keyToUrl(assets.logoAssetKey),
+    headerImageUrl: keyToUrl(assets.headerImageAssetKey),
+    footerImageUrl: keyToUrl(assets.footerImageAssetKey),
+    applyScope: assets.applyScope,
+    templateSlugs: selectedSlugs,
+  };
+}
+
+async function prepareMailWithAssets(
+  organizationId: string,
+  slug: MailTemplateSlug | string,
+  vars: MailVars,
+  assets?: MailAssets,
+): Promise<RenderedMail | null> {
+  const tpl = await getMailTemplateBySlug(organizationId, slug);
+  if (!tpl) return null;
+
+  const subject = renderTemplateText(tpl.subject, vars);
+  const shouldApplyAssets =
+    (assets?.applyScope ?? "all") === "all" ||
+    Boolean(assets?.templateSlugs?.includes(slug));
+  const rendered = renderStructuredMail({
+    header: tpl.header,
+    body: tpl.body,
+    footer: tpl.footer,
+    tagline: tpl.tagline,
+    attachments: tpl.attachments ?? [],
+    assets: shouldApplyAssets ? assets : undefined,
+    vars,
+  });
+  const to = resolveRecipient(slug, tpl.audience, vars);
+
+  return {
+    slug,
+    to,
+    subject,
+    body: rendered.plainText,
+    bodyHtml: rendered.html,
+    attachments: rendered.attachments,
+    mailto: buildMailto(to, subject, rendered.plainText),
+  };
+}
 
 export async function ensureMailTemplates(organizationId: string) {
   const existing = await db
@@ -106,38 +180,23 @@ export async function prepareMail(
   slug: MailTemplateSlug | string,
   vars: MailVars,
 ): Promise<RenderedMail | null> {
-  const tpl = await getMailTemplateBySlug(organizationId, slug);
-  if (!tpl) return null;
-
-  const subject = renderTemplateText(tpl.subject, vars);
-  const rendered = renderStructuredMail({
-    header: tpl.header,
-    body: tpl.body,
-    footer: tpl.footer,
-    tagline: tpl.tagline,
-    attachments: tpl.attachments ?? [],
-    vars,
-  });
-  const to = resolveRecipient(slug, tpl.audience, vars);
-
-  return {
-    slug,
-    to,
-    subject,
-    body: rendered.plainText,
-    bodyHtml: rendered.html,
-    attachments: rendered.attachments,
-    mailto: buildMailto(to, subject, rendered.plainText),
-  };
+  const assets = await getOrgMailAssets(organizationId);
+  return prepareMailWithAssets(organizationId, slug, vars, assets);
 }
 
 export async function prepareMails(
   organizationId: string,
   specs: { slug: MailTemplateSlug | string; vars: MailVars }[],
 ) {
+  const assets = await getOrgMailAssets(organizationId);
   const results: RenderedMail[] = [];
   for (const spec of specs) {
-    const mail = await prepareMail(organizationId, spec.slug, spec.vars);
+    const mail = await prepareMailWithAssets(
+      organizationId,
+      spec.slug,
+      spec.vars,
+      assets,
+    );
     if (mail) results.push(mail);
   }
   return results;

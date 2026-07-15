@@ -17,6 +17,14 @@ export type MailVars = {
   caseUrl?: string;
 };
 
+export type MailAssets = {
+  logoUrl?: string;
+  headerImageUrl?: string;
+  footerImageUrl?: string;
+  applyScope?: "all" | "specific" | string;
+  templateSlugs?: string[];
+};
+
 const PLACEHOLDER_MAP: Record<string, (v: MailVars) => string> = {
   "{{candidate_name}}": (v) => v.candidateName ?? "",
   "{{candidate_email}}": (v) => v.candidateEmail ?? "",
@@ -72,6 +80,7 @@ export function renderStructuredMail(input: {
   footer?: string;
   tagline?: string;
   attachments?: string[];
+  assets?: MailAssets;
   vars: MailVars;
 }) {
   const header = renderTemplateText(input.header ?? "", input.vars).trim();
@@ -81,15 +90,24 @@ export function renderStructuredMail(input: {
   const attachments = (input.attachments ?? [])
     .map((item) => renderTemplateText(item, input.vars).trim())
     .filter(Boolean);
+  const assets = {
+    logoUrl: input.assets?.logoUrl?.trim() || "",
+    headerImageUrl: input.assets?.headerImageUrl?.trim() || "",
+    footerImageUrl: input.assets?.footerImageUrl?.trim() || "",
+  };
+  const hideFooterText = Boolean(assets.footerImageUrl);
+  const showHeaderText = Boolean(header && !assets.headerImageUrl);
+  const bodyContent = body;
+  const showHeaderPanel = Boolean(showHeaderText || assets.logoUrl);
 
-  const plainTextParts = [header, body];
+  const plainTextParts = showHeaderText ? [header, body] : [body];
   if (tagline) plainTextParts.push(`Tagline: ${tagline}`);
   if (attachments.length) {
     plainTextParts.push(
       ["Attachments / links:", ...attachments.map((item) => `- ${item}`)].join("\n"),
     );
   }
-  if (footer) plainTextParts.push(footer);
+  if (footer && !hideFooterText) plainTextParts.push(footer);
 
   const attachmentsHtml = attachments.length
     ? `<div style="padding:0 24px 20px;"><div style="margin:0 0 10px;color:#52636b;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">Attachments / links</div><ul style="margin:0;padding-left:18px;color:#22313a;font-size:14px;line-height:1.6;">${attachments
@@ -100,15 +118,21 @@ export function renderStructuredMail(input: {
   const html = [
     '<div style="background:#f4efe4;padding:24px;font-family:Segoe UI,Arial,sans-serif;">',
     '<div style="margin:0 auto;max-width:680px;overflow:hidden;border:1px solid #e5d9bf;border-radius:22px;background:#ffffff;box-shadow:0 18px 40px rgba(34,49,58,0.08);">',
-    header
-      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:24px 28px;color:#ffffff;"><div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Configured header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escapeHtml(header).replaceAll("\n", "<br />")}</div></div>`
+    showHeaderPanel
+      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:20px 28px;color:#ffffff;">${assets.logoUrl ? `<div style="margin:0 0 ${showHeaderText ? "12px" : "0"};"><img src="${escapeHtml(assets.logoUrl)}" alt="Organization logo" style="display:block;max-height:56px;max-width:220px;width:auto;height:auto;border:0;" /></div>` : ""}${showHeaderText ? `<div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Configured header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escapeHtml(header).replaceAll("\n", "<br />")}</div>` : ""}</div>`
       : "",
-    `<div style="padding:28px 28px 12px;">${textToHtml(body)}</div>`,
+    assets.headerImageUrl
+      ? `<div style="background:#ffffff;"><img src="${escapeHtml(assets.headerImageUrl)}" alt="Header image" style="display:block;width:100%;max-width:100%;height:auto;border:0;" /></div>`
+      : "",
+    `<div style="padding:28px 28px 12px;">${textToHtml(bodyContent)}</div>`,
     tagline
       ? `<div style="padding:0 28px 20px;color:#45626a;font-size:13px;font-style:italic;line-height:1.6;">${escapeHtml(tagline).replaceAll("\n", "<br />")}</div>`
       : "",
     attachmentsHtml,
-    footer
+    assets.footerImageUrl
+      ? `<div style="border-top:1px solid #efe5cf;background:#fbf8f1;"><img src="${escapeHtml(assets.footerImageUrl)}" alt="Footer image" style="display:block;width:100%;max-width:100%;height:auto;border:0;" /></div>`
+      : "",
+    footer && !hideFooterText
       ? `<div style="border-top:1px solid #efe5cf;background:#fbf8f1;padding:22px 28px;">${textToHtml(footer)}</div>`
       : "",
     "</div>",

@@ -89,6 +89,31 @@ export const organizations = pgTable("organizations", {
     .notNull(),
 });
 
+export const organizationMailAssets = pgTable(
+  "organization_mail_assets",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    logoAssetKey: text("logo_asset_key").default("").notNull(),
+    headerImageAssetKey: text("header_image_asset_key").default("").notNull(),
+    footerImageAssetKey: text("footer_image_asset_key").default("").notNull(),
+    applyScope: text("apply_scope").default("all").notNull(),
+    templateSlugs: jsonb("template_slugs").$type<string[]>().default([]).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("organization_mail_assets_org_unique").on(t.organizationId),
+    index("organization_mail_assets_org_idx").on(t.organizationId),
+  ],
+);
+
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -191,6 +216,64 @@ export const roles = pgTable(
       .notNull(),
   },
   (t) => [index("roles_org_idx").on(t.organizationId)],
+);
+
+export const jobDescriptions = pgTable(
+  "job_descriptions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    roleId: text("role_id").references(() => roles.id, { onDelete: "set null" }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    location: text("location").notNull(),
+    experience: text("experience").notNull(),
+    content: jsonb("content").$type<Record<string, unknown>>().notNull().default({}),
+    createdById: text("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("job_descriptions_org_idx").on(t.organizationId),
+    index("job_descriptions_role_idx").on(t.roleId),
+    index("job_descriptions_project_idx").on(t.projectId),
+    index("job_descriptions_updated_idx").on(t.updatedAt),
+  ],
+);
+
+export const jobDescriptionPrompts = pgTable(
+  "job_description_prompts",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    template: text("template").notNull(),
+    createdById: text("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("job_description_prompts_org_idx").on(t.organizationId),
+    uniqueIndex("job_description_prompts_org_name_unique").on(t.organizationId, t.name),
+  ],
 );
 
 /**
@@ -367,6 +450,9 @@ export const candidates = pgTable(
       onDelete: "set null",
     }),
     roleId: text("role_id").references(() => roles.id, { onDelete: "set null" }),
+    jobDescriptionId: text("job_description_id").references(() => jobDescriptions.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     email: text("email").default(""),
     phone: text("phone").default(""),
@@ -390,6 +476,7 @@ export const candidates = pgTable(
   (t) => [
     index("candidates_org_idx").on(t.organizationId),
     index("candidates_status_idx").on(t.status),
+    index("candidates_job_description_idx").on(t.jobDescriptionId),
   ],
 );
 
@@ -889,6 +976,7 @@ export const verificationTokens = pgTable("verification_tokens", {
 
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(organizationMembers),
+  mailAssets: many(organizationMailAssets),
   projects: many(projects),
   officeLocations: many(officeLocations),
   candidates: many(candidates),

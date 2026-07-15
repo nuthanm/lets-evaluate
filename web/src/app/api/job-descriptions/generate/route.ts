@@ -35,6 +35,30 @@ function clampArray(items: string[] | undefined, min: number, max: number, fallb
   return fallback.slice(0, max);
 }
 
+function resolvePromptPlaceholders(
+  text: string,
+  input: {
+    roleTitle: string;
+    location: string;
+    experience: string;
+    skills: string;
+    domain?: string;
+  },
+) {
+  return text
+    .replaceAll("[Insert Role]", input.roleTitle)
+    .replaceAll("[Insert Location]", input.location)
+    .replaceAll("[Insert Years]", input.experience)
+    .replaceAll("[Insert Experience]", input.experience)
+    .replaceAll("[Insert Skills]", input.skills || "Not specified")
+    .replaceAll("[Insert Domain]", input.domain || "Not specified")
+    .replaceAll("{{ROLE}}", input.roleTitle)
+    .replaceAll("{{LOCATION}}", input.location)
+    .replaceAll("{{EXPERIENCE}}", input.experience)
+    .replaceAll("{{SKILLS}}", input.skills || "Not specified")
+    .replaceAll("{{DOMAIN}}", input.domain || "Not specified");
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
@@ -49,15 +73,31 @@ export async function POST(req: Request) {
   }
 
   const skills = (body.mustHaveSkills ?? []).slice(0, 12).join(", ");
-  const context = (body.additionalContext ?? "").slice(0, MAX_CONTEXT);
+  const contextRaw = (body.additionalContext ?? "").slice(0, MAX_CONTEXT);
+  const context = resolvePromptPlaceholders(contextRaw, {
+    roleTitle: body.roleTitle,
+    location: body.location,
+    experience: body.experience,
+    skills,
+    domain: body.domain?.trim(),
+  });
 
   const prompt = [
-    "Create a recruiter-grade Job Description in KANINI official style.",
+    "Generate a recruiter-grade Job Description in KANINI's official format.",
+    "Structure must follow exactly in this order:",
+    "1) Header (Role, Location, Experience)",
+    "2) About the Role (KANINI branding + role impact)",
+    "3) What You'll Do (6-8 action-oriented bullets)",
+    "4) What You Bring (skills, experience, domain)",
+    "5) Why Join KANINI (culture, Great Place to Work, tech exposure)",
+    "6) Ready to Make an Impact (call-to-action)",
     "Tone: crisp, professional, candidate-friendly.",
     "Always highlight Great Place to Work recognition.",
+    "Do not add any extra sections.",
     "Return strict JSON only with this shape:",
     '{"aboutRole":"...","whatYoullDo":["..."],"whatYouBring":{"summary":"...","skills":["..."],"domain":"..."},"whyJoinKanini":["..."],"readyToMakeImpact":"..."}',
     "Rules:",
+    "0) Keep output formatting and section structure consistent every time.",
     "1) whatYoullDo must have 6-8 action bullets.",
     "2) whatYouBring.skills must be concrete and role-relevant.",
     "3) whyJoinKanini must include one line mentioning Great Place to Work.",

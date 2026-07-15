@@ -7,7 +7,7 @@ export default async function MailTemplatesPage() {
   return (
     <CabinetPage
       title="Mail templates"
-      subtitle="Edit placeholder-driven emails — copy or open in your mail client, no external provider"
+      subtitle="Edit placeholder-driven emails. Branding images are configured in Setup > Mail assets."
     >
       <MailTemplatesClient />
     </CabinetPage>

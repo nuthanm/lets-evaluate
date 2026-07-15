@@ -51,15 +51,15 @@ export const MAIL_PLACEHOLDERS = [
   "{{case_url}}",
 ] as const;
 
-const DEFAULT_CANDIDATE_HEADER = `{{org_name}}\nHiring update for {{role}}`;
+const DEFAULT_CANDIDATE_HEADER = "";
 const DEFAULT_CANDIDATE_FOOTER = `Regards,\n{{org_name}} Talent Team`;
 const DEFAULT_CANDIDATE_TAGLINE =
-  "This message was prepared from your configured recruiting workflow.";
+  "This message follows your organization's configured recruiting workflow.";
 
-const DEFAULT_INTERVIEWER_HEADER = `{{org_name}}\nInterview panel coordination`;
+const DEFAULT_INTERVIEWER_HEADER = "";
 const DEFAULT_INTERVIEWER_FOOTER = `Thanks,\n{{org_name}} Hiring Operations`;
 const DEFAULT_INTERVIEWER_TAGLINE =
-  "Please use the candidate workspace link below to keep progress visible to the team.";
+  "Please use the candidate workspace link below to keep hiring progress visible to the team.";
 
 function makeTemplate(
   input: Omit<DefaultMailTemplate, "header" | "footer" | "tagline" | "attachments"> & {
@@ -84,9 +84,9 @@ export const DEFAULT_MAIL_TEMPLATES: DefaultMailTemplate[] = [
     slug: "candidate_proceed",
     name: "Screening — proceed",
     audience: "candidate",
-    description: "Sent after TA marks a candidate ready for interviews.",
+    description: "Send after screening when a candidate is ready for interview rounds.",
     subject: "Next steps — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Thank you for your interest in the {{role}} role on the {{project}} project.
 
@@ -99,24 +99,24 @@ Best regards,
     slug: "candidate_hold",
     name: "Screening — on hold",
     audience: "candidate",
-    description: "Sent when TA pauses a candidate during screening.",
+    description: "Send when screening is on hold and the candidate should wait for an update.",
     subject: "Update on your application — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Thank you for applying for the {{role}} role. We are reviewing your profile and will update you once we have a decision.
 
 Best regards,
 {{org_name}} Talent Team`,
     tagline:
-      "This hold template can include review cadence, expected response time, or a TA callback note.",
+      "Use this template to communicate expected review cadence or response timelines.",
   }),
   makeTemplate({
     slug: "candidate_reject",
     name: "Screening — reject",
     audience: "candidate",
-    description: "Sent when TA rejects a candidate after screening.",
+    description: "Send when the candidate is not moving forward after screening.",
     subject: "Update on your application — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Thank you for your interest in the {{role}} role at {{org_name}}. After careful review, we will not be moving forward with your application at this time.
 
@@ -129,9 +129,9 @@ Best regards,
     slug: "candidate_clarification",
     name: "Screening — clarification",
     audience: "candidate",
-    description: "Request additional details before proceeding.",
+    description: "Send when additional details are required before progressing the profile.",
     subject: "Quick follow-up — {{role}} application",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Thank you for sharing your profile for the {{role}} role. Before we proceed, we'd like a bit more context on your experience.
 
@@ -139,19 +139,21 @@ Thank you for sharing your profile for the {{role}} role. Before we proceed, we'
 
 A short note on project context, your responsibilities, and production usage would help us evaluate accurately.
 
-Thank you,
-{{ta_name}}
-{{org_name}}`,
+Regards,
+{{org_name}} Talent Team
+
+Candidate Intro Docket:
+https://kanini.com/wp-content/uploads/2024/01/Candidate-Intro-Docket.pdf`,
     tagline:
-      "Use this template when AI or TA screening needs supporting details before moving the profile forward.",
+      "Use this template when AI or recruiter screening needs supporting information.",
   }),
   makeTemplate({
     slug: "candidate_scheduled",
     name: "Interview scheduled — generic",
     audience: "candidate",
-    description: "Fallback candidate scheduling mail used when a stage does not have a dedicated round template.",
+    description: "Use as a fallback when a stage does not have a dedicated candidate scheduling template.",
     subject: "Interview scheduled — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Your {{interview_stage}} for the {{role}} role ({{project}}) is scheduled for {{interview_date}}.
 
@@ -165,9 +167,9 @@ Best regards,
     slug: "candidate_technical_round",
     name: "Technical round — candidate timeline",
     audience: "candidate",
-    description: "Sent to the candidate when a technical round is booked.",
+    description: "Send to the candidate when a technical round is scheduled.",
     subject: "Technical interview scheduled — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Your {{interview_stage}} for the {{role}} role on {{project}} is scheduled for {{interview_date}}.
 
@@ -175,16 +177,16 @@ During this round, our team will focus on hands-on technical depth, delivery exa
 
 If anything changes on your side, please reply so we can adjust the timeline.`,
     tagline:
-      "Include preparation points, coding environment notes, or timeline expectations here.",
+      "Include preparation points, coding environment notes, and timeline expectations.",
     attachments: ["Technical interview link", "Coding instructions or portfolio note"],
   }),
   makeTemplate({
     slug: "candidate_manager_round",
     name: "Manager round — candidate timeline",
     audience: "candidate",
-    description: "Sent to the candidate when a manager round is booked.",
+    description: "Send to the candidate when a manager round is scheduled.",
     subject: "Manager discussion scheduled — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Your {{interview_stage}} discussion for the {{role}} role is scheduled for {{interview_date}}.
 
@@ -192,16 +194,16 @@ This round typically focuses on ownership, communication, delivery expectations,
 
 We will keep you updated on the next milestone after this discussion.`,
     tagline:
-      "Use this area for hiring timeline commitments or role-level expectations.",
+      "Use this section for timeline commitments and role expectations.",
     attachments: ["Meeting link", "Role charter or team context"],
   }),
   makeTemplate({
     slug: "candidate_hr_round",
     name: "HR round — candidate timeline",
     audience: "candidate",
-    description: "Sent to the candidate when an HR round is booked.",
+    description: "Send to the candidate when an HR round is scheduled.",
     subject: "HR discussion scheduled — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Your {{interview_stage}} for the {{role}} role is scheduled for {{interview_date}}.
 
@@ -209,16 +211,16 @@ This conversation usually covers notice period, location, compensation fit, and 
 
 We will share the next update after the discussion is complete.`,
     tagline:
-      "Use this section for compensation, location, or document-readiness guidance.",
+      "Use this section for compensation, location, and document-readiness guidance.",
     attachments: ["Meeting link", "Any forms or policy documents to review"],
   }),
   makeTemplate({
     slug: "candidate_selected",
     name: "Final confirmation — selected",
     audience: "candidate",
-    description: "Sent when the candidate is selected after all rounds.",
+    description: "Send when the candidate is selected after all interview rounds.",
     subject: "Congratulations — {{role}} at {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 We are pleased to inform you that you have been selected for the {{role}} role on the {{project}} project.
 
@@ -227,16 +229,16 @@ Our team will reach out with next steps shortly.
 Congratulations,
 {{org_name}} Talent Team`,
     tagline:
-      "Use this final confirmation template for offer communication, documentation instructions, or joining checkpoints.",
+      "Use this template for final confirmation, offer communication, and joining checkpoints.",
     attachments: ["Offer or confirmation checklist", "Document submission instructions"],
   }),
   makeTemplate({
     slug: "candidate_final_reject",
     name: "Interview performance — reject",
     audience: "candidate",
-    description: "Sent when the candidate is rejected after interviews.",
+    description: "Send when the candidate is not moving forward after interview rounds.",
     subject: "Update on your application — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Thank you for taking the time to interview for the {{role}} role. After careful consideration, we will not be moving forward with your application.
 
@@ -245,15 +247,15 @@ We appreciate your interest in {{org_name}} and wish you success in your search.
 Best regards,
 {{org_name}} Talent Team`,
     tagline:
-      "Use this post-interview outcome template when the final performance decision is to not proceed.",
+      "Use this post-interview outcome template for a final non-selection decision.",
   }),
   makeTemplate({
     slug: "candidate_deleted_pre_analysis",
     name: "Deletion — pre-analysis",
     audience: "candidate",
-    description: "Sent when a candidate is removed before any AI or recruiter analysis.",
+    description: "Send when a candidate record is removed before AI or recruiter screening.",
     subject: "Your application record has been removed — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 Your application record for the {{role}} role has been removed from our active system.
 
@@ -268,9 +270,9 @@ Regards,
     slug: "candidate_deleted_post_analysis",
     name: "Deletion — after screening",
     audience: "candidate",
-    description: "Sent when a screened candidate is removed after an AI or recruiter decision.",
+    description: "Send when a screened candidate record is removed after AI or recruiter evaluation.",
     subject: "Update to your application record — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 We have removed your application record for the {{role}} role from our active system.
 
@@ -285,9 +287,9 @@ Regards,
     slug: "candidate_deleted_post_interview",
     name: "Deletion — after interview rounds",
     audience: "candidate",
-    description: "Sent when a later-stage candidate is removed after interview rounds have begun.",
+    description: "Send when a candidate record is removed after interview rounds have started.",
     subject: "Application record closed — {{org_name}}",
-    body: `Hi {{candidate_name}},
+    body: `Hello {{candidate_name}},
 
 We have closed and removed your application record for the {{role}} role.
 
@@ -300,9 +302,9 @@ Thank you for your time,
     slug: "interviewer_assigned",
     name: "Interviewer — new assignment (generic)",
     audience: "interviewer",
-    description: "Fallback interviewer assignment mail used when a stage does not have a dedicated round template.",
+    description: "Use as a fallback when a stage does not have a dedicated interviewer assignment template.",
     subject: "Interview assigned: {{candidate_name}} — {{interview_stage}}",
-    body: `Hi {{interviewer_name}},
+    body: `Hello {{interviewer_name}},
 
 You have been assigned to interview {{candidate_name}} for the {{role}} role ({{project}}).
 
@@ -322,9 +324,9 @@ Review the screening report and prepare questions in Let's Evaluate:
     slug: "interviewer_technical_assigned",
     name: "Technical round — interviewer assignment",
     audience: "interviewer",
-    description: "Sent to the interviewer when a technical round is booked.",
+    description: "Send when an interviewer is assigned to a technical round.",
     subject: "Technical interview assigned: {{candidate_name}} — {{interview_stage}}",
-    body: `Hi {{interviewer_name}},
+    body: `Hello {{interviewer_name}},
 
 You have been assigned to a technical round for {{candidate_name}} for the {{role}} role on {{project}}.
 
@@ -342,9 +344,9 @@ Please review the candidate workspace and be prepared to submit evaluation feedb
     slug: "interviewer_manager_assigned",
     name: "Manager round — interviewer assignment",
     audience: "interviewer",
-    description: "Sent when a manager round is booked.",
+    description: "Send when an interviewer is assigned to a manager round.",
     subject: "Manager round assigned: {{candidate_name}} — {{interview_stage}}",
-    body: `Hi {{interviewer_name}},
+    body: `Hello {{interviewer_name}},
 
 You have been assigned to the manager discussion for {{candidate_name}} for the {{role}} role on {{project}}.
 
@@ -362,9 +364,9 @@ Please review the case context and submit your decision promptly after the inter
     slug: "interviewer_hr_assigned",
     name: "HR round — interviewer assignment",
     audience: "interviewer",
-    description: "Sent when an HR round is booked.",
+    description: "Send when an interviewer is assigned to an HR round.",
     subject: "HR discussion assigned: {{candidate_name}} — {{interview_stage}}",
-    body: `Hi {{interviewer_name}},
+    body: `Hello {{interviewer_name}},
 
 You have been assigned to the HR discussion for {{candidate_name}} for the {{role}} role on {{project}}.
 
@@ -382,9 +384,9 @@ Please update the candidate record with compensation, joining, and policy-fit no
     slug: "interviewer_sla_reminder",
     name: "Interviewer — SLA reminder",
     audience: "internal",
-    description: "Reminder when a panel round is overdue.",
+    description: "Send when a panel round is overdue and interviewer feedback is pending.",
     subject: "Reminder: {{candidate_name}} — {{interview_stage}} overdue",
-    body: `Hi {{interviewer_name}},
+    body: `Hello {{interviewer_name}},
 
 The {{interview_stage}} for {{candidate_name}} ({{role}}) was scheduled for {{interview_date}} and is awaiting your evaluation.
 

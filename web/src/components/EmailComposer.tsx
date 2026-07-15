@@ -4,6 +4,53 @@ import { useState } from "react";
 import { Button } from "@/components/Button";
 import type { RenderedMail } from "@/lib/email";
 
+function toCrlf(value: string) {
+  return value.replace(/\r?\n/g, "\r\n");
+}
+
+function sanitizeHeader(value: string) {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+function safeFilename(value: string) {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 72);
+  return cleaned || "email-draft";
+}
+
+function buildEmlDraft(mail: RenderedMail) {
+  const boundary = `----=_LetsEvaluate_${Date.now().toString(36)}`;
+  const to = sanitizeHeader(mail.to || "");
+  const subject = sanitizeHeader(mail.subject || "");
+  const plain = toCrlf(mail.body || "");
+  const html = `<meta charset="utf-8" />${mail.bodyHtml || ""}`;
+
+  const lines = [
+    to ? `To: ${to}` : "",
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary=\"${boundary}\"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    plain,
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    toCrlf(html),
+    `--${boundary}--`,
+    "",
+  ].filter((line) => line !== "");
+
+  return toCrlf(lines.join("\n"));
+}
+
 export function EmailComposer({
   mails,
   title = "Prepared email",
@@ -35,20 +82,50 @@ export function EmailComposer({
       )}&body=${enc(mail.body)}`
     : "";
 
+  function copyHtmlLegacy(html: string) {
+    if (typeof document === "undefined") return false;
+    const container = document.createElement("div");
+    container.setAttribute("contenteditable", "true");
+    container.style.position = "fixed";
+    container.style.pointerEvents = "none";
+    container.style.opacity = "0";
+    container.style.left = "-9999px";
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const ok = document.execCommand("copy");
+    selection?.removeAllRanges();
+    document.body.removeChild(container);
+    return ok;
+  }
+
   async function copyFormatted() {
-    const text = `To: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.body}`;
-    if (
-      typeof ClipboardItem !== "undefined" &&
-      typeof navigator.clipboard.write === "function"
-    ) {
-      const item = new ClipboardItem({
-        "text/plain": new Blob([text], { type: "text/plain" }),
-        "text/html": new Blob([mail.bodyHtml], { type: "text/html" }),
-      });
-      await navigator.clipboard.write([item]);
-    } else {
-      await navigator.clipboard.writeText(text);
+    const html = `<meta charset="utf-8" />${mail.bodyHtml}`;
+    const plain = mail.body;
+
+    let copied = copyHtmlLegacy(html);
+    if (!copied) {
+      if (
+        typeof ClipboardItem !== "undefined" &&
+        typeof navigator.clipboard.write === "function"
+      ) {
+        const item = new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        });
+        await navigator.clipboard.write([item]);
+        copied = true;
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
     }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -58,6 +135,19 @@ export function EmailComposer({
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function downloadEml() {
+    const eml = buildEmlDraft(mail);
+    const blob = new Blob([eml], { type: "message/rfc822;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeFilename(mail.subject)}.eml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -70,7 +160,7 @@ export function EmailComposer({
             No external email service is used.
           </p>
           <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
-            Outlook and Gmail links open the plain-text draft. Use formatted copy to preserve the preview styling before pasting into compose.
+            Outlook and Gmail links open a plain-text draft. Use Download .eml draft to preserve layout, images, and links.
           </p>
         </div>
         {onClose && (
@@ -135,6 +225,9 @@ export function EmailComposer({
         </Button>
         <Button type="button" onClick={copyAll}>
           Copy plain text
+        </Button>
+        <Button type="button" onClick={downloadEml}>
+          Download .eml draft
         </Button>
         {outlookUrl && (
           <a

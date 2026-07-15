@@ -10,7 +10,10 @@ export async function POST(req: Request) {
   if (forbidden) return forbidden;
 
   const body = exportJobDescriptionInputSchema.parse(await req.json());
-  const file = await buildJobDescriptionDocx(body.jobDescription);
+  const file = await buildJobDescriptionDocx(
+    body.jobDescription,
+    session.user.organizationId,
+  );
   const filename = getJobDescriptionFilename(body.jobDescription, "docx");
 
   return new Response(file, {

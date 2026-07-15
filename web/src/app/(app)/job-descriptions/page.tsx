@@ -10,9 +10,15 @@ export default async function JobDescriptionsPage() {
     getOrgOfficeLocations(session.user.organizationId),
   ]);
 
-  const roleOptions = Array.from(
-    new Set(roles.map((r) => r.name.trim()).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b));
+  const roleOptions = roles
+    .map((r) => ({
+      id: r.id,
+      name: r.name.trim(),
+      projectId: r.projectId,
+      projectIds: (r.projectIds as string[] | null) ?? [],
+    }))
+    .filter((r) => r.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const locationOptions = Array.from(
     new Set(locations.map((l) => l.name.trim()).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b));

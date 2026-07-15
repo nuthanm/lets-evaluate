@@ -85,6 +85,7 @@ function navForRole(role: MemberRole): NavSection[] {
         { href: "/setup/roles", label: "Roles", icon: RolesIcon },
         { href: "/setup/pipeline", label: "Interview Process", icon: PipelineIcon },
         { href: "/setup/templates", label: "Mail templates", icon: RolesIcon },
+        { href: "/setup/mail-assets", label: "Mail assets", icon: ProjectsIcon },
         { href: "/setup/audit", label: "Audit log", icon: ArchivesIcon },
         { href: "/openings", label: "Openings", icon: OpeningsIcon },
       ],
