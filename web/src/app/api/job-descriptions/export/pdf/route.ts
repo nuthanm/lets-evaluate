@@ -15,8 +15,12 @@ export async function POST(req: Request) {
     session.user.organizationId,
   );
   const filename = getJobDescriptionFilename(body.jobDescription, "pdf");
+  const bodyBytes = file.buffer.slice(
+    file.byteOffset,
+    file.byteOffset + file.byteLength,
+  ) as ArrayBuffer;
 
-  return new Response(file, {
+  return new Response(bodyBytes, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,

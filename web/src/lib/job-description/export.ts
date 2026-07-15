@@ -40,6 +40,13 @@ type JobDescriptionAssets = {
   footer: ImageAsset | null;
 };
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+}
+
 function toImageAsset(
   bytes: Uint8Array,
   contentType: string,
@@ -171,6 +178,7 @@ export async function buildJobDescriptionDocx(
         children: [
           new ImageRun({
             data: assets.logo.data,
+            type: assets.logo.ext,
             transformation: { width: 122, height: 34 },
           }),
         ],
@@ -190,6 +198,7 @@ export async function buildJobDescriptionDocx(
         children: [
           new ImageRun({
             data: assets.header.data,
+            type: assets.header.ext,
             transformation: { width: 470, height: 96 },
           }),
         ],
@@ -205,6 +214,7 @@ export async function buildJobDescriptionDocx(
         children: [
           new ImageRun({
             data: assets.footer.data,
+            type: assets.footer.ext,
             transformation: { width: 470, height: 74 },
           }),
         ],
@@ -289,7 +299,8 @@ export async function buildJobDescriptionDocx(
     ],
   });
 
-  return await Packer.toBuffer(doc);
+  const file = await Packer.toBuffer(doc);
+  return new Uint8Array(toArrayBuffer(file));
 }
 
 function wrap(text: string, maxChars = 92) {

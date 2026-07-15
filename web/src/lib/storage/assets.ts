@@ -81,7 +81,8 @@ export async function listMailAssets(): Promise<MailAssetItem[]> {
     );
     const rows = (res.Contents ?? [])
       .map((item) => item.Key)
-      .filter((key): key is string => Boolean(key) && key.startsWith("Assets/"))
+      .filter((key): key is string => typeof key === "string")
+      .filter((key) => key.startsWith("Assets/"))
       .map((key) => ({ key, name: key.split("/").at(-1) ?? key }));
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   }

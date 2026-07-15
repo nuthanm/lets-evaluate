@@ -13,7 +13,12 @@ export async function GET(_req: Request, { params }: Params) {
 
   try {
     const asset = await readMailAsset(joinedKey);
-    return new NextResponse(asset.body, {
+    const bodyBytes = asset.body.buffer.slice(
+      asset.body.byteOffset,
+      asset.body.byteOffset + asset.body.byteLength,
+    ) as ArrayBuffer;
+
+    return new NextResponse(bodyBytes, {
       status: 200,
       headers: {
         "Content-Type": asset.contentType,

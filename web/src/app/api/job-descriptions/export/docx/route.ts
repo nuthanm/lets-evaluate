@@ -15,8 +15,12 @@ export async function POST(req: Request) {
     session.user.organizationId,
   );
   const filename = getJobDescriptionFilename(body.jobDescription, "docx");
+  const bodyBytes = file.buffer.slice(
+    file.byteOffset,
+    file.byteOffset + file.byteLength,
+  ) as ArrayBuffer;
 
-  return new Response(file as Uint8Array, {
+  return new Response(bodyBytes, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${filename}"`,
