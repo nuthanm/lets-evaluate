@@ -35,6 +35,24 @@ export function EmailComposer({
       )}&body=${enc(mail.body)}`
     : "";
 
+  async function copyFormatted() {
+    const text = `To: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.body}`;
+    if (
+      typeof ClipboardItem !== "undefined" &&
+      typeof navigator.clipboard.write === "function"
+    ) {
+      const item = new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([mail.bodyHtml], { type: "text/html" }),
+      });
+      await navigator.clipboard.write([item]);
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function copyAll() {
     const text = `To: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.body}`;
     await navigator.clipboard.writeText(text);
@@ -50,6 +68,9 @@ export function EmailComposer({
           <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
             Copy or open in your mail client — placeholders are already replaced.
             No external email service is used.
+          </p>
+          <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
+            Outlook and Gmail links open the plain-text draft. Use formatted copy to preserve the preview styling before pasting into compose.
           </p>
         </div>
         {onClose && (
@@ -93,14 +114,27 @@ export function EmailComposer({
           <span className="font-bold text-[var(--ink-faint)]">Subject: </span>
           {mail.subject}
         </div>
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--cream-2)] bg-white p-4 text-[13px] leading-relaxed text-[var(--ink-soft)]">
-          {mail.body}
-        </pre>
+        <div className="max-h-[32rem] overflow-auto rounded-xl border border-[var(--cream-2)] bg-white p-3">
+          <div dangerouslySetInnerHTML={{ __html: mail.bodyHtml }} />
+        </div>
+        {mail.attachments.length > 0 && (
+          <div className="rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-3 text-[13px] text-[var(--ink-soft)]">
+            <div className="font-bold text-[var(--ink-faint)]">Attachments / links</div>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {mail.attachments.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" onClick={copyFormatted}>
+          {copied ? "Copied" : "Copy formatted"}
+        </Button>
         <Button type="button" onClick={copyAll}>
-          {copied ? "Copied" : "Copy to clipboard"}
+          Copy plain text
         </Button>
         {outlookUrl && (
           <a

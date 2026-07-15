@@ -267,8 +267,12 @@ export const mailTemplates = pgTable(
     name: text("name").notNull(),
     audience: mailTemplateAudienceEnum("audience").notNull().default("candidate"),
     description: text("description").default(""),
+    header: text("header").default("").notNull(),
     subject: text("subject").notNull(),
     body: text("body").notNull(),
+    footer: text("footer").default("").notNull(),
+    tagline: text("tagline").default("").notNull(),
+    attachments: jsonb("attachments").$type<string[]>().default([]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

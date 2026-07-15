@@ -22,8 +22,12 @@ export async function GET() {
 const updateSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1).optional(),
+  header: z.string().optional(),
   subject: z.string().min(1),
   body: z.string().min(1),
+  footer: z.string().optional(),
+  tagline: z.string().optional(),
+  attachments: z.array(z.string().min(1)).optional(),
   description: z.string().optional(),
 });
 
@@ -39,8 +43,12 @@ export async function PUT(req: Request) {
   await db
     .update(mailTemplates)
     .set({
+      header: body.header ?? "",
       subject: body.subject,
       body: body.body,
+      footer: body.footer ?? "",
+      tagline: body.tagline ?? "",
+      attachments: body.attachments ?? [],
       ...(body.name ? { name: body.name } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
       updatedAt: new Date(),

@@ -8,6 +8,7 @@ import {
 } from "./defaults";
 import {
   buildMailto,
+  renderStructuredMail,
   renderTemplateText,
   type MailVars,
   type RenderedMail,
@@ -31,8 +32,12 @@ export async function ensureMailTemplates(organizationId: string) {
       name: t.name,
       audience: t.audience,
       description: t.description,
+      header: t.header,
       subject: t.subject,
       body: t.body,
+      footer: t.footer,
+      tagline: t.tagline,
+      attachments: t.attachments,
     })),
   );
 }
@@ -71,8 +76,12 @@ export async function getMailTemplateBySlug(
     name: fallback.name,
     audience: fallback.audience,
     description: fallback.description,
+    header: fallback.header,
     subject: fallback.subject,
     body: fallback.body,
+    footer: fallback.footer,
+    tagline: fallback.tagline,
+    attachments: fallback.attachments,
     updatedAt: new Date(),
   };
 }
@@ -101,15 +110,24 @@ export async function prepareMail(
   if (!tpl) return null;
 
   const subject = renderTemplateText(tpl.subject, vars);
-  const body = renderTemplateText(tpl.body, vars);
+  const rendered = renderStructuredMail({
+    header: tpl.header,
+    body: tpl.body,
+    footer: tpl.footer,
+    tagline: tpl.tagline,
+    attachments: tpl.attachments ?? [],
+    vars,
+  });
   const to = resolveRecipient(slug, tpl.audience, vars);
 
   return {
     slug,
     to,
     subject,
-    body,
-    mailto: buildMailto(to, subject, body),
+    body: rendered.plainText,
+    bodyHtml: rendered.html,
+    attachments: rendered.attachments,
+    mailto: buildMailto(to, subject, rendered.plainText),
   };
 }
 

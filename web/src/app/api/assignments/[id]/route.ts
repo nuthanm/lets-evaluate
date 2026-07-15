@@ -23,6 +23,31 @@ import { assertRoleOpen } from "@/lib/db/opening-guard";
 import { prepareMails } from "@/lib/email";
 import { buildMailVars } from "@/lib/email/vars";
 
+function stageMailSlugs(kind: StageKind) {
+  if (kind === "technical") {
+    return {
+      interviewer: "interviewer_technical_assigned",
+      candidate: "candidate_technical_round",
+    } as const;
+  }
+  if (kind === "manager") {
+    return {
+      interviewer: "interviewer_manager_assigned",
+      candidate: "candidate_manager_round",
+    } as const;
+  }
+  if (kind === "hr") {
+    return {
+      interviewer: "interviewer_hr_assigned",
+      candidate: "candidate_hr_round",
+    } as const;
+  }
+  return {
+    interviewer: "interviewer_assigned",
+    candidate: "candidate_scheduled",
+  } as const;
+}
+
 const assignSchema = z.object({
   assignedToId: z.string().min(1),
   handoffNote: z.string().optional(),
@@ -163,10 +188,11 @@ export async function POST(req: Request, { params }: Params) {
     interviewer: assignee ?? undefined,
     handoffNote: body.handoffNote ?? "",
   });
+  const mailSlugs = stageMailSlugs(active.stage.kind as StageKind);
 
   const mails = await prepareMails(session.user.organizationId, [
-    { slug: "interviewer_assigned", vars: baseVars },
-    { slug: "candidate_scheduled", vars: baseVars },
+    { slug: mailSlugs.interviewer, vars: baseVars },
+    { slug: mailSlugs.candidate, vars: baseVars },
   ]);
 
   return NextResponse.json({
