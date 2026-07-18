@@ -15,8 +15,10 @@ import type {
 } from "@/lib/ports/ai-analyzer";
 import type { QuestionGenerator } from "@/lib/ports/question-generator";
 import OpenAI from "openai";
+import { isAiTestMode } from "@/lib/ai/test-mode";
 
 function openaiClient() {
+  if (isAiTestMode()) return null;
   const key = process.env.OPENAI_API_KEY;
   if (!key?.startsWith("sk-")) return null;
   return new OpenAI({ apiKey: key });

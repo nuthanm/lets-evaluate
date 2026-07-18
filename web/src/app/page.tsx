@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ButtonLink } from "@/components/Button";
 import { DossierPreview } from "@/components/landing/DossierPreview";
 import { LandingNav } from "@/components/landing/LandingNav";
+import { QualityProofSection } from "@/components/landing/QualityProofSection";
 import { getBrand } from "@/lib/brand";
+import { getQualityStats } from "@/lib/quality-stats-server";
 
 const workflow = [
   {
@@ -27,8 +29,9 @@ const workflow = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
   const brand = getBrand();
+  const qualityStats = await getQualityStats();
 
   return (
     <main className="min-h-screen bg-[var(--cream)]">
@@ -98,6 +101,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <QualityProofSection stats={qualityStats} />
 
       <section id="workflow" className="border-t border-[var(--cream-2)] bg-[var(--navy)] text-white">
         <div className="grid md:grid-cols-4">

@@ -4,6 +4,8 @@ import { ZodError } from "zod";
 import { auth } from "@/lib/auth";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { getBrand } from "@/lib/brand";
+import { isAiTestMode } from "@/lib/ai/test-mode";
+import { mockJobDescription } from "@/lib/ai/mock-fixtures";
 import {
   ensureGreatPlaceToWorkLine,
   generateJobDescriptionInputSchema,
@@ -14,6 +16,7 @@ const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
 const MAX_CONTEXT = 1200;
 
 function openaiClient() {
+  if (isAiTestMode()) return null;
   const key = process.env.OPENAI_API_KEY;
   if (!key?.startsWith("sk-")) return null;
   return new OpenAI({ apiKey: key });
@@ -88,6 +91,15 @@ export async function POST(req: Request) {
 
   const openai = openaiClient();
   if (!openai) {
+    if (isAiTestMode()) {
+      const brand = getBrand();
+      const mock = mockJobDescription(brand.orgName, body.roleTitle);
+      return NextResponse.json({
+        ...mock,
+        generatedAt: new Date().toISOString(),
+        mock: true,
+      });
+    }
     return apiError("OpenAI API key not configured", 500);
   }
 

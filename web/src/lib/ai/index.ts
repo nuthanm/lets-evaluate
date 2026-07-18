@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { isAiTestMode } from "@/lib/ai/test-mode";
+import { mockGeneratedQuestions, mockResumeMetrics } from "@/lib/ai/mock-fixtures";
 
 const MAX_RESUME = 3200;
 const MAX_ROLE = 2000;
@@ -23,6 +25,7 @@ function analysisModel() {
 }
 
 function client() {
+  if (isAiTestMode()) return null;
   const key = process.env.OPENAI_API_KEY;
   if (!key?.startsWith("sk-")) return null;
   return new OpenAI({ apiKey: key });
@@ -520,6 +523,16 @@ export async function analyzeResumeDetailed(
   roleRequirements: string,
   opts: AnalyzeOptions = {},
 ): Promise<AnalyzeResumeDetailedResult> {
+  if (isAiTestMode()) {
+    const emptyUsage = usageSummary(undefined, analysisModel(), 0.0025, 0.01);
+    return {
+      metrics: mockResumeMetrics(projectTechStack),
+      extraction: usageSummary(undefined, "gpt-4o-mini", 0.00015, 0.0006),
+      analysis: emptyUsage,
+      estimatedTotalCostUsd: 0,
+    };
+  }
+
   // Phase 1: Extract structured data (fast, cheap, deterministic)
   const extracted = await extractResumeData(resumeText);
   if (!extracted) {
@@ -619,7 +632,10 @@ export async function generateStandardQuestions(
   topic = "",
 ) {
   const openai = client();
-  if (!openai)
+  if (!openai) {
+    if (isAiTestMode()) {
+      return mockGeneratedQuestions(topic.trim() || "Technical", numQuestions);
+    }
     return [
       {
         question: "OpenAI API key not configured",
@@ -627,6 +643,7 @@ export async function generateStandardQuestions(
         expected_answer_hints: "N/A",
       },
     ];
+  }
 
   const topicLine = topic.trim() ? `\nFocus on: ${topic.trim()}` : "";
   const prompt = `Generate ${numQuestions} interview questions for ${roleName}. Tech: ${techStack.join(", ")}${topicLine}. Return JSON array with question, category, expected_answer_hints.`;
@@ -647,7 +664,10 @@ export async function generateResumeQuestions(
   numQuestions = 10,
 ) {
   const openai = client();
-  if (!openai)
+  if (!openai) {
+    if (isAiTestMode()) {
+      return mockGeneratedQuestions("Resume", numQuestions);
+    }
     return [
       {
         question: "OpenAI API key not configured",
@@ -655,6 +675,7 @@ export async function generateResumeQuestions(
         expected_answer_hints: "N/A",
       },
     ];
+  }
 
   const prompt = `Based on resume excerpt and role requirements, generate ${numQuestions} targeted questions. Return JSON array.
 
@@ -724,6 +745,9 @@ export async function generateCategoryQuestions(
 ): Promise<GeneratedQuestion[]> {
   const openai = client();
   if (!openai) {
+    if (isAiTestMode()) {
+      return mockGeneratedQuestions(category, count);
+    }
     throw new Error("OpenAI API key is not configured. Add OPENAI_API_KEY to your .env.local file.");
   }
 

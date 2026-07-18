@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-07-18T16:09:14.557Z",
+  "environment": "production · AI mocked (no API cost)",
+  "summary": {
+    "automationPassRate": 1,
+    "loadPassRate": 0,
+    "totalTests": 87,
+    "passedTests": 87,
+    "failedTests": 0,
+    "totalDurationMs": 674164
+  },
+  "automation": {
+    "suites": [
+      {
+        "id": "unit",
+        "name": "Unit (Vitest)",
+        "type": "unit",
+        "status": "skipped",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "total": 0,
+        "durationMs": 0,
+        "lastRun": "2026-07-18T16:09:14.554Z"
+      },
+      {
+        "id": "playwright-smoke",
+        "name": "Smoke (Playwright)",
+        "type": "smoke",
+        "status": "passed",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "total": 3,
+        "durationMs": 44354,
+        "lastRun": "2026-07-18T16:09:14.557Z"
+      },
+      {
+        "id": "playwright-sanity",
+        "name": "Sanity (Playwright)",
+        "type": "sanity",
+        "status": "passed",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "total": 4,
+        "durationMs": 31821,
+        "lastRun": "2026-07-18T16:09:14.557Z"
+      },
+      {
+        "id": "playwright-regression",
+        "name": "Regression (Playwright)",
+        "type": "regression",
+        "status": "passed",
+        "passed": 21,
+        "failed": 0,
+        "skipped": 0,
+        "total": 21,
+        "durationMs": 121823,
+        "lastRun": "2026-07-18T16:09:14.557Z"
+      },
+      {
+        "id": "playwright-flow",
+        "name": "Role flows (Playwright)",
+        "type": "flow",
+        "status": "passed",
+        "passed": 59,
+        "failed": 0,
+        "skipped": 0,
+        "total": 59,
+        "durationMs": 476166,
+        "lastRun": "2026-07-18T16:09:14.557Z"
+      }
+    ]
+  },
+  "load": {
+    "baseUrl": "http://127.0.0.1:3000",
+    "scenarios": []
+  }
+}

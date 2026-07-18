@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth/edge";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicPaths = ["/", "/login", "/register", "/api/auth", "/api/register"];
+const publicPaths = ["/", "/login", "/register", "/quality", "/api/auth", "/api/register", "/api/quality"];
 
 const API_PREFIX = "/api/";
 

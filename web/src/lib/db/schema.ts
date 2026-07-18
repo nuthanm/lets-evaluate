@@ -974,6 +974,111 @@ export const verificationTokens = pgTable("verification_tokens", {
   expires: timestamp("expires", { withTimezone: true }).notNull(),
 });
 
+/** Published quality / test-run telemetry for enterprise trust dashboard. */
+export const qualitySuiteStatusEnum = pgEnum("quality_suite_status", [
+  "passed",
+  "failed",
+  "skipped",
+]);
+
+export const qualitySlaStatusEnum = pgEnum("quality_sla_status", [
+  "within_sla",
+  "sla_breach",
+  "not_applicable",
+]);
+
+export const qualityTestRuns = pgTable(
+  "quality_test_runs",
+  {
+    id: text("id").primaryKey(),
+    /** Calendar day bucket (YYYY-MM-DD) for day-wise filtering. */
+    runDate: text("run_date").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
+    environment: text("environment").notNull().default("production"),
+    automationPassRate: integer("automation_pass_rate").notNull().default(0),
+    loadPassRate: integer("load_pass_rate").notNull().default(0),
+    totalTests: integer("total_tests").notNull().default(0),
+    passedTests: integer("passed_tests").notNull().default(0),
+    failedTests: integer("failed_tests").notNull().default(0),
+    totalDurationMs: integer("total_duration_ms").notNull().default(0),
+    loadBaseUrl: text("load_base_url").default("").notNull(),
+    ciRef: text("ci_ref").default("").notNull(),
+    slaThresholdMs: integer("sla_threshold_ms").notNull().default(3000),
+    slaCompliantCount: integer("sla_compliant_count").notNull().default(0),
+    slaBreachCount: integer("sla_breach_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("quality_test_runs_run_date_idx").on(t.runDate),
+    index("quality_test_runs_generated_at_idx").on(t.generatedAt),
+  ],
+);
+
+export const qualityTestCases = pgTable(
+  "quality_test_cases",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => qualityTestRuns.id, { onDelete: "cascade" }),
+    featureArea: text("feature_area").notNull(),
+    suiteType: text("suite_type").notNull(),
+    testKey: text("test_key").notNull(),
+    name: text("name").notNull(),
+    status: qualitySuiteStatusEnum("status").notNull(),
+    durationMs: integer("duration_ms").notNull().default(0),
+    errorMessage: text("error_message").default("").notNull(),
+    slaStatus: qualitySlaStatusEnum("sla_status").notNull().default("not_applicable"),
+  },
+  (t) => [
+    index("quality_test_cases_run_idx").on(t.runId),
+    index("quality_test_cases_feature_idx").on(t.featureArea),
+    index("quality_test_cases_suite_idx").on(t.suiteType),
+  ],
+);
+
+export const qualityLoadScenarios = pgTable(
+  "quality_load_scenarios",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => qualityTestRuns.id, { onDelete: "cascade" }),
+    virtualUsers: integer("virtual_users").notNull(),
+    durationSec: integer("duration_sec").notNull(),
+    totalRequests: integer("total_requests").notNull().default(0),
+    requestsPerSec: integer("requests_per_sec").notNull().default(0),
+    avgResponseMs: integer("avg_response_ms").notNull().default(0),
+    p95ResponseMs: integer("p95_response_ms").notNull().default(0),
+    p99ResponseMs: integer("p99_response_ms").notNull().default(0),
+    errorRateBps: integer("error_rate_bps").notNull().default(0),
+    status: qualitySuiteStatusEnum("status").notNull(),
+    slaStatus: qualitySlaStatusEnum("sla_status").notNull().default("not_applicable"),
+  },
+  (t) => [index("quality_load_scenarios_run_idx").on(t.runId)],
+);
+
+export const qualityTestRunsRelations = relations(qualityTestRuns, ({ many }) => ({
+  cases: many(qualityTestCases),
+  loadScenarios: many(qualityLoadScenarios),
+}));
+
+export const qualityTestCasesRelations = relations(qualityTestCases, ({ one }) => ({
+  run: one(qualityTestRuns, {
+    fields: [qualityTestCases.runId],
+    references: [qualityTestRuns.id],
+  }),
+}));
+
+export const qualityLoadScenariosRelations = relations(qualityLoadScenarios, ({ one }) => ({
+  run: one(qualityTestRuns, {
+    fields: [qualityLoadScenarios.runId],
+    references: [qualityTestRuns.id],
+  }),
+}));
+
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(organizationMembers),
   mailAssets: many(organizationMailAssets),
