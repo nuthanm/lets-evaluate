@@ -8,7 +8,7 @@ import { GraphEmailSender, ManualEmailSender } from "@/lib/infrastructure/email/
 export type JobDescriptionDeleteCandidate = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   status: string;
   projectName: string | null;
   roleName: string | null;
@@ -85,7 +85,7 @@ export async function getJobDescriptionDeleteImpact(
 
   const notificationPreview = await Promise.all(
     candidateRows
-      .filter((candidate) => candidate.email.trim())
+      .filter((candidate) => candidate.email?.trim())
       .slice(0, 3)
       .map(async (candidate) => {
         const mail = await prepareMail(
@@ -139,7 +139,7 @@ export async function sendJobDescriptionDeleteNotifications(input: {
   const results = [] as Array<{ candidateId: string; recipient: string; status: string }>;
 
   for (const candidate of input.impact.candidates) {
-    if (!candidate.email.trim()) continue;
+    if (!candidate.email?.trim()) continue;
     const mail = await prepareMail(
       input.organizationId,
       "candidate_job_description_deleted",

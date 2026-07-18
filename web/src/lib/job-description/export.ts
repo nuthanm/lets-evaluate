@@ -235,15 +235,6 @@ export async function buildJobDescriptionDocx(
     },
     sections: [
       {
-        // A light visual confidentiality marker for the DOCX output.
-        watermark: {
-          text: "CONFIDENTIAL",
-          color: "D6D6D6",
-          opacity: 0.12,
-          font: "Calibri",
-          size: 48,
-          bold: true,
-        },
         properties: {
           page: {
             margin: { top: 900, right: 900, bottom: 900, left: 900 },
