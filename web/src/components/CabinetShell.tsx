@@ -213,7 +213,7 @@ export function CabinetShell({
             )}
           >
             {collapsed ? (
-              <Link href="/people" aria-label="Home">
+              <Link href="/people" prefetch aria-label="Home">
                 <LogoMark />
               </Link>
             ) : (
@@ -268,6 +268,7 @@ export function CabinetShell({
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         "flex items-center rounded-lg text-[13px] font-semibold transition-colors",
@@ -321,6 +322,7 @@ export function CabinetShell({
               <>
                 <Link
                   href="/profile"
+                  prefetch
                   title={userName}
                   aria-label="Profile"
                   className={cn(
@@ -339,6 +341,7 @@ export function CabinetShell({
               <>
                 <Link
                   href="/profile"
+                  prefetch
                   className={cn(
                     "mb-2 flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-white/60",
                     pathname === "/profile" && "bg-white",
@@ -360,7 +363,7 @@ export function CabinetShell({
 
         <div className="flex min-w-0 flex-1 flex-col bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-r-xl">
           <div className="flex items-center justify-between border-b border-[var(--cream-2)] px-4 py-3 md:hidden">
-            <Link href="/profile" className="flex min-w-0 items-center gap-2">
+            <Link href="/profile" prefetch className="flex min-w-0 items-center gap-2">
               <FaceAvatar name={userName} size="sm" />
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-bold">{userName}</div>
@@ -403,6 +406,7 @@ function MobileNav({
             <Link
               key={href}
               href={href}
+              prefetch
               className="grid size-11 place-items-center rounded-full bg-[var(--green)] text-xl font-bold text-white shadow-md"
               aria-label="New evaluation"
             >
@@ -414,6 +418,7 @@ function MobileNav({
           <Link
             key={href}
             href={href}
+            prefetch
             className={cn(
               "rounded-full px-3 py-2 text-[10px] font-bold",
               on

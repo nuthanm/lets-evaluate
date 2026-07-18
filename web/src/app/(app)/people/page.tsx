@@ -9,6 +9,7 @@ import {
   getStageBookings,
   getUserStats,
 } from "@/lib/db/queries";
+import { getCachedUserStats, getCachedStageBookings } from "@/lib/db/cache";
 import {
   InterviewerDashboard,
   TeamDashboard,
@@ -66,7 +67,7 @@ export default async function PeoplePage() {
       session.user.id,
       session.user.role,
     ),
-    getUserStats(
+    getCachedUserStats(
       session.user.organizationId,
       session.user.id,
       session.user.role,
@@ -76,7 +77,7 @@ export default async function PeoplePage() {
       session.user.role === "admin" ? null : session.user.id,
       8,
     ),
-    getStageBookings(session.user.organizationId),
+    getCachedStageBookings(session.user.organizationId),
   ]);
 
   // TAs only see interviews for candidates they own; admins see the whole org.

@@ -1,13 +1,13 @@
 import { requireRole } from "@/lib/auth/rbac";
-import { getBookableCandidates, getStageBookings } from "@/lib/db/queries";
+import { getCachedBookableCandidates, getCachedStageBookings } from "@/lib/db/cache";
 import { CabinetPage } from "@/components/CabinetPage";
 import { BookingClient } from "./BookingClient";
 
 export default async function BookingPage() {
   const session = await requireRole(["admin", "ta"]);
   const [bookable, bookings] = await Promise.all([
-    getBookableCandidates(session.user.organizationId),
-    getStageBookings(session.user.organizationId),
+    getCachedBookableCandidates(session.user.organizationId),
+    getCachedStageBookings(session.user.organizationId),
   ]);
 
   const candidates = bookable.map((row) => {
