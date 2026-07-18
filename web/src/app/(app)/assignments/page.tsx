@@ -18,7 +18,7 @@ function ReviewPill({ dueAt }: { dueAt: string | null }) {
   const urgency = urgencyFor(dueAt);
   if (urgency === "overdue") {
     const days = Math.floor((Date.now() - new Date(dueAt!).getTime()) / 86400000);
-    return <Pill variant="orange">⚠ Overdue{days > 0 ? ` · ${days}d ago` : ""}</Pill>;
+    return <Pill variant="red">⚠ Overdue{days > 0 ? ` · ${days}d ago` : ""}</Pill>;
   }
   if (urgency === "soon") {
     const hrs = Math.max(1, Math.round((new Date(dueAt!).getTime() - Date.now()) / 3600000));
@@ -109,8 +109,8 @@ export default async function AssignmentsPage() {
             return (
               <li key={stage.id}>
                 <Link href={`/evaluate/${candidate.id}`} className="block no-underline">
-                  <CaseCard hover className={`overflow-hidden transition-all ${urgency === "overdue" ? "border-[var(--orange)]/30 hover:border-[var(--orange)]" : "hover:border-[var(--cyan)]/40 hover:shadow-sm"}`}>
-                    {urgency === "overdue" && <div className="h-1 w-full bg-[var(--orange)]" />}
+                  <CaseCard hover className={`overflow-hidden transition-all ${urgency === "overdue" ? "border-[var(--red)]/30 hover:border-[var(--red)]" : "hover:border-[var(--cyan)]/40 hover:shadow-sm"}`}>
+                    {urgency === "overdue" && <div className="h-1 w-full bg-[var(--red)]" />}
                     {urgency === "soon" && <div className="h-1 w-full bg-[var(--cyan)]" />}
                     <div className="flex items-center gap-4 p-4">
                       <FaceAvatar name={candidate.name} size="md" />
@@ -124,7 +124,7 @@ export default async function AssignmentsPage() {
                           {projectName && <span className="text-[11px] text-[var(--ink-faint)]">- {projectName}</span>}
                         </div>
                         {dueAtIso && (
-                          <p className={`mt-0.5 text-[11px] font-semibold ${urgency === "overdue" ? "text-[var(--orange)]" : urgency === "soon" ? "text-[var(--cyan-d)]" : "text-[var(--ink-faint)]"}`}>
+                          <p className={`mt-0.5 text-[11px] font-semibold ${urgency === "overdue" ? "text-[var(--red)]" : urgency === "soon" ? "text-[var(--cyan-d)]" : "text-[var(--ink-faint)]"}`}>
                             Due: {new Date(dueAtIso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </p>
                         )}
@@ -134,7 +134,7 @@ export default async function AssignmentsPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         <ReviewPill dueAt={dueAtIso} />
-                        <span className="text-[11px] font-bold text-[var(--cyan-d)]">Open →</span>
+                        <span className="open-link">Open →</span>
                       </div>
                     </div>
                   </CaseCard>

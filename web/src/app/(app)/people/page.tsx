@@ -96,7 +96,7 @@ export default async function PeoplePage() {
       candidateName: b.candidateName,
       interviewerName: `${b.assigneeName ?? "—"} · ${b.label}`,
       status: b.status,
-      dueAt: (b.dueAt as Date).toISOString(),
+      dueAt: typeof b.dueAt === 'string' ? b.dueAt : (b.dueAt as Date).toISOString(),
     }))
     .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
 
