@@ -103,6 +103,14 @@ a:active {
   box-shadow: 0 0 0 3px var(--cyan-soft);
 }
 
+/* ── Modal / overlay blur ── */
+body.modal-open > *:not(.modal-portal-root) {
+  filter: blur(3px);
+  transition: filter 0.15s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
 .case-card {
   border-radius: 0.75rem;
   border: 1px solid var(--cream-2);

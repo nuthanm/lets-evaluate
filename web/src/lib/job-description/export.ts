@@ -9,9 +9,13 @@ import {
   Paragraph,
   TextRun,
 } from "docx";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   PDFDocument,
+  type PDFFont,
   StandardFonts,
+  degrees,
   rgb,
   type PDFPage,
 } from "pdf-lib";
@@ -36,8 +40,6 @@ type ImageAsset = {
 
 type JobDescriptionAssets = {
   logo: ImageAsset | null;
-  header: ImageAsset | null;
-  footer: ImageAsset | null;
 };
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -101,39 +103,42 @@ async function fetchImageByUrl(logoUrl: string | undefined): Promise<ImageAsset 
   }
 }
 
+async function fetchLogoFallback(): Promise<ImageAsset | null> {
+  try {
+    const bytes = new Uint8Array(
+      await readFile(join(process.cwd(), "public", "assets", "mail", "Kanini-logo.png")),
+    );
+    return bytes.length ? { data: bytes, ext: "png" } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getJobDescriptionAssets(
   organizationId?: string,
 ): Promise<JobDescriptionAssets> {
   const brand = getBrand();
   let logo: ImageAsset | null = null;
-  let header: ImageAsset | null = null;
-  let footer: ImageAsset | null = null;
 
   if (organizationId) {
     const [row] = await db
       .select({
         logoAssetKey: organizationMailAssets.logoAssetKey,
-        headerImageAssetKey: organizationMailAssets.headerImageAssetKey,
-        footerImageAssetKey: organizationMailAssets.footerImageAssetKey,
       })
       .from(organizationMailAssets)
       .where(eq(organizationMailAssets.organizationId, organizationId))
       .limit(1);
 
     if (row) {
-      [logo, header, footer] = await Promise.all([
-        fetchImageByKey(row.logoAssetKey),
-        fetchImageByKey(row.headerImageAssetKey),
-        fetchImageByKey(row.footerImageAssetKey),
-      ]);
+      logo = await fetchImageByKey(row.logoAssetKey);
     }
   }
 
   if (!logo) {
-    logo = await fetchImageByUrl(brand.logoUrl);
+    logo = (await fetchImageByUrl(brand.logoUrl)) ?? (await fetchLogoFallback());
   }
 
-  return { logo, header, footer };
+  return { logo };
 }
 
 function jdFilenameBase(jd: JobDescription) {
@@ -146,7 +151,7 @@ function jdFilenameBase(jd: JobDescription) {
 
 export function getJobDescriptionFilename(jd: JobDescription, ext: "docx" | "pdf") {
   const base = jdFilenameBase(jd) || "job-description";
-  return `${base}-kanini.${ext}`;
+  return `${base}-${getBrand().orgSlug}.${ext}`;
 }
 
 export async function buildJobDescriptionDocx(
@@ -155,19 +160,21 @@ export async function buildJobDescriptionDocx(
 ): Promise<Uint8Array> {
   const brand = getBrand();
   const assets = await getJobDescriptionAssets(organizationId);
+  const navyHex = brand.colors.navy.replace("#", "");
+  const headingHex = navyHex.length === 6 ? navyHex : "1A2B3C";
 
   const sectionTitle = (value: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 260, after: 120 },
-      children: [new TextRun({ text: value, bold: true, color: "1A2B3C" })],
+      spacing: { before: 360, after: 180 },
+      children: [new TextRun({ text: value, bold: true, color: headingHex })],
     });
 
   const bullet = (value: string) =>
     new Paragraph({
       text: value,
       bullet: { level: 0 },
-      spacing: { after: 80 },
+      spacing: { after: 100 },
     });
 
   const headerChildren: Paragraph[] = [];
@@ -191,44 +198,25 @@ export async function buildJobDescriptionDocx(
       }),
     );
   }
-  if (assets.header) {
-    headerChildren.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            data: assets.header.data,
-            type: assets.header.ext,
-            transformation: { width: 470, height: 96 },
-          }),
-        ],
-      }),
-    );
-  }
 
-  const footerChildren: Paragraph[] = [];
-  if (assets.footer) {
-    footerChildren.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            data: assets.footer.data,
-            type: assets.footer.ext,
-            transformation: { width: 470, height: 74 },
-          }),
-        ],
-      }),
-    );
-  }
-  footerChildren.push(
+  headerChildren.push(
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      spacing: { before: 40 },
+      children: [
+        new TextRun({ text: "CONFIDENTIAL", bold: true, italics: true, size: 18, color: "B8B8B8" }),
+      ],
+    }),
+  );
+
+  const footerChildren: Paragraph[] = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [
         new TextRun({ text: `${brand.tagline} | Great Place to Work`, size: 18 }),
       ],
     }),
-  );
+  ];
 
   const doc = new Document({
     styles: {
@@ -247,6 +235,15 @@ export async function buildJobDescriptionDocx(
     },
     sections: [
       {
+        // A light visual confidentiality marker for the DOCX output.
+        watermark: {
+          text: "CONFIDENTIAL",
+          color: "D6D6D6",
+          opacity: 0.12,
+          font: "Calibri",
+          size: 48,
+          bold: true,
+        },
         properties: {
           page: {
             margin: { top: 900, right: 900, bottom: 900, left: 900 },
@@ -259,41 +256,46 @@ export async function buildJobDescriptionDocx(
           default: new Footer({ children: footerChildren }),
         },
         children: [
+          // ── Header block ──────────────────────────────────────────────
           new Paragraph({
-            heading: HeadingLevel.TITLE,
-            spacing: { after: 160 },
-            children: [new TextRun({ text: "Job Description", bold: true, color: "1A2B3C" })],
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: `Role: ${jd.roleTitle}`, bold: true })],
-            spacing: { after: 40 },
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: `Location: ${jd.location}`, bold: true })],
-            spacing: { after: 40 },
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: `Experience: ${jd.experience}`, bold: true })],
-            spacing: { after: 180 },
-          }),
-          sectionTitle("About the Role"),
-          new Paragraph({ text: jd.aboutRole }),
-          sectionTitle("What You'll Do"),
-          ...jd.whatYoullDo.map((line) => bullet(line)),
-          sectionTitle("What You Bring"),
-          new Paragraph({ text: jd.whatYouBring.summary }),
-          ...jd.whatYouBring.skills.map((line) => bullet(line)),
-          new Paragraph({
-            spacing: { before: 80 },
+            spacing: { after: 80 },
             children: [
-              new TextRun({ text: "Domain: ", bold: true }),
-              new TextRun(jd.whatYouBring.domain),
+              new TextRun({ text: `Role: ${jd.roleTitle}`, bold: true, size: 28, color: headingHex }),
             ],
           }),
-          sectionTitle("Why Join KANINI"),
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [new TextRun({ text: `Location: ${jd.location}`, size: 22, color: "5C5C5C" })],
+          }),
+          new Paragraph({
+            spacing: { after: 300 },
+            children: [new TextRun({ text: `Experience: ${jd.experience}`, size: 22, color: "5C5C5C" })],
+          }),
+          // ── About the Role ────────────────────────────────────────────
+          sectionTitle("About the Role"),
+          new Paragraph({ text: jd.aboutRole, spacing: { after: 200 } }),
+          // ── What You'll Do ────────────────────────────────────────────
+          sectionTitle("What You'll Do"),
+          ...jd.whatYoullDo.map((line) => bullet(line)),
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+          // ── What You Bring ────────────────────────────────────────────
+          sectionTitle("What You Bring"),
+          new Paragraph({ text: jd.whatYouBring.summary, spacing: { after: 160 } }),
+          ...jd.whatYouBring.skills.map((line) => bullet(line)),
+          new Paragraph({
+            spacing: { before: 120, after: 160 },
+            children: [
+              new TextRun({ text: "Domain: ", bold: true, color: headingHex }),
+              new TextRun({ text: jd.whatYouBring.domain }),
+            ],
+          }),
+          // ── Why Join <org> ────────────────────────────────────────────
+          sectionTitle(`Why Join ${brand.orgName}`),
           ...jd.whyJoinKanini.map((line) => bullet(line)),
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+          // ── Ready to Make an Impact ───────────────────────────────────
           sectionTitle("Ready to Make an Impact"),
-          new Paragraph({ text: jd.readyToMakeImpact }),
+          new Paragraph({ text: jd.readyToMakeImpact, spacing: { after: 200 } }),
         ],
       },
     ],
@@ -375,12 +377,38 @@ function drawFooter(
   });
 }
 
+function drawConfidentialWatermark(page: PDFPage, font: PDFFont) {
+  page.drawText("CONFIDENTIAL", {
+    x: PAGE_WIDTH / 2 - 150,
+    y: PAGE_HEIGHT / 2 + 15,
+    size: 42,
+    font,
+    color: rgb(0.76, 0.76, 0.76),
+    opacity: 0.12,
+    rotate: degrees(32),
+  });
+}
+
+function hexToRgbNorm(hex: string): [number, number, number] {
+  const h = hex.replace("#", "").slice(0, 6);
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+  ];
+}
+
 export async function buildJobDescriptionPdf(
   jd: JobDescription,
   organizationId?: string,
 ): Promise<Uint8Array> {
   const brand = getBrand();
   const assets = await getJobDescriptionAssets(organizationId);
+
+  const [hR, hG, hB] = hexToRgbNorm(brand.colors.primary);
+  const [nR, nG, nB] = hexToRgbNorm(brand.colors.navy);
+  const brandColor = rgb(hR, hG, hB);
+  const navyColor = rgb(nR, nG, nB);
 
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -392,36 +420,18 @@ export async function buildJobDescriptionPdf(
       : await doc.embedJpg(assets.logo.data)
     : null;
 
-  const headerImage = assets.header
-    ? assets.header.ext === "png"
-      ? await doc.embedPng(assets.header.data)
-      : await doc.embedJpg(assets.header.data)
-    : null;
-
-  const footerImage = assets.footer
-    ? assets.footer.ext === "png"
-      ? await doc.embedPng(assets.footer.data)
-      : await doc.embedJpg(assets.footer.data)
-    : null;
-
-  const footerTopBoundary = footerImage ? MARGIN_BOTTOM + 90 : MARGIN_BOTTOM + 18;
+  const footerTopBoundary = MARGIN_BOTTOM + 18;
 
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN_TOP;
 
   const ensure = (need = 20) => {
-    // Keep content above the footer image/text area to avoid overlap.
     if (y - need > footerTopBoundary) return;
-    drawFooter(
-      page,
-      `${brand.tagline} | Great Place to Work`,
-      footerImage
-        ? { image: footerImage, width: footerImage.width, height: footerImage.height }
-        : undefined,
-    );
+    drawFooter(page, `${brand.tagline} | Great Place to Work`);
     page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = PAGE_HEIGHT - MARGIN_TOP;
     drawHeader();
+    drawConfidentialWatermark(page, bold);
   };
 
   const drawHeader = () => {
@@ -458,71 +468,64 @@ export async function buildJobDescriptionPdf(
       thickness: 1,
       color: rgb(0.88, 0.9, 0.92),
     });
-
-    let nextY = PAGE_HEIGHT - 84;
-    if (headerImage) {
-      const imageHeight = 78;
-      const imageWidth = Math.min(CONTENT_WIDTH, (headerImage.width / headerImage.height) * imageHeight);
-      const imageY = PAGE_HEIGHT - 158;
-      page.drawImage(headerImage, {
-        x: MARGIN_X,
-        y: imageY,
-        width: imageWidth,
-        height: imageHeight,
-      });
-      page.drawLine({
-        start: { x: MARGIN_X, y: imageY - 8 },
-        end: { x: PAGE_WIDTH - MARGIN_X, y: imageY - 8 },
-        thickness: 0.8,
-        color: rgb(0.9, 0.9, 0.9),
-      });
-      nextY = imageY - 28;
-    }
-
-    y = nextY;
+    y = PAGE_HEIGHT - 84;
   };
 
+  drawConfidentialWatermark(page, bold);
+
+  const sectionGap = 10;
+
   const title = (value: string) => {
-    ensure(40);
+    y -= sectionGap;
+    ensure(44);
     page.drawText(value, {
       x: MARGIN_X,
       y,
       size: 13,
       font: bold,
-      color: rgb(0.1, 0.17, 0.24),
+      color: navyColor,
     });
-    y -= 22;
+    y -= 20;
   };
 
   const body = (value: string) => {
-    ensure(38);
-    y = drawTextBlock(page, value, MARGIN_X, y, 11, rgb(0.17, 0.17, 0.17), 96, 3);
-    y -= 8;
+    ensure(42);
+    y = drawTextBlock(page, value, MARGIN_X, y, 11, rgb(0.17, 0.17, 0.17), 92, 4);
+    y -= 12;
   };
 
   const bullet = (value: string) => {
-    ensure(32);
-    page.drawText("•", { x: MARGIN_X + 2, y, size: 11, font: bold });
-    y = drawTextBlock(page, value, MARGIN_X + 15, y, 11, rgb(0.17, 0.17, 0.17), 90, 3);
-    y -= 4;
+    ensure(34);
+    page.drawText("•", { x: MARGIN_X + 2, y, size: 10, font: bold, color: navyColor });
+    y = drawTextBlock(page, value, MARGIN_X + 14, y, 11, rgb(0.17, 0.17, 0.17), 88, 4);
+    y -= 6;
+  };
+
+  const labeledLine = (label: string, value: string) => {
+    ensure(28);
+    const labelW = label.length * 6.2 + 4;
+    page.drawText(label, { x: MARGIN_X, y, size: 11, font: bold, color: navyColor });
+    page.drawText(value, { x: MARGIN_X + labelW, y, size: 11, font, color: rgb(0.17, 0.17, 0.17) });
+    y -= 18;
   };
 
   drawHeader();
 
-  page.drawText(`Role: ${jd.roleTitle}`, {
+  // ── Role header block ──────────────────────────────────────────────
+  page.drawText(jd.roleTitle, {
     x: MARGIN_X,
     y,
-    size: 12,
+    size: 16,
     font: bold,
-    color: rgb(0.1, 0.17, 0.24),
+    color: navyColor,
   });
-  y -= 18;
+  y -= 22;
   page.drawText(`Location: ${jd.location}`, {
     x: MARGIN_X,
     y,
     size: 11,
     font,
-    color: rgb(0.17, 0.17, 0.17),
+    color: rgb(0.36, 0.36, 0.36),
   });
   y -= 16;
   page.drawText(`Experience: ${jd.experience}`, {
@@ -530,10 +533,11 @@ export async function buildJobDescriptionPdf(
     y,
     size: 11,
     font,
-    color: rgb(0.17, 0.17, 0.17),
+    color: rgb(0.36, 0.36, 0.36),
   });
-  y -= 24;
+  y -= 10;
 
+  // ── Sections ───────────────────────────────────────────────────────
   title("About the Role");
   body(jd.aboutRole);
 
@@ -543,9 +547,10 @@ export async function buildJobDescriptionPdf(
   title("What You Bring");
   body(jd.whatYouBring.summary);
   for (const line of jd.whatYouBring.skills) bullet(line);
-  body(`Domain: ${jd.whatYouBring.domain}`);
+  y -= 4;
+  labeledLine("Domain:", jd.whatYouBring.domain);
 
-  title("Why Join KANINI");
+  title(`Why Join ${brand.orgName}`);
   for (const line of jd.whyJoinKanini) bullet(line);
 
   title("Ready to Make an Impact");
@@ -554,9 +559,6 @@ export async function buildJobDescriptionPdf(
   drawFooter(
     page,
     `${brand.tagline} | Great Place to Work`,
-    footerImage
-      ? { image: footerImage, width: footerImage.width, height: footerImage.height }
-      : undefined,
   );
 
   return await doc.save();

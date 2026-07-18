@@ -189,6 +189,7 @@ export function TeamDashboard({
   today,
   scheduled = [],
   todayTasks = [],
+  setupRequired = false,
 }: {
   role: MemberRole;
   candidates: CandidateRow[];
@@ -201,6 +202,7 @@ export function TeamDashboard({
   today: string;
   scheduled?: ScheduledRow[];
   todayTasks?: RecruiterTask[];
+  setupRequired?: boolean;
 }) {
   const inProgress = candidates.filter((c) =>
     ["screening", "ready_for_interview", "assigned", "draft"].includes(c.status),
@@ -270,11 +272,45 @@ export function TeamDashboard({
       title={title}
       subtitle={today}
       actions={
-        <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
-          + New case file
-        </ButtonLink>
+        setupRequired ? (
+          <span
+            title="Set up projects and openings before adding candidates"
+            className="inline-flex cursor-not-allowed items-center rounded-xl bg-[var(--cream-2)] px-5 py-2 text-[13px] font-semibold text-[var(--ink-faint)] opacity-60 select-none"
+          >
+            + New case file
+          </span>
+        ) : (
+          <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
+            + New case file
+          </ButtonLink>
+        )
       }
     >
+      {setupRequired && (
+        <div className="case-fade-in mb-5 overflow-hidden rounded-xl border border-[var(--orange)] bg-[var(--orange-soft)]">
+          <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 shrink-0 text-xl" aria-hidden>⚠</span>
+              <div>
+                <p className="text-[14px] font-bold text-[var(--ink)]">
+                  Organisation setup required
+                </p>
+                <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+                  Candidates, job descriptions, and evaluations are unavailable until you configure at least one project and one opening.
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
+              <ButtonLink href="/setup/projects" variant="ghost" className="px-4 py-2 text-[12px] font-bold">
+                Set up projects →
+              </ButtonLink>
+              <ButtonLink href="/setup/roles" variant="ghost" className="px-4 py-2 text-[12px] font-bold">
+                Add openings →
+              </ButtonLink>
+            </div>
+          </div>
+        </div>
+      )}
       {inProgress.length > 0 && (
         <div className="case-alert mb-5 case-fade-in">
           <div>

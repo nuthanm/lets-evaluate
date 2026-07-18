@@ -3,6 +3,7 @@ export type MailVars = {
   candidateEmail?: string;
   candidatePhone?: string;
   candidateSource?: string;
+  candidateStatus?: string;
   roleName?: string;
   projectName?: string;
   orgName?: string;
@@ -30,6 +31,7 @@ const PLACEHOLDER_MAP: Record<string, (v: MailVars) => string> = {
   "{{candidate_email}}": (v) => v.candidateEmail ?? "",
   "{{candidate_phone}}": (v) => v.candidatePhone ?? "",
   "{{candidate_source}}": (v) => v.candidateSource ?? "",
+  "{{candidate_status}}": (v) => v.candidateStatus ?? "",
   "{{role}}": (v) => v.roleName ?? "",
   "{{project}}": (v) => v.projectName ?? "",
   "{{org_name}}": (v) => v.orgName ?? "",

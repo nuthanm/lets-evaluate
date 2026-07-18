@@ -5,6 +5,7 @@ import {
   type PDFFont,
   type PDFPage,
 } from "pdf-lib";
+import { getBrand } from "@/lib/brand";
 
 /** Bump this whenever the report layout changes. Old reports whose stored
  * filename lacks this suffix will be automatically regenerated on next access. */
@@ -80,7 +81,8 @@ class Writer {
         thickness: 0.5,
         color: RULE,
       });
-      this.page.drawText(`${this.footerTitle}  ·  Let's Evaluate  ·  Kanini`, {
+      const _brand = getBrand();
+      this.page.drawText(`${this.footerTitle}  ·  ${_brand.appTitle}  ·  ${_brand.orgName}`, {
         x: MARGIN,
         y: 22,
         size: 7.5,
@@ -98,7 +100,8 @@ class Writer {
       thickness: 0.5,
       color: RULE,
     });
-    this.page.drawText(`${this.footerTitle}  ·  Let's Evaluate  ·  Kanini`, {
+    const _brandFp = getBrand();
+    this.page.drawText(`${this.footerTitle}  ·  ${_brandFp.appTitle}  ·  ${_brandFp.orgName}`, {
       x: MARGIN,
       y: 22,
       size: 7.5,

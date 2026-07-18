@@ -1,13 +1,16 @@
 import { CabinetPage } from "@/components/CabinetPage";
 import { requireRole } from "@/lib/auth/rbac";
-import { getOrgOfficeLocations, getOrgRoles } from "@/lib/db/queries";
+import { getBrand } from "@/lib/brand";
+import { getOrgOfficeLocations, getOrgProjects, getOrgRoles } from "@/lib/db/queries";
 import { JobDescriptionClient } from "./JobDescriptionClient";
 
 export default async function JobDescriptionsPage() {
+  const brand = getBrand();
   const session = await requireRole(["admin", "ta"]);
-  const [roles, locations] = await Promise.all([
+  const [roles, locations, orgProjects] = await Promise.all([
     getOrgRoles(session.user.organizationId),
     getOrgOfficeLocations(session.user.organizationId),
+    getOrgProjects(session.user.organizationId),
   ]);
 
   const roleOptions = roles
@@ -22,15 +25,17 @@ export default async function JobDescriptionsPage() {
   const locationOptions = Array.from(
     new Set(locations.map((l) => l.name.trim()).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b));
+  const projectOptions = orgProjects.map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <CabinetPage
       title="Job Description Studio"
-      subtitle="Generate recruiter-grade KANINI job descriptions with consistent AI output and branded DOCX/PDF downloads"
+      subtitle={`Generate recruiter-grade ${brand.orgName} job descriptions with consistent AI output and branded DOCX/PDF downloads`}
     >
       <JobDescriptionClient
         roleOptions={roleOptions}
         locationOptions={locationOptions}
+        projectOptions={projectOptions}
       />
     </CabinetPage>
   );
