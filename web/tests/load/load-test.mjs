@@ -7,13 +7,25 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const VU_LEVELS = [5, 10, 15, 20, 50];
+const DEFAULT_VU_LEVELS = [5, 10, 15, 20, 50];
+/** GitHub-hosted runners are 2 vCPU — full load matrix overwhelms a single `next start` process. */
+const CI_VU_LEVELS = [5, 10];
 const ROUTES = ["/", "/login", "/register"];
 const DURATION_SEC = 15;
 const THINK_TIME_MS = 50;
 const COOLDOWN_SEC = 5;
 const PASS_P95_MS = 3000;
 const PASS_ERROR_RATE = 0.05;
+const REQUEST_TIMEOUT_MS = Number(process.env.LOAD_TEST_REQUEST_TIMEOUT_MS ?? 10_000);
+
+function parseVuLevels() {
+  if (process.env.LOAD_TEST_VU_LEVELS) {
+    return process.env.LOAD_TEST_VU_LEVELS.split(",")
+      .map((value) => Number.parseInt(value.trim(), 10))
+      .filter((value) => Number.isFinite(value) && value > 0);
+  }
+  return process.env.CI ? CI_VU_LEVELS : DEFAULT_VU_LEVELS;
+}
 
 function parseBaseUrl() {
   const arg = process.argv.find((a) => a.startsWith("--base-url="));
@@ -32,12 +44,17 @@ function percentile(sorted, p) {
 async function fetchRoute(baseUrl, route) {
   const start = performance.now();
   try {
-    const res = await fetch(`${baseUrl}${route}`, { redirect: "follow" });
+    const res = await fetch(`${baseUrl}${route}`, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     const elapsed = performance.now() - start;
     const ok = res.status >= 200 && res.status < 500;
-    return { ok, elapsed, status: res.status };
-  } catch {
-    return { ok: false, elapsed: performance.now() - start, status: 0 };
+    return { ok, elapsed, status: res.status, timedOut: false };
+  } catch (error) {
+    const elapsed = performance.now() - start;
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return { ok: false, elapsed, status: 0, timedOut };
   }
 }
 
@@ -45,6 +62,7 @@ async function runScenario(baseUrl, virtualUsers) {
   const endAt = Date.now() + DURATION_SEC * 1000;
   const latencies = [];
   let errors = 0;
+  let timeouts = 0;
   let total = 0;
 
   async function worker(workerIndex) {
@@ -55,6 +73,7 @@ async function runScenario(baseUrl, virtualUsers) {
       const result = await fetchRoute(baseUrl, route);
       latencies.push(result.elapsed);
       if (!result.ok) errors += 1;
+      if (result.timedOut) timeouts += 1;
       total += 1;
       if (THINK_TIME_MS > 0) {
         await new Promise((r) => setTimeout(r, THINK_TIME_MS));
@@ -84,17 +103,26 @@ async function runScenario(baseUrl, virtualUsers) {
     p95ResponseMs: Math.round(p95ResponseMs),
     p99ResponseMs: Math.round(p99ResponseMs),
     errorRate: Math.round(errorRate * 10000) / 100,
+    timeoutCount: timeouts,
     status: passed ? "passed" : "failed",
   };
 }
 
 async function main() {
   const baseUrl = parseBaseUrl();
+  const vuLevels = parseVuLevels();
   console.log(`Load test target: ${baseUrl}`);
-  console.log(`VU levels: ${VU_LEVELS.join(", ")} · ${DURATION_SEC}s each\n`);
+  console.log(`VU levels: ${vuLevels.join(", ")} · ${DURATION_SEC}s each · timeout ${REQUEST_TIMEOUT_MS}ms`);
+  if (process.env.CI) {
+    console.log("CI mode: reduced VU matrix (GitHub runner has limited CPU for a single next start process)");
+  }
+  console.log();
 
   try {
-    const probe = await fetch(baseUrl, { redirect: "follow" });
+    const probe = await fetch(baseUrl, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (probe.status >= 500) {
       throw new Error(`server returned ${probe.status}`);
     }
@@ -108,14 +136,15 @@ async function main() {
   }
 
   const scenarios = [];
-  for (const [index, vu] of VU_LEVELS.entries()) {
+  for (const [index, vu] of vuLevels.entries()) {
     process.stdout.write(`  ${vu} users… `);
     const result = await runScenario(baseUrl, vu);
     scenarios.push(result);
+    const timeoutNote = result.timeoutCount > 0 ? ` · timeouts ${result.timeoutCount}` : "";
     console.log(
-      `${result.status.toUpperCase()} · ${result.requestsPerSec} req/s · p95 ${result.p95ResponseMs}ms · errors ${result.errorRate}%`,
+      `${result.status.toUpperCase()} · ${result.requestsPerSec} req/s · p95 ${result.p95ResponseMs}ms · errors ${result.errorRate}%${timeoutNote}`,
     );
-    if (index < VU_LEVELS.length - 1 && COOLDOWN_SEC > 0) {
+    if (index < vuLevels.length - 1 && COOLDOWN_SEC > 0) {
       await new Promise((r) => setTimeout(r, COOLDOWN_SEC * 1000));
     }
   }
