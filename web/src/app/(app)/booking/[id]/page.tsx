@@ -98,7 +98,7 @@ export default async function SchedulePage({ params }: Params) {
       candidateId: b.candidateId,
       candidateName: b.candidateName,
       status: b.status,
-      dueAt: (b.dueAt as Date).toISOString(),
+      dueAt: typeof b.dueAt === 'string' ? b.dueAt : (b.dueAt as Date).toISOString(),
     }));
 
   return (
