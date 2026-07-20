@@ -7,7 +7,7 @@ import { z } from "zod";
 import { apiError, rateLimit } from "@/lib/api/helpers";
 import {
   generateCategoryQuestions,
-  QUESTION_CATEGORIES,
+  questionCategoriesForStageKind,
   type QuestionCategory,
 } from "@/lib/ai";
 
@@ -17,8 +17,6 @@ const schema = z.object({
   category: z.string(),
   count: z.number().int().min(1).max(10).optional(),
 });
-
-const CATEGORY_IDS = QUESTION_CATEGORIES.map((c) => c.id) as string[];
 
 /** The assigned panel member generates questions for a given category. */
 export async function POST(req: Request, { params }: Params) {
@@ -34,10 +32,6 @@ export async function POST(req: Request, { params }: Params) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Invalid request body";
     return apiError(msg, 400);
-  }
-
-  if (!CATEGORY_IDS.includes(body.category)) {
-    return apiError("Unknown category", 400);
   }
 
   if (!rateLimit(`ai:${session.user.id}`, 30)) {
@@ -65,6 +59,13 @@ export async function POST(req: Request, { params }: Params) {
   const isLead = session.user.role === "admin" || session.user.role === "ta";
   if (!isOwner && !isLead) {
     return apiError("You are not assigned to this stage", 403);
+  }
+
+  // The question set depends on the stage's round type (technical / manager / hr)
+  // so a manager round gets leadership questions instead of coding ones.
+  const categoryIds = questionCategoriesForStageKind(stage.kind).map((c) => c.id) as string[];
+  if (!categoryIds.includes(body.category)) {
+    return apiError("Unknown category", 400);
   }
 
   let candidate: { resumeText: string | null; projectId: string | null; roleId: string | null } | undefined;

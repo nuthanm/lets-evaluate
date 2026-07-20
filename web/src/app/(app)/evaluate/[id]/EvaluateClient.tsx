@@ -33,6 +33,7 @@ export type StageView = {
   decision: string | null;
   comments: string | null;
   hasReport: boolean;
+  handoffNote?: string | null;
 };
 
 export function EvaluateClient({
@@ -290,6 +291,20 @@ export function EvaluateClient({
     (s) => s.status === "active" && s.kind !== "screening" && s.kind !== "final",
   );
 
+  // The most recently completed round before the panelist's own — gives a
+  // manager/HR panelist context on how the candidate did earlier in the
+  // process without having to go dig through the archive.
+  const previousStage = myActiveStage
+    ? [...stages]
+        .filter(
+          (s) =>
+            s.kind !== "screening" &&
+            s.position < myActiveStage.position &&
+            (s.status === "passed" || s.status === "failed"),
+        )
+        .sort((a, b) => b.position - a.position)[0] ?? null
+    : null;
+
   // Show the tech-stack score sidebar only when viewing the AI Analysis step.
   const showSidebar =
     score != null &&
@@ -475,18 +490,21 @@ export function EvaluateClient({
             {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setSplitView((v) => !v)}
-          className={cn(
-            "ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
-            splitView
-              ? "border-[var(--ink)] bg-[var(--ink)] text-white"
-              : "border-[var(--cream-2)] bg-white text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]",
-          )}
-        >
-          {splitView ? "✕ Close" : "📄 Resume Preview & AI Analysis"}
-        </button>
+        {/* Hide Resume Preview for manager rounds — they don't assess technical profile */}
+        {myActiveStage?.kind !== "manager" && (
+          <button
+            type="button"
+            onClick={() => setSplitView((v) => !v)}
+            className={cn(
+              "ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
+              splitView
+                ? "border-[var(--ink)] bg-[var(--ink)] text-white"
+                : "border-[var(--cream-2)] bg-white text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]",
+            )}
+          >
+            {splitView ? "✕ Close" : "📄 Resume Preview & AI Analysis"}
+          </button>
+        )}
       </div>
 
       {/* ── Split view panel: resume left, AI analysis right ── */}
@@ -664,11 +682,84 @@ export function EvaluateClient({
           {/* Terminal / hold outcome — always front-and-centre with the reason. */}
           {outcome && <OutcomeBanner outcome={outcome} />}
 
+          {/* Recruiter's handoff note for the panelist's own active round — was
+              previously only visible on the Assignments list, so it disappeared
+              the moment they opened the case file. Surface it here too. */}
+          {!showWizard && myActiveStage?.handoffNote && (
+            <div className="case-card mb-4 border-[var(--orange)] bg-[var(--orange-soft)] p-4 text-sm">
+              <strong>Handoff note from recruiter:</strong> {myActiveStage.handoffNote}
+            </div>
+          )}
+
+          {/* Previous round context — lets a manager/HR panelist see how the
+              candidate did earlier in the process (who ran it, the verdict,
+              and their notes) without leaving the case file. */}
+          {!showWizard && myActiveStage && previousStage && (
+            <div
+              className={cn(
+                "case-card mb-4 overflow-hidden border-l-4 p-0",
+                previousStage.status === "passed"
+                  ? "border-l-[var(--green)]"
+                  : "border-l-[var(--orange)]",
+              )}
+            >
+              {/* Header band */}
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-2 px-4 py-3",
+                  previousStage.status === "passed"
+                    ? "bg-[var(--green-soft)]"
+                    : "bg-[var(--orange-soft)]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "case-label",
+                    previousStage.status === "passed"
+                      ? "text-[var(--green)]"
+                      : "text-[var(--orange)]",
+                  )}
+                >
+                  {previousStage.label} — completed
+                </span>
+                <Pill variant={previousStage.status === "passed" ? "green" : "orange"}>
+                  {previousStage.decision === "yes"
+                    ? "Recommended to proceed"
+                    : previousStage.decision === "no"
+                      ? "Did not recommend"
+                      : previousStage.status === "passed"
+                        ? "Passed"
+                        : "Not cleared"}
+                </Pill>
+                {previousStage.assigneeName && (
+                  <span className="text-xs text-[var(--ink-faint)]">
+                    by <strong>{previousStage.assigneeName}</strong>
+                  </span>
+                )}
+                {previousStage.hasReport && (
+                  <a
+                    href={`/api/stages/${previousStage.id}/report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-[var(--cyan-d)] hover:underline"
+                  >
+                    📄 View full report
+                  </a>
+                )}
+              </div>
+              {/* Comments body */}
+              {previousStage.comments && (
+                <p className="px-4 py-3 text-sm text-[var(--ink-soft)]">{previousStage.comments}</p>
+              )}
+            </div>
+          )}
+
           {/* Interviewer / manager / HR workspace for their active round. */}
           {!showWizard && myActiveStage && (
             <InterviewWorkspace
               stageId={myActiveStage.id}
               stageLabel={myActiveStage.label}
+              stageKind={myActiveStage.kind}
               candidateName={candidateName}
               role={role}
               projectName={projectName}
