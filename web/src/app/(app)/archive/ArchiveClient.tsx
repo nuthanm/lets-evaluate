@@ -132,6 +132,7 @@ export function ArchiveClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState<"all" | "month" | "quarter">("all");
 
   const stats = useMemo(() => ({
     total: candidates.length,
@@ -146,12 +147,29 @@ export function ArchiveClient({
   }), [candidates]);
 
   const filtered = useMemo(() => {
+    const now = Date.now();
+    const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const quarterAgo = now - 91 * 24 * 60 * 60 * 1000;
+    const needle = search.toLowerCase();
     return candidates.filter((c) => {
       if (filter !== "all" && c.status !== filter) return false;
-      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search) {
+        const inName = c.name.toLowerCase().includes(needle);
+        const inRole = (c.roleName ?? "").toLowerCase().includes(needle);
+        const inProject = (c.projectName ?? "").toLowerCase().includes(needle);
+        const inStage = c.stages.some((s) => s.label.toLowerCase().includes(needle));
+        if (!inName && !inRole && !inProject && !inStage) return false;
+      }
+      if (dateRange !== "all") {
+        const cutoff = dateRange === "month" ? monthAgo : quarterAgo;
+        const latestDecided = c.stages
+          .map((s) => s.decidedAt ? new Date(s.decidedAt).getTime() : 0)
+          .reduce((a, b) => Math.max(a, b), 0);
+        if (latestDecided < cutoff) return false;
+      }
       return true;
     });
-  }, [candidates, filter, search]);
+  }, [candidates, filter, search, dateRange]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
   if (candidates.length === 0) {
@@ -198,11 +216,32 @@ export function ArchiveClient({
       <div className="space-y-2">
         <input
           type="search"
-          placeholder="Search by candidate name…"
+          placeholder="Search by name, role, project, or stage…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="case-input w-full px-4 py-2.5 text-sm"
         />
+        {/* Date range tabs */}
+        <div className="flex gap-1.5">
+          {(["all", "month", "quarter"] as const).map((r) => {
+            const label = r === "all" ? "All time" : r === "month" ? "Last 30 days" : "Last quarter";
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setDateRange(r)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+                  dateRange === r
+                    ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
+                    : "border-[var(--cream-2)] bg-white text-[var(--ink-soft)] hover:border-[var(--cyan)]",
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {FILTER_OPTIONS.map((opt) => {
             const count =

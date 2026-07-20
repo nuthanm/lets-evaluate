@@ -664,15 +664,6 @@ export function EvaluateClient({
           {/* Terminal / hold outcome — always front-and-centre with the reason. */}
           {outcome && <OutcomeBanner outcome={outcome} />}
 
-          {/* Full hierarchy: every round from screening → final, with its
-              status, so the whole journey is visible on the case file. */}
-          {!showWizard && stages.length > 0 && (
-            <JourneyTimeline
-              stages={stages}
-              screeningComments={screeningComments}
-            />
-          )}
-
           {/* Interviewer / manager / HR workspace for their active round. */}
           {!showWizard && myActiveStage && (
             <InterviewWorkspace
@@ -1165,99 +1156,6 @@ function OutcomeBanner({ outcome }: { outcome: Outcome }) {
   );
 }
 
-/* ─────────────────────────── Journey timeline ─────────────────────────── */
-
-function stageDotClass(status: StageView["status"]): string {
-  if (status === "passed") return "bg-[var(--green)] text-white";
-  if (status === "failed") return "bg-[var(--orange)] text-white";
-  if (status === "active") return "bg-[var(--cyan)] text-white";
-  if (status === "skipped")
-    return "bg-[var(--cream-2)] text-[var(--ink-faint)]";
-  return "border border-[var(--cream-2)] bg-white text-[var(--ink-faint)]";
-}
-
-function stageDotGlyph(status: StageView["status"]): string {
-  if (status === "passed") return "✓";
-  if (status === "failed") return "✕";
-  if (status === "skipped") return "–";
-  return "";
-}
-
-function JourneyTimeline({
-  stages,
-  screeningComments,
-}: {
-  stages: StageView[];
-  screeningComments?: string;
-}) {
-  const ordered = [...stages].sort((a, b) => a.position - b.position);
-  if (ordered.length === 0) return null;
-
-  return (
-    <section className="case-card mb-4 p-5">
-      <h2 className="font-serif text-xl font-bold">Candidate journey</h2>
-      <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-        Every round from screening through final confirmation.
-      </p>
-      <ol className="mt-4">
-        {ordered.map((s, i) => {
-          const meta = stageStatusMeta(s.status);
-          const reason =
-            s.comments ||
-            (s.kind === "screening" ? screeningComments : undefined);
-          const last = i === ordered.length - 1;
-          return (
-            <li key={s.id} className="relative flex gap-3 pb-4 last:pb-0">
-              {!last && (
-                <span
-                  aria-hidden
-                  className="absolute left-[11px] top-7 h-[calc(100%-1rem)] w-px bg-[var(--cream-2)]"
-                />
-              )}
-              <span
-                className={cn(
-                  "z-10 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
-                  stageDotClass(s.status),
-                )}
-              >
-                {stageDotGlyph(s.status) || i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold">{s.label}</span>
-                  <Pill variant={meta.variant} className="text-[10px]">
-                    {meta.label}
-                  </Pill>
-                  {s.assigneeName && (
-                    <span className="text-xs text-[var(--ink-faint)]">
-                      by {s.assigneeName}
-                    </span>
-                  )}
-                  {s.hasReport && (
-                    <a
-                      href={`/api/stages/${s.id}/report`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-auto text-xs font-semibold text-[var(--cyan-d)] hover:underline"
-                    >
-                      PDF report ↓
-                    </a>
-                  )}
-                </div>
-                {reason && (
-                  <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                    “{reason}”
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
 /* ─────────────────────────── Final confirmation ─────────────────────────── */
 
 function FinalConfirmationPanel({
@@ -1317,11 +1215,6 @@ function FinalConfirmationPanel({
           value={metrics?.tech_match_score != null ? `${metrics.tech_match_score}%` : "—"}
         />
       </div>
-
-      <p className="mt-3 text-xs text-[var(--ink-faint)]">
-        Round-by-round outcomes and reports are shown in the candidate journey
-        above.
-      </p>
 
       <FieldTextarea
         className="mt-4"
@@ -1849,7 +1742,7 @@ function suitabilityVariant(verdict?: string): "green" | "orange" | "neutral" {
   const v = (verdict ?? "").toLowerCase();
   if (v.startsWith("suitable")) return "green";
   if (v.startsWith("partial")) return "orange";
-  if (v.startsWith("not")) return "neutral";
+  if (v.startsWith("not")) return "orange";
   return "neutral";
 }
 
@@ -1857,7 +1750,7 @@ function recommendationVariant(rec?: string): "green" | "orange" | "neutral" {
   const r = (rec ?? "").toLowerCase();
   if (r.startsWith("proceed")) return "green";
   if (r.startsWith("hold")) return "orange";
-  if (r.startsWith("reject")) return "neutral";
+  if (r.startsWith("reject")) return "orange";
   return "neutral";
 }
 

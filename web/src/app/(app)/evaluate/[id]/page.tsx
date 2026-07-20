@@ -8,7 +8,6 @@ import { db } from "@/lib/db";
 import { candidates, projects, roles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { ResumeMetrics } from "@/lib/ai";
-import { getRoleOpeningStatus } from "@/lib/db/opening-guard";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,28 +30,29 @@ export default async function EvaluatePage({ params }: Params) {
   const detail = await getCandidateDetail(session.user.organizationId, id);
   if (!detail) notFound();
 
-  await ensureCandidateStages(
-    session.user.organizationId,
-    id,
-    detail.candidate.projectId,
-  );
-  const stagesRows = await getCandidateStages(id, session.user.organizationId);
+  // ensureCandidateStages only needs to check/insert stage rows; the role
+  // and project lookups are independent of it, so run them all together
+  // instead of one after another.
+  const [, [roleRow], [projectRow]] = await Promise.all([
+    ensureCandidateStages(
+      session.user.organizationId,
+      id,
+      detail.candidate.projectId,
+    ),
+    detail.candidate.roleId
+      ? db.select().from(roles).where(eq(roles.id, detail.candidate.roleId)).limit(1)
+      : Promise.resolve([null]),
+    detail.candidate.projectId
+      ? db.select().from(projects).where(eq(projects.id, detail.candidate.projectId)).limit(1)
+      : Promise.resolve([null]),
+  ]);
 
-  const [roleRow] = detail.candidate.roleId
-    ? await db
-        .select()
-        .from(roles)
-        .where(eq(roles.id, detail.candidate.roleId))
-        .limit(1)
-    : [null];
-
-  const [projectRow] = detail.candidate.projectId
-    ? await db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, detail.candidate.projectId))
-        .limit(1)
-    : [null];
+  // detail.stages was fetched before ensureCandidateStages ran, so it's only
+  // stale the very first time a candidate's stages are materialized.
+  const stagesRows =
+    detail.stages.length > 0
+      ? detail.stages
+      : await getCandidateStages(id, session.user.organizationId);
 
   const canScreen =
     (session.user.role === "admin" || session.user.role === "ta") &&
@@ -90,7 +90,9 @@ export default async function EvaluatePage({ params }: Params) {
     detail.candidate.status = "interview_in_progress";
   }
 
-  const { open: roleOpen } = await getRoleOpeningStatus(detail.candidate.roleId);
+  // roleRow already carries the role's status, so there's no need for a
+  // second query (getRoleOpeningStatus) just to answer "is it open?".
+  const roleOpen = !detail.candidate.roleId || !roleRow || roleRow.status === "open";
 
   const canFinalize =
     (session.user.role === "admin" || session.user.role === "ta") &&
