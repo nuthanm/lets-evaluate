@@ -19,6 +19,7 @@ export function buildMailVars(input: {
     email?: string | null;
     phone?: string | null;
     source?: string | null;
+    status?: string | null;
     id?: string;
   };
   roleName?: string;
@@ -37,6 +38,7 @@ export function buildMailVars(input: {
     candidateEmail: input.candidate?.email ?? undefined,
     candidatePhone: input.candidate?.phone ?? undefined,
     candidateSource: input.candidate?.source ?? undefined,
+    candidateStatus: input.candidate?.status ?? undefined,
     roleName: input.roleName,
     projectName: input.projectName,
     orgName: brand.orgName,

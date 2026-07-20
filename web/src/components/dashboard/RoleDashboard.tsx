@@ -83,7 +83,17 @@ function stagePill(status: string) {
 }
 
 function urgencyPill(urgency: RecruiterTask["urgency"]) {
-  if (urgency === "overdue") return { label: "Overdue", variant: "orange" as const };
+  if (urgency === "overdue") {
+    return {
+      label: "Overdue",
+      variant: "orange" as const,
+      style: {
+        color: "#d63b3b",
+        backgroundColor: "var(--orange-soft)",
+        borderColor: "rgba(232, 119, 34, 0.45)",
+      },
+    };
+  }
   if (urgency === "today") return { label: "Today", variant: "cyan" as const };
   if (urgency === "soon") return { label: "Waiting", variant: "orange" as const };
   if (urgency === "hold") return { label: "On hold", variant: "neutral" as const };
@@ -160,9 +170,9 @@ function TodayWorkPanel({ tasks }: { tasks: RecruiterTask[] }) {
                     {t.action}
                     {t.detail ? ` — ${t.detail}` : ""}
                   </span>
-                  <Pill variant={pill.variant}>{pill.label}</Pill>
-                  <span className="text-[11px] font-semibold text-[var(--cyan-d)]">
-                    Open →
+                  <Pill variant={pill.variant} style={pill.style}>{pill.label}</Pill>
+                  <span className="open-link">
+                    Open
                   </span>
                 </Link>
               );
@@ -182,6 +192,7 @@ export function TeamDashboard({
   today,
   scheduled = [],
   todayTasks = [],
+  setupRequired = false,
 }: {
   role: MemberRole;
   candidates: CandidateRow[];
@@ -194,6 +205,7 @@ export function TeamDashboard({
   today: string;
   scheduled?: ScheduledRow[];
   todayTasks?: RecruiterTask[];
+  setupRequired?: boolean;
 }) {
   const inProgress = candidates.filter((c) =>
     ["screening", "ready_for_interview", "assigned", "draft"].includes(c.status),
@@ -263,11 +275,45 @@ export function TeamDashboard({
       title={title}
       subtitle={today}
       actions={
-        <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
-          + New case file
-        </ButtonLink>
+        setupRequired ? (
+          <span
+            title="Set up projects and openings before adding candidates"
+            className="inline-flex cursor-not-allowed items-center rounded-xl bg-[var(--cream-2)] px-5 py-2 text-[13px] font-semibold text-[var(--ink-faint)] opacity-60 select-none"
+          >
+            + New case file
+          </span>
+        ) : (
+          <ButtonLink href="/evaluate/new" className="px-5 py-2 text-[13px]">
+            + New case file
+          </ButtonLink>
+        )
       }
     >
+      {setupRequired && (
+        <div className="case-fade-in mb-5 overflow-hidden rounded-xl border border-[var(--orange)] bg-[var(--orange-soft)]">
+          <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 shrink-0 text-xl" aria-hidden>⚠</span>
+              <div>
+                <p className="text-[14px] font-bold text-[var(--ink)]">
+                  Organisation setup required
+                </p>
+                <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+                  Candidates, job descriptions, and evaluations are unavailable until you configure at least one project and one opening.
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
+              <ButtonLink href="/setup/projects" variant="ghost" className="px-4 py-2 text-[12px] font-bold">
+                Set up projects →
+              </ButtonLink>
+              <ButtonLink href="/setup/roles" variant="ghost" className="px-4 py-2 text-[12px] font-bold">
+                Add openings →
+              </ButtonLink>
+            </div>
+          </div>
+        </div>
+      )}
       {inProgress.length > 0 && (
         <div className="case-alert mb-5 case-fade-in">
           <div>
@@ -481,7 +527,14 @@ function UrgencyPill({ dueAt }: { dueAt: string | null }) {
   if (urgency === "overdue") {
     const days = Math.floor((getNow() - new Date(dueAt!).getTime()) / 86400000);
     return (
-      <Pill variant="orange">
+      <Pill
+        variant="orange"
+        style={{
+          color: "#d63b3b",
+          backgroundColor: "var(--orange-soft)",
+          borderColor: "rgba(232, 119, 34, 0.45)",
+        }}
+      >
         Overdue{days > 0 ? ` · ${days}d ago` : ""}
       </Pill>
     );

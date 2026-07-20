@@ -18,6 +18,64 @@ body {
   font-family: var(--font-fraunces), Georgia, serif;
 }
 
+/* ── Link Styles ── */
+a {
+  color: var(--cyan-d);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  cursor: pointer;
+}
+
+a:hover {
+  color: var(--cyan);
+}
+
+a:active {
+  color: var(--cyan-d);
+}
+
+/* ── Open Link Badge Style ── */
+.open-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 9999px;
+  background: var(--cyan-soft);
+  border: 1px solid rgba(35, 176, 230, 0.4);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cyan-d);
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  text-decoration: none;
+}
+
+.open-link:hover {
+  background: #c7e9f7;
+  border-color: var(--cyan-d);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.open-link:active {
+  transform: translateY(0);
+}
+
+/* ── Pill colour overrides (not scannable by Tailwind JIT) ── */
+.pill-red {
+  border: 1px solid #fca5a5;
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.pill-overdue-support {
+  border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent) !important;
+  background-color: var(--orange-soft) !important;
+  color: var(--red) !important;
+}
+
 /* ── Case file design system (toned down) ── */
 
 .case-label {
@@ -43,6 +101,14 @@ body {
   background: var(--white);
   outline: none;
   box-shadow: 0 0 0 3px var(--cyan-soft);
+}
+
+/* ── Modal / overlay blur ── */
+body.modal-open > *:not(.modal-portal-root) {
+  filter: blur(3px);
+  transition: filter 0.15s ease;
+  pointer-events: none;
+  user-select: none;
 }
 
 .case-card {

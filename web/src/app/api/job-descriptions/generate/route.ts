@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { auth } from "@/lib/auth";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
+import { getBrand } from "@/lib/brand";
+import { isAiTestMode } from "@/lib/ai/test-mode";
+import { mockJobDescription } from "@/lib/ai/mock-fixtures";
 import {
   ensureGreatPlaceToWorkLine,
   generateJobDescriptionInputSchema,
@@ -9,9 +13,10 @@ import {
 } from "@/lib/job-description/types";
 
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
-const MAX_CONTEXT = 1000;
+const MAX_CONTEXT = 1200;
 
 function openaiClient() {
+  if (isAiTestMode()) return null;
   const key = process.env.OPENAI_API_KEY;
   if (!key?.startsWith("sk-")) return null;
   return new OpenAI({ apiKey: key });
@@ -65,12 +70,41 @@ export async function POST(req: Request) {
   const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
   if (forbidden) return forbidden;
 
-  const body = generateJobDescriptionInputSchema.parse(await req.json());
+  let body: ReturnType<typeof generateJobDescriptionInputSchema.parse>;
+  try {
+    body = generateJobDescriptionInputSchema.parse(await req.json());
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const first = err.issues[0];
+      const path = first?.path ?? [];
+      if (path[0] === "mustHaveSkills") {
+        const idx = typeof path[1] === "number" ? path[1] + 1 : "";
+        return apiError(
+          `Skill ${idx ? `#${idx}` : ""} is too long — each skill must be 60 characters or fewer. Please shorten it and try again.`,
+          400,
+        );
+      }
+      return apiError(first?.message ?? "Invalid input.", 400);
+    }
+    throw err;
+  }
 
   const openai = openaiClient();
   if (!openai) {
+    if (isAiTestMode()) {
+      const brand = getBrand();
+      const mock = mockJobDescription(brand.orgName, body.roleTitle);
+      return NextResponse.json({
+        ...mock,
+        generatedAt: new Date().toISOString(),
+        mock: true,
+      });
+    }
     return apiError("OpenAI API key not configured", 500);
   }
+
+  const brand = getBrand();
+  const orgName = brand.orgName;
 
   const skills = (body.mustHaveSkills ?? []).slice(0, 12).join(", ");
   const contextRaw = (body.additionalContext ?? "").slice(0, MAX_CONTEXT);
@@ -83,31 +117,70 @@ export async function POST(req: Request) {
   });
 
   const prompt = [
-    "Generate a recruiter-grade Job Description in KANINI's official format.",
-    "Structure must follow exactly in this order:",
-    "1) Header (Role, Location, Experience)",
-    "2) About the Role (KANINI branding + role impact)",
-    "3) What You'll Do (6-8 action-oriented bullets)",
-    "4) What You Bring (skills, experience, domain)",
-    "5) Why Join KANINI (culture, Great Place to Work, tech exposure)",
-    "6) Ready to Make an Impact (call-to-action)",
-    "Tone: crisp, professional, candidate-friendly.",
-    "Always highlight Great Place to Work recognition.",
-    "Do not add any extra sections.",
-    "Return strict JSON only with this shape:",
+    `You are a senior technical recruiter at ${orgName} writing a job description for a client-facing enterprise hiring campaign.`,
+    `Generate a complete, professional Job Description in ${orgName}'s official format.`,
+    "",
+    "SECTION RULES — follow exactly in this order:",
+    "",
+    "1. aboutRole (2-3 sentences)",
+    `   - Open with ${orgName}'s identity: an enterprise technology company delivering innovation across industries.`,
+    "   - Describe what this specific role does, why it exists, and the impact it creates for clients or internal teams.",
+    "   - End with a sentence about the team environment or opportunity for the candidate.",
+    `   - Example: 'At ${orgName}, we partner with enterprises to engineer scalable, high-impact technology solutions. As a [Role], you will lead end-to-end delivery of [key responsibility], directly influencing client outcomes. You will work in a high-performing team that values ownership, speed, and continuous learning.'`,
+    "",
+    "2. whatYoullDo — exactly 6-8 bullets",
+    "   - Each bullet must be a specific, action-oriented responsibility for THIS role.",
+    "   - Start with a strong verb: Design, Lead, Build, Drive, Own, Architect, Evaluate, Collaborate, Implement.",
+    "   - Be specific to the role title and domain — avoid generic phrases like 'work with stakeholders' or 'assist team'.",
+    "   - Cover the full scope: technical delivery + cross-team interaction + quality/ownership.",
+    "   - Example (for Application Architect): 'Architect and govern application design standards across distributed teams to ensure scalability and resilience.'",
+    "   - Example: 'Lead architectural reviews, identify technical debt, and drive remediation with engineering teams.'",
+    "   - Example: 'Define cloud infrastructure strategy on Azure, including cost optimization and high availability patterns.'",
+    "   - Max 20 words per bullet.",
+    "",
+    "3. whatYouBring.summary (1-2 sentences)",
+    "   - Describe the ideal candidate's background, mindset, and what they bring to the team.",
+    "   - Example: 'You are a seasoned architect with deep expertise in cloud-native solutions and a track record of leading enterprise-scale delivery.'",
+    "",
+    "4. whatYouBring.skills — exactly 6-8 full requirement sentences",
+    "   - These are NON-NEGOTIABLE: write complete, specific requirement sentences. NOT short skill tags.",
+    "   - Cover these types across the list (in order):",
+    "     a) Total years of experience + role context  → '12+ years of software development experience including 4+ years in an architect or technical lead capacity.'",
+    "     b) Core technical skills/stack with specifics → 'Hands-on expertise in [specific tech stack], including [tools/frameworks] for [use case].'",
+    "     c) Platform/cloud/infrastructure knowledge   → 'Proficiency in Azure/AWS cloud architecture including IaaS, PaaS, serverless, and CI/CD pipeline design.'",
+    "     d) Architecture/design patterns              → 'Deep understanding of microservices, event-driven architecture, API design, and distributed system patterns.'",
+    "     e) Domain or industry knowledge              → 'Exposure to [domain] industry processes, compliance requirements, and enterprise integration standards.'",
+    "     f) Soft skills / leadership                  → 'Proven ability to communicate complex technical decisions to non-technical stakeholders and executive sponsors.'",
+    "     g) Delivery methodology                      → 'Experience delivering projects in Agile/Scrum environments with strong ownership of sprint goals and release quality.'",
+    "",
+    "5. whatYouBring.domain (1 sentence)",
+    "   - State the domain clearly. Example: 'Healthcare' or 'BFSI — Banking, Financial Services, and Insurance'.",
+    "",
+    `6. whyJoin${orgName} — 4-5 bullets`,
+    "   - One bullet MUST mention 'Great Place to Work' recognition explicitly.",
+    "   - Cover: career growth, tech exposure, culture, learning, work environment.",
+    "   - Example: 'Work on complex, high-stakes enterprise projects that stretch your technical and leadership capabilities.'",
+    "   - Example: 'Certified as a Great Place to Work — we invest in people through mentorship, L&D, and internal mobility.'",
+    "",
+    "7. readyToMakeImpact (1-2 sentences)",
+    "   - A compelling, direct call-to-action. Energetic tone.",
+    `   - Example: 'Ready to shape the future of enterprise technology with ${orgName}? Apply now and let us build something exceptional together.'`,
+    "",
+    "OUTPUT FORMAT — return strict JSON only, no markdown, no extra keys:",
     '{"aboutRole":"...","whatYoullDo":["..."],"whatYouBring":{"summary":"...","skills":["..."],"domain":"..."},"whyJoinKanini":["..."],"readyToMakeImpact":"..."}',
-    "Rules:",
-    "0) Keep output formatting and section structure consistent every time.",
-    "1) whatYoullDo must have 6-8 action bullets.",
-    "2) whatYouBring.skills must be concrete and role-relevant.",
-    "3) whyJoinKanini must include one line mentioning Great Place to Work.",
-    "4) Avoid placeholders, avoid markdown, no headings in values.",
-    "5) Keep each bullet <= 22 words.",
-    "Input:",
+    "",
+    "CRITICAL RULES:",
+    "- Only use facts from the input. Do not invent tools, certifications, or domain knowledge not mentioned.",
+    "- If must-have skills are provided, anchor the tech bullets around them.",
+    "- If additional context is provided, reflect it in responsibilities and requirements.",
+    "- No generic filler. Every sentence must add specific value.",
+    "- No placeholders, no markdown, no section headings inside JSON values.",
+    "",
+    "INPUT:",
     `Role Title: ${body.roleTitle}`,
     `Location: ${body.location}`,
-    `Experience: ${body.experience}`,
-    `Domain: ${body.domain?.trim() || "Not specified"}`,
+    `Experience Required: ${body.experience}`,
+    `Domain / Industry: ${body.domain?.trim() || "Not specified"}`,
     `Must-have skills: ${skills || "Not specified"}`,
     `Additional context: ${context || "None"}`,
   ].join("\n");
@@ -115,13 +188,13 @@ export async function POST(req: Request) {
   const completion = await openai.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
-    max_tokens: 950,
+    max_tokens: 1400,
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
         content:
-          "You write accurate, structured hiring content for enterprise recruiting teams. Return valid JSON only.",
+          `You are a senior technical recruiter at ${orgName}, an enterprise technology company. You write precise, structured, candidate-friendly job descriptions for enterprise hiring. Return valid JSON only. Be specific to the role — never write generic content. Every bullet must reflect real responsibilities and real requirements for this exact role.`,
       },
       { role: "user", content: prompt },
     ],
@@ -137,7 +210,7 @@ export async function POST(req: Request) {
     aboutRole:
       typeof parsed.aboutRole === "string" && parsed.aboutRole.trim()
         ? parsed.aboutRole.trim()
-        : `${body.roleTitle} at KANINI plays a high-impact role in delivering measurable outcomes for enterprise clients through strong execution and collaboration.`,
+        : `${body.roleTitle} at ${orgName} plays a high-impact role in delivering measurable outcomes for enterprise clients through strong execution and collaboration.`,
     whatYoullDo: clampArray(
       Array.isArray(parsed.whatYoullDo)
         ? parsed.whatYoullDo.filter((item): item is string => typeof item === "string")
@@ -145,11 +218,11 @@ export async function POST(req: Request) {
       6,
       8,
       [
-        "Own end-to-end delivery of assigned responsibilities with clear quality and timeline commitments.",
-        "Collaborate with cross-functional stakeholders to translate business goals into practical execution plans.",
-        "Drive design, implementation, and continuous improvement of scalable, maintainable solutions.",
-        "Proactively identify delivery risks and resolve blockers with data-backed recommendations.",
-        "Contribute to technical and process standards that improve team effectiveness and consistency.",
+        "Own assigned responsibilities end to end with clear quality and delivery commitments.",
+        "Collaborate with cross-functional stakeholders to translate goals into practical execution plans.",
+        "Drive design, implementation, and improvement of scalable, maintainable solutions.",
+        "Identify risks early and resolve blockers with clear, data-backed recommendations.",
+        "Contribute to standards that improve team effectiveness, consistency, and reuse.",
         "Communicate progress, dependencies, and outcomes clearly to project and business leaders.",
       ],
     ),
@@ -172,7 +245,7 @@ export async function POST(req: Request) {
         4,
         12,
         [
-          `${body.experience} of relevant professional experience in ${body.roleTitle}.`,
+          `${body.experience} of relevant professional experience aligned to ${body.roleTitle}.`,
           "Strong communication and stakeholder management across technical and business teams.",
           "Hands-on delivery mindset with attention to quality, reliability, and maintainability.",
           "Ability to work effectively in fast-paced, outcome-driven project environments.",
@@ -195,7 +268,7 @@ export async function POST(req: Request) {
         3,
         6,
         [
-          "Recognized as a Great Place to Work, KANINI invests in people, trust, and long-term growth.",
+          `Recognized as a Great Place to Work, ${orgName} invests in people, trust, and long-term growth.`,
           "Work on high-impact enterprise programs with modern platforms and experienced teams.",
           "Expand your technical and domain expertise through cross-functional collaboration and ownership.",
         ],
@@ -204,7 +277,7 @@ export async function POST(req: Request) {
     readyToMakeImpact:
       typeof parsed.readyToMakeImpact === "string" && parsed.readyToMakeImpact.trim()
         ? parsed.readyToMakeImpact.trim()
-        : "Ready to build meaningful outcomes with KANINI? Apply now and help shape impactful solutions for global clients.",
+        : `Ready to build meaningful outcomes with ${orgName}? Apply now and help shape impactful solutions for global clients.`,
     generatedAt: new Date().toISOString(),
   };
 

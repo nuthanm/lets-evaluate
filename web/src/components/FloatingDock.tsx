@@ -27,6 +27,7 @@ export function FloatingDock() {
           <Link
             key={href}
             href={href}
+            prefetch
             className={cn(
               "flex flex-col items-center gap-0.5 rounded-[28px] px-4 py-2.5 text-[10px] font-semibold transition-colors",
               on
@@ -41,6 +42,7 @@ export function FloatingDock() {
       })}
       <Link
         href="/evaluate/new"
+        prefetch
         className="ml-1 grid size-11 place-items-center rounded-full bg-[var(--green)] text-xl leading-none text-white"
         title="New evaluation"
         aria-label="New evaluation"

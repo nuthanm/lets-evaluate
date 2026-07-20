@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { db } from "@/lib/db";
-import { jobDescriptions } from "@/lib/db/schema";
+import { jobDescriptions, projects } from "@/lib/db/schema";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -18,8 +18,10 @@ function toOptionLabel(row: {
   title: string;
   location: string;
   experience: string;
+  projectName: string | null;
 }) {
-  return `${row.title} - ${row.location} (${row.experience})`;
+  const base = `${row.title} - ${row.location} (${row.experience})`;
+  return row.projectName ? `${base} · ${row.projectName}` : base;
 }
 
 export async function GET(req: Request) {
@@ -40,9 +42,11 @@ export async function GET(req: Request) {
         experience: jobDescriptions.experience,
         roleId: jobDescriptions.roleId,
         projectId: jobDescriptions.projectId,
+        projectName: projects.name,
         updatedAt: jobDescriptions.updatedAt,
       })
       .from(jobDescriptions)
+      .leftJoin(projects, eq(jobDescriptions.projectId, projects.id))
       .where(and(baseWhere, isNotNull(jobDescriptions.roleId)))
       .orderBy(desc(jobDescriptions.updatedAt));
 

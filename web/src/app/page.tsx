@@ -27,7 +27,7 @@ const workflow = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
   const brand = getBrand();
 
   return (
@@ -98,7 +98,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
       <section id="workflow" className="border-t border-[var(--cream-2)] bg-[var(--navy)] text-white">
         <div className="grid md:grid-cols-4">
           {workflow.map((item) => (

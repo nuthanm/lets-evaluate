@@ -213,7 +213,7 @@ export function CabinetShell({
             )}
           >
             {collapsed ? (
-              <Link href="/people" aria-label="Home">
+              <Link href="/people" prefetch aria-label="Home">
                 <LogoMark />
               </Link>
             ) : (
@@ -268,6 +268,7 @@ export function CabinetShell({
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         "flex items-center rounded-lg text-[13px] font-semibold transition-colors",
@@ -321,11 +322,13 @@ export function CabinetShell({
               <>
                 <Link
                   href="/profile"
+                  prefetch
                   title={userName}
                   aria-label="Profile"
                   className={cn(
-                    "grid place-items-center rounded-full transition-shadow hover:ring-2 hover:ring-[var(--cyan)]",
-                    pathname === "/profile" && "ring-2 ring-[var(--cyan)]",
+                    "grid place-items-center rounded-full transition-all",
+                    "hover:ring-2 hover:ring-[var(--cyan)] hover:ring-offset-2 hover:ring-offset-[var(--cream-2)]",
+                    pathname === "/profile" && "ring-2 ring-[var(--cyan)] ring-offset-2 ring-offset-[var(--cream-2)]",
                   )}
                 >
                   <FaceAvatar name={userName} size="sm" />
@@ -339,20 +342,23 @@ export function CabinetShell({
               <>
                 <Link
                   href="/profile"
+                  prefetch
                   className={cn(
-                    "mb-2 flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-white/60",
-                    pathname === "/profile" && "bg-white",
+                    "mb-2 flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200",
+                    "hover:bg-[var(--cyan)]/10",
+                    pathname === "/profile" && "bg-[var(--cyan)]/15 border-l-4 border-[var(--cyan)]",
                   )}
                 >
                   <FaceAvatar name={userName} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-bold">{userName}</div>
-                    <div className="truncate text-[11px] text-[var(--ink-faint)]">
+                    <div className="truncate text-[13px] font-bold text-[var(--ink)]">{userName}</div>
+                    <div className="truncate text-[11px] font-medium text-[var(--cyan)]">
                       {getRoleDisplayName(userRole)}
                     </div>
                   </div>
                 </Link>
-                <LogoutButton />
+                <div className="my-2.5 h-px bg-black/10" />
+                <LogoutButton className="w-full" />
               </>
             )}
           </div>
@@ -360,11 +366,11 @@ export function CabinetShell({
 
         <div className="flex min-w-0 flex-1 flex-col bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-r-xl">
           <div className="flex items-center justify-between border-b border-[var(--cream-2)] px-4 py-3 md:hidden">
-            <Link href="/profile" className="flex min-w-0 items-center gap-2">
+            <Link href="/profile" prefetch className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--cyan)]/10">
               <FaceAvatar name={userName} size="sm" />
               <div className="min-w-0">
-                <div className="truncate text-[13px] font-bold">{userName}</div>
-                <div className="truncate text-[11px] text-[var(--ink-faint)]">
+                <div className="truncate text-[13px] font-bold text-[var(--ink)]">{userName}</div>
+                <div className="truncate text-[11px] font-medium text-[var(--cyan)]">
                   {getRoleDisplayName(userRole)}
                 </div>
               </div>
@@ -403,6 +409,7 @@ function MobileNav({
             <Link
               key={href}
               href={href}
+              prefetch
               className="grid size-11 place-items-center rounded-full bg-[var(--green)] text-xl font-bold text-white shadow-md"
               aria-label="New evaluation"
             >
@@ -414,6 +421,7 @@ function MobileNav({
           <Link
             key={href}
             href={href}
+            prefetch
             className={cn(
               "rounded-full px-3 py-2 text-[10px] font-bold",
               on

@@ -13,6 +13,7 @@ export type MailTemplateSlug =
   | "candidate_deleted_pre_analysis"
   | "candidate_deleted_post_analysis"
   | "candidate_deleted_post_interview"
+  | "candidate_job_description_deleted"
   | "interviewer_assigned"
   | "interviewer_technical_assigned"
   | "interviewer_manager_assigned"
@@ -140,12 +141,26 @@ Thank you for sharing your profile for the {{role}} role. Before we proceed, we'
 A short note on project context, your responsibilities, and production usage would help us evaluate accurately.
 
 Regards,
-{{org_name}} Talent Team
+{{org_name}} Talent Team`,
+  }),
+  makeTemplate({
+    slug: "candidate_job_description_deleted",
+    name: "Deletion — job description removed",
+    audience: "candidate",
+    description: "Send when a mapped job description is removed from the active catalog.",
+    subject: "Update to your application context — {{org_name}}",
+    body: `Hello {{candidate_name}},
 
-Candidate Intro Docket:
-https://kanini.com/wp-content/uploads/2024/01/Candidate-Intro-Docket.pdf`,
+The job description linked to your {{role}} application has been removed from our active catalog.
+
+Current application status: {{candidate_status}}
+
+We will continue to manage your application with the latest approved context. If you have any questions, please reply to this email.
+
+Regards,
+{{org_name}} Talent Team`,
     tagline:
-      "Use this template when AI or recruiter screening needs supporting information.",
+      "Use this template when a mapped job description is retired and applicants should be notified.",
   }),
   makeTemplate({
     slug: "candidate_scheduled",

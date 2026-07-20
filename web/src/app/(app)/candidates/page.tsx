@@ -1,9 +1,9 @@
 import { requireRole } from "@/lib/auth/rbac";
 import {
-  getCandidatesGridForUser,
   getOrgProjects,
   getOrgRoles,
 } from "@/lib/db/queries";
+import { getCachedCandidatesGrid } from "@/lib/db/cache";
 import { CabinetPage, CaseCard, StatBlock } from "@/components/CabinetPage";
 import { ButtonLink } from "@/components/Button";
 import { CandidatesGrid } from "./CandidatesGrid";
@@ -18,7 +18,7 @@ const IcChart     = () => <svg {...S}><path d="M3 15.5V10M7.5 15.5V5.5M12 15.5V9
 export default async function CandidatesPage() {
   const session = await requireRole(["admin", "ta"]);
   const [candidates, projects, roles] = await Promise.all([
-    getCandidatesGridForUser(
+    getCachedCandidatesGrid(
       session.user.organizationId,
       session.user.id,
       session.user.role,

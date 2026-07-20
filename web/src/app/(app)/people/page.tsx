@@ -5,10 +5,13 @@ import {
   getCandidatesForUser,
   getInterviewerCounts,
   getInterviewerHistory,
+  getOrgProjects,
+  getOrgRoles,
   getStageAssignmentsForUser,
   getStageBookings,
   getUserStats,
 } from "@/lib/db/queries";
+import { getCachedUserStats, getCachedStageBookings } from "@/lib/db/cache";
 import {
   InterviewerDashboard,
   TeamDashboard,
@@ -60,13 +63,15 @@ export default async function PeoplePage() {
     );
   }
 
-  const [candidates, stats, feed, bookings] = await Promise.all([
-    getCandidatesForUser(
-      session.user.organizationId,
-      session.user.id,
-      session.user.role,
-    ),
-    getUserStats(
+  const candidatesPromise = getCandidatesForUser(
+    session.user.organizationId,
+    session.user.id,
+    session.user.role,
+  ).catch(() => []);
+
+  const [candidates, stats, feed, bookings, orgProjects, orgRoles] = await Promise.all([
+    candidatesPromise,
+    getCachedUserStats(
       session.user.organizationId,
       session.user.id,
       session.user.role,
@@ -76,8 +81,12 @@ export default async function PeoplePage() {
       session.user.role === "admin" ? null : session.user.id,
       8,
     ),
-    getStageBookings(session.user.organizationId),
+    getCachedStageBookings(session.user.organizationId),
+    getOrgProjects(session.user.organizationId),
+    getOrgRoles(session.user.organizationId),
   ]);
+
+  const setupRequired = orgProjects.length === 0 || orgRoles.length === 0;
 
   // TAs only see interviews for candidates they own; admins see the whole org.
   const ownedIds = new Set(candidates.map((c) => c.id));
@@ -95,7 +104,7 @@ export default async function PeoplePage() {
       candidateName: b.candidateName,
       interviewerName: `${b.assigneeName ?? "—"} · ${b.label}`,
       status: b.status,
-      dueAt: (b.dueAt as Date).toISOString(),
+      dueAt: typeof b.dueAt === 'string' ? b.dueAt : (b.dueAt as Date).toISOString(),
     }))
     .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
 
@@ -129,6 +138,7 @@ export default async function PeoplePage() {
       today={today}
       scheduled={scheduled}
       todayTasks={todayTasks}
+      setupRequired={setupRequired}
     />
   );
 }

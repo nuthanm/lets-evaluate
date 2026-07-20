@@ -4,19 +4,7 @@ import type { NextRequest } from "next/server";
 
 const publicPaths = ["/", "/login", "/register", "/api/auth", "/api/register"];
 
-const protectedPrefixes = [
-  "/people",
-  "/evaluate",
-  "/setup",
-  "/archive",
-  "/assignments",
-  "/pipeline",
-  "/openings",
-  "/candidates",
-  "/interviewers",
-  "/booking",
-  "/api/",
-];
+const API_PREFIX = "/api/";
 
 function isPublicPath(pathname: string) {
   return publicPaths.some(
@@ -25,10 +13,6 @@ function isPublicPath(pathname: string) {
       pathname.startsWith(p + "/") ||
       pathname.startsWith("/api/auth"),
   );
-}
-
-function isProtectedPath(pathname: string) {
-  return protectedPrefixes.some((p) => pathname.startsWith(p));
 }
 
 /** Routes that are embedded in same-origin iframes (resume preview). */
@@ -53,6 +37,7 @@ function withSecurityHeaders(response: NextResponse, noStore = false, sameOrigin
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isApiRoute = pathname.startsWith(API_PREFIX);
 
   if (
     pathname.startsWith("/_next") ||
@@ -62,32 +47,29 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = await auth();
-
-  if (
-    session?.user?.id &&
-    (pathname === "/login" || pathname === "/register")
-  ) {
-    return NextResponse.redirect(new URL("/people", request.url));
+  if (pathname === "/login" || pathname === "/register") {
+    const session = await auth();
+    if (session?.user?.id) {
+      return NextResponse.redirect(new URL("/people", request.url));
+    }
+    return withSecurityHeaders(NextResponse.next());
   }
 
   if (isPublicPath(pathname)) {
     return withSecurityHeaders(NextResponse.next());
   }
 
-  const isApp = isProtectedPath(pathname);
-
-  if (isApp && !session?.user?.id) {
-    if (pathname.startsWith("/api/")) {
+  if (isApiRoute) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const login = new URL("/login", request.url);
-    login.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(login);
+    const sameOriginFrame = isResumePreviewRoute(pathname);
+    return withSecurityHeaders(NextResponse.next(), true, sameOriginFrame);
   }
 
   const sameOriginFrame = isResumePreviewRoute(pathname);
-  return withSecurityHeaders(NextResponse.next(), isApp && !!session?.user?.id, sameOriginFrame);
+  return withSecurityHeaders(NextResponse.next(), false, sameOriginFrame);
 }
 
 export const config = {

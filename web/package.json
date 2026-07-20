@@ -7,10 +7,23 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:setup": "playwright install chromium",
+    "test:smoke": "playwright test --project=smoke",
+    "test:sanity": "playwright test --project=sanity",
+    "test:regression": "playwright test --project=regression",
+    "test:flow": "tsx scripts/run-flow-tests.ts",
+    "test:e2e": "playwright test",
+    "test:seed:e2e": "tsx scripts/seed-e2e-users.ts",
+    "test:load": "tsx scripts/run-load-test.ts",
+    "test:quality": "tsx scripts/aggregate-quality-stats.ts",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx scripts/seed-org.ts"
+    "db:seed": "tsx scripts/seed-org.ts",
+    "db:migrate:quality": "tsx scripts/run-quality-migration.ts",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
@@ -34,6 +47,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
@@ -42,6 +56,7 @@
     "@types/uuid": "^10.0.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
