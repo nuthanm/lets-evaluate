@@ -8,12 +8,11 @@ test.describe("Regression @regression", () => {
     await expect(page.getByText("Audit trail")).toBeVisible();
   });
 
-  test("quality proof section renders when present", async ({ page }) => {
-    await page.goto("/#quality-proof");
-    await expect(page.locator("#quality-proof")).toBeVisible();
-    await expect(
-      page.locator("#quality-proof").getByRole("heading", { level: 2 }),
-    ).toContainText("Tested, measured, and verified");
+  test("landing page hides quality navigation and sections", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Quality report" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Quality proof" })).toHaveCount(0);
+    await expect(page.locator("#quality-proof")).toHaveCount(0);
   });
 
   test("footer sign-in link navigates to login", async ({ page }) => {
