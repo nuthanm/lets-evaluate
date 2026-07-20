@@ -10,7 +10,7 @@ export function LandingNav() {
           href="/presentation"
           className="hidden text-[var(--ink-soft)] no-underline transition-colors hover:text-[var(--cyan-d)] sm:inline"
         >
-          Approval deck
+          The Brief
         </a>
         <a
           href="#workflow"

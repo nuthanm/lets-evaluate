@@ -6,8 +6,8 @@ import "@/styles/presentation.css";
 const brand = getBrand();
 
 export const metadata: Metadata = {
-  title: `Approval Brief — ${brand.appTitle}`,
-  description: "Let's Evaluate vs Zoho Recruit — animated approval presentation",
+  title: `The Brief — ${brand.appTitle}`,
+  description: "Let's Evaluate vs Zoho Recruit — product brief and pitch deck",
 };
 
 export default function PresentationPage() {

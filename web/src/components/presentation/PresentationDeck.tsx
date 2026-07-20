@@ -78,7 +78,7 @@ export function PresentationDeck() {
         <header className="pres-header">
           <Logo href="/" />
           <div className="flex items-center gap-3 text-xs font-semibold text-[var(--ink-faint)]">
-            <span className="hidden sm:inline">{brand.orgName} · Approval brief</span>
+            <span className="hidden sm:inline">{brand.orgName} · The Brief</span>
             <span>
               {slide + 1} / {SLIDE_COUNT}
             </span>
@@ -156,7 +156,7 @@ export function PresentationDeck() {
 function SlideTitle({ brand }: { brand: BrandConfig }) {
   return (
     <div className="pres-stagger text-center">
-      <p className="pres-kicker mx-auto">Internal approval · July 2026</p>
+      <p className="pres-kicker mx-auto">The Brief · July 2026</p>
       <h1 className="pres-title mt-5">
         {brand.appTitle}
         <span className="mt-2 block text-[var(--cyan-d)]">vs Zoho Recruit</span>
