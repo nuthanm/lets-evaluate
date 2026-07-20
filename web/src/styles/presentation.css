@@ -397,13 +397,621 @@
   }
 }
 
+.pres-stage-wide {
+  place-items: stretch;
+  padding-top: 1.25rem;
+}
+
+.pres-slide-wide {
+  width: min(1120px, 100%);
+}
+
+/* ── Mock app previews ── */
+
+.pres-mock-frame {
+  display: flex;
+  min-height: 340px;
+  border: 1px solid var(--cream-2);
+  border-radius: 0.85rem;
+  overflow: hidden;
+  background: var(--cream);
+  box-shadow: 0 12px 40px rgba(26, 43, 60, 0.08);
+}
+
+.pres-mock-sidebar {
+  display: flex;
+  width: 52px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.35rem;
+  border-right: 1px solid var(--cream-2);
+  background: var(--cream-2);
+}
+
+.pres-mock-logo {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.pres-mock-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pres-mock-nav-item {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.45rem;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.pres-mock-nav-item-active {
+  background: var(--white);
+  color: var(--cyan-d);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+
+.pres-mock-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pres-mock-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--cream-2);
+  background: var(--white);
+}
+
+.pres-mock-page-title {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pres-mock-page-sub {
+  margin-top: 0.15rem;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+.pres-mock-demo-badge {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--cyan-soft);
+  color: var(--cyan-d);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pres-mock-body {
+  flex: 1;
+  padding: 0.65rem 0.85rem 0.85rem;
+  font-size: 11px;
+}
+
+.pres-mock-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+}
+
+.pres-mock-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.pres-mock-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.pres-mock-mt { margin-top: 0.5rem; }
+.pres-mock-mt-sm { margin-top: 0.35rem; }
+
+.pres-mock-stat {
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+}
+
+.pres-mock-stat-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.pres-mock-stat-value {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pres-mock-stat-cyan { border-color: color-mix(in srgb, var(--cyan) 35%, var(--cream-2)); }
+.pres-mock-stat-green { border-color: color-mix(in srgb, var(--green) 35%, var(--cream-2)); }
+.pres-mock-stat-orange { border-color: color-mix(in srgb, var(--orange) 35%, var(--cream-2)); }
+
+.pres-mock-panel {
+  border: 1px solid var(--cream-2);
+  border-radius: 0.55rem;
+  background: var(--white);
+  overflow: hidden;
+}
+
+.pres-mock-panel-head {
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--cream-2);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.pres-mock-funnel { padding: 0.45rem 0.55rem; }
+
+.pres-mock-funnel-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 1.25rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  font-size: 10px;
+}
+
+.pres-mock-bar-track {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--cream-2);
+  overflow: hidden;
+}
+
+.pres-mock-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.pres-mock-list { list-style: none; padding: 0; margin: 0; }
+
+.pres-mock-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--cream-2);
+}
+
+.pres-mock-list-row:last-child { border-bottom: none; }
+
+.pres-mock-list-row strong {
+  display: block;
+  font-size: 11px;
+}
+
+.pres-mock-list-row span {
+  display: block;
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+
+.pres-mock-pill {
+  display: inline-flex;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.pres-mock-pill-cyan { background: var(--cyan-soft); color: var(--cyan-d); }
+.pres-mock-pill-green { background: var(--green-soft); color: var(--green); }
+.pres-mock-pill-orange { background: var(--orange-soft); color: var(--orange); }
+.pres-mock-pill-neutral { background: var(--cream-2); color: var(--ink-soft); }
+
+.pres-mock-split {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 0.5rem;
+  min-height: 200px;
+}
+
+.pres-mock-resume {
+  position: relative;
+  padding: 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+}
+
+.pres-mock-resume-line {
+  height: 6px;
+  margin-bottom: 0.35rem;
+  border-radius: 999px;
+  background: var(--cream-2);
+}
+
+.pres-mock-shimmer {
+  animation: pres-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes pres-shimmer {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.pres-mock-resume-label {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.55rem;
+  font-size: 8px;
+  color: var(--ink-faint);
+}
+
+.pres-mock-ai {
+  padding: 0.45rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--cyan) 25%, var(--cream-2));
+  background: var(--white);
+}
+
+.pres-mock-ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.pres-mock-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.pres-mock-callout {
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.4rem;
+  background: var(--cyan-soft);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--cyan-d);
+}
+
+.pres-mock-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+}
+
+.pres-mock-col {
+  min-width: 0;
+  border-radius: 0.45rem;
+  background: var(--white);
+  border: 1px solid var(--cream-2);
+}
+
+.pres-mock-col-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0.4rem;
+  border-top: 2px solid;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pres-mock-kanban-card {
+  margin: 0.35rem;
+  padding: 0.35rem;
+  border-radius: 0.35rem;
+  background: var(--cream);
+  border: 1px solid var(--cream-2);
+}
+
+.pres-mock-kanban-card strong {
+  display: block;
+  font-size: 10px;
+}
+
+.pres-mock-kanban-card span {
+  font-size: 8px;
+  color: var(--ink-faint);
+}
+
+.pres-mock-booking-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--cream-2);
+}
+
+.pres-mock-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.45rem;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pres-mock-booking-row strong { display: block; font-size: 11px; }
+.pres-mock-booking-row span { display: block; font-size: 9px; color: var(--ink-faint); }
+
+.pres-mock-action {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--cyan-d);
+}
+
+.pres-mock-action-done {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.pres-mock-schedule {
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+}
+
+.pres-mock-schedule-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.pres-mock-schedule label {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.pres-mock-field {
+  margin-top: 0.15rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--cream-2);
+  font-size: 10px;
+}
+
+.pres-mock-ics {
+  display: block;
+  padding: 0 0.55rem 0.45rem;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--cyan-d);
+}
+
+.pres-mock-handoff {
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--orange) 35%, var(--cream-2));
+  background: var(--orange-soft);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.pres-mock-q-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--cream-2);
+  font-size: 10px;
+}
+
+.pres-mock-actions {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.pres-mock-audit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pres-mock-audit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--cream-2);
+}
+
+.pres-mock-audit-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+.pres-mock-audit-row strong { display: block; font-size: 10px; }
+.pres-mock-audit-row span { display: block; font-size: 9px; color: var(--ink-soft); }
+.pres-mock-audit-row em { display: block; font-size: 8px; font-style: normal; color: var(--ink-faint); }
+.pres-mock-audit-row time { font-size: 8px; color: var(--ink-faint); white-space: nowrap; }
+
+/* ── Showcase carousel ── */
+
+.pres-showcase {
+  width: 100%;
+}
+
+.pres-showcase-layout {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 900px) {
+  .pres-showcase-layout {
+    grid-template-columns: 1fr 220px;
+    align-items: start;
+  }
+}
+
+.pres-showcase-preview-wrap {
+  position: relative;
+}
+
+.pres-showcase-preview {
+  width: 100%;
+  animation: pres-slide-in 0.5s var(--pres-ease) both;
+}
+
+.pres-showcase-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.pres-showcase-highlight {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 30%, var(--cream-2));
+  background: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  animation: pres-fade-up 0.45s var(--pres-ease) both;
+}
+
+.pres-showcase-highlight-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+.pres-showcase-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.pres-showcase-rail-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.pres-showcase-thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pres-showcase-thumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pres-showcase-thumb:hover {
+  border-color: var(--cyan);
+}
+
+.pres-showcase-thumb-active {
+  border-color: var(--cyan);
+  background: var(--cyan-soft);
+}
+
+.pres-showcase-thumb-num {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--cyan-d);
+}
+
+.pres-showcase-thumb-title {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.pres-showcase-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pres-showcase-tip {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 899px) {
+  .pres-mock-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .pres-mock-kanban { grid-template-columns: repeat(2, 1fr); }
+  .pres-mock-split { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pres-slide,
-  .pres-slide-out,
-  .pres-stagger > *,
-  .pres-metric-fill,
-  .pres-launch,
-  .demo-guide-bar {
+  .pres-mock-shimmer,
+  .pres-showcase-highlight {
     animation: none !important;
   }
 }
+

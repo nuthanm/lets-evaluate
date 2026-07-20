@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { Logo } from "@/components/Logo";
-import { Button } from "@/components/Button";
+import { ButtonLink } from "@/components/Button";
 import { useBrand } from "@/components/BrandContext";
 import type { BrandConfig } from "@/lib/brand";
-import { DEMO_STORAGE_KEY, DEMO_STEPS } from "@/lib/presentation/demo-steps";
+import { PageShowcaseCarousel } from "@/components/presentation/PageShowcaseCarousel";
 import { cn } from "@/lib/utils";
 
 type CompareRow = {
@@ -28,16 +26,16 @@ const COMPARE_ROWS: CompareRow[] = [
 ];
 
 const SLIDE_COUNT = 8;
+const SHOWCASE_SLIDE_INDEX = 7;
 
 export function PresentationDeck() {
   const brand = useBrand();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [slide, setSlide] = useState(0);
   const [animKey, setAnimKey] = useState(0);
   const [exiting, setExiting] = useState(false);
 
   const progress = ((slide + 1) / SLIDE_COUNT) * 100;
+  const isShowcase = slide === SHOWCASE_SLIDE_INDEX;
 
   const go = useCallback(
     (next: number) => {
@@ -54,6 +52,7 @@ export function PresentationDeck() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.altKey) return;
       if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
         go(slide + 1);
@@ -68,23 +67,6 @@ export function PresentationDeck() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [go, slide]);
-
-  function enterDemo(path: string) {
-    localStorage.setItem(DEMO_STORAGE_KEY, "1");
-    if (session?.user) {
-      router.push(path);
-      return;
-    }
-    router.push(`/login?callbackUrl=${encodeURIComponent(path)}`);
-  }
-
-  function startGuidedDemo() {
-    enterDemo("/people");
-  }
-
-  function openStep(path: string) {
-    enterDemo(path);
-  }
 
   return (
     <div className="pres-root">
@@ -103,10 +85,14 @@ export function PresentationDeck() {
           </div>
         </header>
 
-        <main className="pres-stage">
+        <main className={cn("pres-stage", isShowcase && "pres-stage-wide")}>
           <div
             key={animKey}
-            className={cn("pres-slide", exiting && "pres-slide-out")}
+            className={cn(
+              "pres-slide",
+              isShowcase && "pres-slide-wide",
+              exiting && "pres-slide-out",
+            )}
           >
             {slide === 0 && <SlideTitle brand={brand} />}
             {slide === 1 && <SlideProblem />}
@@ -115,9 +101,7 @@ export function PresentationDeck() {
             {slide === 4 && <SlideCost />}
             {slide === 5 && <SlideBuilt />}
             {slide === 6 && <SlideAsk />}
-            {slide === 7 && (
-              <SlideLiveDemo onStart={startGuidedDemo} onOpenStep={openStep} />
-            )}
+            {slide === 7 && <PageShowcaseCarousel />}
           </div>
         </main>
       </div>
@@ -160,12 +144,9 @@ export function PresentationDeck() {
             →
           </button>
         ) : (
-          <Button
-            className="pres-launch px-5 py-2.5 text-xs"
-            onClick={startGuidedDemo}
-          >
-            Start live demo →
-          </Button>
+          <ButtonLink href="/login" className="px-5 py-2.5 text-xs">
+            Try live app →
+          </ButtonLink>
         )}
       </footer>
     </div>
@@ -410,56 +391,9 @@ function SlideAsk() {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function SlideLiveDemo({
-  onStart,
-  onOpenStep,
-}: {
-  onStart: () => void;
-  onOpenStep: (path: string) => void;
-}) {
-  return (
-    <div className="pres-stagger">
-      <p className="pres-kicker">Live demo</p>
-      <h2 className="pres-title mt-4">See the actual product</h2>
-      <p className="pres-subtitle">
-        Start a guided walkthrough — each step opens the real app with on-screen
-        hints. Sign in when prompted.
+      <p className="mt-6 text-[13px] text-[var(--ink-faint)]">
+        Next slide → product showcase with interactive screen previews
       </p>
-
-      <div className="pres-demo-grid mt-8">
-        {DEMO_STEPS.map((step, i) => (
-          <button
-            key={step.id}
-            type="button"
-            className="pres-demo-card"
-            onClick={() => onOpenStep(step.path)}
-          >
-            <span className="pres-demo-card-num">
-              STEP {String(i + 1).padStart(2, "0")}
-            </span>
-            <span className="text-sm font-extrabold">{step.title}</span>
-            <span className="text-[12px] leading-snug text-[var(--ink-soft)]">
-              {step.hint}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Button className="pres-launch px-6 py-3" onClick={onStart}>
-          Start guided demo →
-        </Button>
-        <Link
-          href="/login"
-          className="text-sm font-semibold text-[var(--ink-soft)] no-underline hover:text-[var(--cyan-d)]"
-        >
-          Sign in only
-        </Link>
-      </div>
     </div>
   );
 }
