@@ -1,10 +1,22 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { getAuditLog } from "@/lib/db/queries";
 import { CabinetPage, CasePanel } from "@/components/CabinetPage";
+import { AuditLogClient } from "./AuditLogClient";
 
 export default async function AuditPage() {
-  const session = await requireRole(["admin"]);
-  const rows = await getAuditLog(session.user.organizationId, 200);
+  const session = await requireRole(["admin", "ta"]);
+  const rawRows = await getAuditLog(session.user.organizationId, 200);
+
+  const rows = rawRows.map(({ event, actorName, entityName }) => ({
+    id: event.id,
+    actorName: actorName ?? null,
+    action: event.action,
+    payload: (event.payload ?? {}) as Record<string, unknown>,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    entityName: entityName ?? null,
+    createdAt: event.createdAt.toISOString(),
+  }));
 
   return (
     <CabinetPage
@@ -12,22 +24,7 @@ export default async function AuditPage() {
       subtitle="Who changed what, and when — across the hiring workflow"
     >
       <CasePanel title="Recent events">
-        {rows.length === 0 ? (
-          <p className="p-5 text-sm text-[var(--ink-faint)]">No events yet.</p>
-        ) : (
-          rows.map(({ event, actorName }) => (
-            <div key={event.id} className="case-row text-[13px]">
-              <strong>{actorName ?? "System"}</strong>
-              <span className="text-[var(--ink-soft)]">{event.action}</span>
-              <span className="text-[11px] text-[var(--ink-faint)]">
-                {event.entityType} · {event.entityId.slice(0, 8)}
-              </span>
-              <span className="text-[11px] text-[var(--ink-faint)]">
-                {new Date(event.createdAt).toLocaleString("en-GB")}
-              </span>
-            </div>
-          ))
-        )}
+        <AuditLogClient rows={rows} />
       </CasePanel>
     </CabinetPage>
   );

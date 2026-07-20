@@ -10,6 +10,7 @@ import Link from "next/link";
 import type { MemberRole } from "@/lib/auth/config";
 import type { RecruiterTask } from "@/lib/recruiter/tasks";
 import { groupTasksByUrgency } from "@/lib/recruiter/tasks";
+import { formatAuditAction } from "@/lib/audit/format-action";
 
 /* ── Professional SVG stat icons ───────────────────────────────────────────── */
 const base = { viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -465,7 +466,12 @@ export function TeamDashboard({
                   <FaceAvatar name={actorName ?? "System"} size="sm" />
                   <div className="min-w-0 flex-1 text-[13px]">
                     <strong>{actorName ?? "System"}</strong>{" "}
-                    <span className="text-[var(--ink-soft)]">{event.action}</span>
+                    <span className="text-[var(--ink-soft)]">
+                      {formatAuditAction(
+                        event.action,
+                        (event.payload ?? {}) as Record<string, unknown>,
+                      )}
+                    </span>
                     <span className="mt-0.5 block text-[11px] text-[var(--ink-faint)]">
                       {new Date(event.createdAt).toLocaleDateString()}
                     </span>

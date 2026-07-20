@@ -14,8 +14,10 @@ import {
   pipelineStages,
   candidateStages,
   interviewerAvailability,
+  aiAnalysisUsage,
+  screeningFeedback,
 } from "@/lib/db/schema";
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import type { MemberRole } from "@/lib/auth/config";
 
@@ -1061,11 +1063,89 @@ export async function getAuditLog(
     .select({
       event: evaluationEvents,
       actorName: users.name,
+      entityName: candidates.name,
     })
     .from(evaluationEvents)
     .leftJoin(users, eq(evaluationEvents.actorId, users.id))
+    .leftJoin(
+      candidates,
+      and(
+        eq(evaluationEvents.entityType, "candidate"),
+        eq(evaluationEvents.entityId, candidates.id),
+      ),
+    )
     .where(eq(evaluationEvents.organizationId, organizationId))
     .orderBy(desc(evaluationEvents.createdAt))
     .limit(limit)
     .offset(offset);
+}
+
+/** Active org members grouped by role (excludes soft-deleted). */
+export async function getOrgTeamCounts(organizationId: string) {
+  const rows = await db
+    .select({ role: organizationMembers.role })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        isNull(organizationMembers.deletedAt),
+      ),
+    );
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.role] = (counts[row.role] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** AI screening usage and feedback metrics for the last 30 days. */
+export async function getAiUsageStats(organizationId: string) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const usageRows = await db
+    .select()
+    .from(aiAnalysisUsage)
+    .where(
+      and(
+        eq(aiAnalysisUsage.organizationId, organizationId),
+        gte(aiAnalysisUsage.createdAt, since),
+      ),
+    );
+
+  let totalAnalyses = 0;
+  let reusedAnalyses = 0;
+  let estimatedCostUsd = 0;
+  for (const row of usageRows) {
+    totalAnalyses += 1;
+    if (row.reusedAnalysis) reusedAnalyses += 1;
+    estimatedCostUsd += Number(row.estimatedCostUsd || "0") || 0;
+  }
+
+  const feedbackRows = await db
+    .select()
+    .from(screeningFeedback)
+    .where(eq(screeningFeedback.organizationId, organizationId));
+
+  let comparableRows = 0;
+  let recommendationAgreed = 0;
+  for (const row of feedbackRows) {
+    const model = (row.modelRecommendation || "").toLowerCase();
+    const recruiter = (row.recruiterDecision || "").toLowerCase();
+    if (model && recruiter) {
+      comparableRows += 1;
+      if (model === recruiter) recommendationAgreed += 1;
+    }
+  }
+
+  return {
+    totalAnalyses,
+    cacheHitRatePct: totalAnalyses
+      ? Math.round((reusedAnalyses / totalAnalyses) * 10000) / 100
+      : 0,
+    estimatedCostUsd: Number(estimatedCostUsd.toFixed(2)),
+    recommendationAgreementPct: comparableRows
+      ? Math.round((recommendationAgreed / comparableRows) * 10000) / 100
+      : 0,
+  };
 }

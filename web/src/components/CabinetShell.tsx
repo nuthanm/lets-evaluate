@@ -68,6 +68,7 @@ function navForRole(role: MemberRole): NavSection[] {
           { href: "/library", label: "Question Library", icon: LibraryIcon },
           { href: "/job-descriptions", label: "Job Descriptions", icon: RolesIcon },
           { href: "/archive", label: "Archives", icon: ArchivesIcon },
+          { href: "/setup/audit", label: "Audit log", icon: ArchivesIcon },
         ],
       },
     ];
