@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Pill } from "@/components/Pill";
-import { FieldTextarea } from "@/components/FormField";
 import { cn } from "@/lib/utils";
 import type { ResumeMetrics } from "@/lib/ai";
 import { AnalysisReport } from "./EvaluateClient";
@@ -150,6 +149,31 @@ export function InterviewWorkspace({
   const [manualDiff, setManualDiff] = useState("Medium");
   const [manualCode, setManualCode] = useState("");
   const [manualError, setManualError] = useState<string | null>(null);
+  const [enhancingQuestion, setEnhancingQuestion] = useState(false);
+  const [enhancingJustification, setEnhancingJustification] = useState(false);
+
+  async function enhanceText(
+    text: string,
+    type: "question" | "justification",
+    setText: (v: string) => void,
+  ) {
+    if (!text.trim()) return;
+    const setEnhancing = type === "question" ? setEnhancingQuestion : setEnhancingJustification;
+    setEnhancing(true);
+    try {
+      const res = await fetch("/api/ai/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), type }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.enhanced) {
+        setText(data.enhanced as string);
+      }
+    } finally {
+      setEnhancing(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/roles")
@@ -419,10 +443,12 @@ export function InterviewWorkspace({
             {CATEGORIES.map((c) => {
               const catCount = items.filter((i) => i.category === c.id).length;
               const isActive = genCategory === c.id;
+              const insight = aiInsightFor(c.id, metrics);
               return (
                 <button
                   key={c.id}
                   type="button"
+                  title={insight?.detail}
                   onClick={() => { setGenCategory(c.id); setViewCategory(c.id); setManualOpen(false); setManualText(""); setManualCode(""); setManualError(null); }}
                   className={cn(
                     "group flex flex-col rounded-xl border p-3 text-left transition-all",
@@ -441,6 +467,18 @@ export function InterviewWorkspace({
                   </div>
                   <div className="mt-2 text-[13px] font-bold leading-tight text-[var(--ink)]">{c.label}</div>
                   <div className="mt-0.5 text-[11px] leading-snug text-[var(--ink-faint)]">{c.hint}</div>
+                  {insight && (
+                    <div
+                      className={cn(
+                        "mt-2 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold",
+                        insight.type === "warn"
+                          ? "bg-[var(--orange-soft)] text-[var(--orange)]"
+                          : "bg-[var(--green-soft)] text-[var(--green)]",
+                      )}
+                    >
+                      {insight.type === "warn" ? "⚠" : "✓"} {insight.text}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -514,7 +552,7 @@ export function InterviewWorkspace({
                       onChange={(e) => { setManualText(e.target.value); setManualError(null); }}
                       className="case-input w-full resize-y px-3 py-2 text-sm"
                     />
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-bold text-[var(--ink-faint)]">Difficulty</label>
                         <select
@@ -525,6 +563,26 @@ export function InterviewWorkspace({
                           {["Easy", "Medium", "Hard"].map((d) => <option key={d} value={d}>{d}</option>)}
                         </select>
                       </div>
+                      {/* AI Enhancer for custom question */}
+                      <button
+                        type="button"
+                        disabled={!manualText.trim() || enhancingQuestion}
+                        onClick={() => enhanceText(manualText, "question", setManualText)}
+                        title={!manualText.trim() ? "Type a question first" : "Improve this question with AI"}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)] bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white disabled:cursor-not-allowed disabled:border-[var(--cream-2)] disabled:bg-[var(--cream)] disabled:text-[var(--ink-faint)]"
+                      >
+                        {enhancingQuestion ? (
+                          <>
+                            <svg className="animate-spin size-3" viewBox="0 0 16 16" fill="none">
+                              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeOpacity=".3"/>
+                              <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                            Enhancing…
+                          </>
+                        ) : (
+                          <>✨ Enhance with AI</>
+                        )}
+                      </button>
                     </div>
                     {cat.code && (
                       <textarea
@@ -760,6 +818,27 @@ export function InterviewWorkspace({
                   : "",
               )}
             />
+            {/* AI Enhancer for justification */}
+            <div className="mt-2 flex items-center justify-end">
+              <button
+                type="button"
+                disabled={!justification.trim() || enhancingJustification}
+                onClick={() => enhanceText(justification, "justification", setJustification)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:border-[var(--cyan)] hover:bg-[var(--cyan)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {enhancingJustification ? (
+                  <>
+                    <svg className="animate-spin size-3" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeOpacity=".3"/>
+                      <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    Enhancing…
+                  </>
+                ) : (
+                  <>✨ Enhance with AI</>
+                )}
+              </button>
+            </div>
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-[11px] text-[var(--ink-faint)]">
                 Be specific — generic notes reduce report quality

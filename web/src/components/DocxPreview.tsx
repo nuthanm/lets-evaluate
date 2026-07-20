@@ -74,7 +74,7 @@ export function DocxPreview({ fileUrl, filename }: DocxPreviewProps) {
   }, [fileUrl]);
 
   return (
-    <div className="docx-preview-host relative h-full overflow-y-auto overflow-x-hidden bg-[#f3f4f6] p-4">
+    <div className="docx-preview-host relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#f3f4f6] p-4">
       {useNativeEmbed ? (
         <iframe
           src={fileUrl}
@@ -106,20 +106,32 @@ export function DocxPreview({ fileUrl, filename }: DocxPreviewProps) {
       )}
 
       <style jsx global>{`
-        .docx-preview-host .docx-wrapper,
-        .docx-preview-host .docx-preview-render,
-        .docx-preview-host .docx {
+        /*
+         * renderAsync() is called with className: "docx-preview-render",
+         * which overrides docx-preview's default "docx" base class. That
+         * makes the real generated markup:
+         *   <div class="docx-preview-render-wrapper">
+         *     <section class="docx-preview-render">...page...</section>
+         *   </div>
+         * ".docx-wrapper" / ".docx" never match anything in this DOM.
+         */
+        .docx-preview-host .docx-preview-render-wrapper {
           max-width: 100% !important;
-          overflow-x: hidden !important;
-        }
-
-        .docx-preview-host .docx-wrapper {
           padding: 0 !important;
         }
 
-        .docx-preview-host .docx table {
-          width: 100% !important;
-          table-layout: fixed;
+        /* Each rendered page scrolls its own overflow horizontally so wide
+           tables get a scrollbar right under them instead of blowing out
+           the whole preview's layout. */
+        .docx-preview-host .docx-preview-render {
+          max-width: 100% !important;
+          overflow-x: auto !important;
+        }
+
+        .docx-preview-host .docx-preview-render table {
+          width: max-content;
+          min-width: 100%;
+          table-layout: auto;
         }
       `}</style>
     </div>

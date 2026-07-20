@@ -77,6 +77,17 @@ export function QuestionLibraryClient({
   const [addRoleId, setAddRoleId] = useState("");
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [enhancingAdd, setEnhancingAdd] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function copyQuestion(q: Question) {
+    const text = q.code?.trim()
+      ? `${q.questionText}\n\nCode:\n${q.code}`
+      : q.questionText;
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedId(q.id);
+    setTimeout(() => setCopiedId((prev) => (prev === q.id ? null : prev)), 2000);
+  }
 
   const usedCategories = useMemo(() => {
     const cats = new Set(questions.map((q) => q.category));
@@ -105,6 +116,24 @@ export function QuestionLibraryClient({
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function enhanceAddText() {
+    if (!addText.trim()) return;
+    setEnhancingAdd(true);
+    try {
+      const res = await fetch("/api/ai/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: addText.trim(), type: "question" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.enhanced) {
+        setAddText(data.enhanced as string);
+      }
+    } finally {
+      setEnhancingAdd(false);
     }
   }
 
@@ -190,6 +219,27 @@ export function QuestionLibraryClient({
                 onChange={(e) => { setAddText(e.target.value); setAddError(null); }}
                 className="case-input w-full resize-y px-3 py-2 text-sm"
               />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!addText.trim() || enhancingAdd}
+                  onClick={enhanceAddText}
+                  title={!addText.trim() ? "Type a question first" : "Improve this question with AI"}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)] bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white disabled:cursor-not-allowed disabled:border-[var(--cream-2)] disabled:bg-[var(--cream)] disabled:text-[var(--ink-faint)]"
+                >
+                  {enhancingAdd ? (
+                    <>
+                      <svg className="animate-spin size-3" viewBox="0 0 16 16" fill="none">
+                        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeOpacity=".3"/>
+                        <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                      Enhancing…
+                    </>
+                  ) : (
+                    <>✨ Enhance with AI</>
+                  )}
+                </button>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
@@ -496,9 +546,27 @@ export function QuestionLibraryClient({
                         </svg>
                       </button>
 
-                      {/* Inline delete with two-step confirm */}
+                      {/* Copy + delete buttons */}
+                      <div className="flex shrink-0 items-center gap-1.5 pr-3 pt-3.5">
+                        <button
+                          type="button"
+                          onClick={() => copyQuestion(q)}
+                          title="Copy question to clipboard"
+                          className="rounded-lg border border-transparent p-1.5 text-[var(--ink-faint)] transition-colors hover:border-[var(--cyan)]/30 hover:bg-[var(--cyan-soft)] hover:text-[var(--cyan-d)]"
+                        >
+                          {copiedId === q.id ? (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <rect x="4" y="4" width="6" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                              <path d="M4 3V2.5A1.5 1.5 0 0 0 2.5 1H2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                            </svg>
+                          )}
+                        </button>
                       {canDelete(q) && (
-                        <div className="flex shrink-0 items-center gap-1.5 pr-3 pt-3.5">
+                        <div className="flex shrink-0 items-center gap-1.5">
                           {pendingDeleteId === q.id ? (
                             <>
                               <span className="text-[11px] font-semibold text-[var(--orange)]">Delete?</span>
@@ -532,6 +600,7 @@ export function QuestionLibraryClient({
                           )}
                         </div>
                       )}
+                      </div>
                     </div>
 
                     {/* Expanded detail */}

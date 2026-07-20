@@ -10,7 +10,15 @@ export function getDb() {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  const client = postgres(connectionString, { prepare: false, max: 10 });
+  const client = postgres(connectionString, {
+    prepare: false,
+    max: 10,
+    // Neon free tier wakes from sleep — cold starts can take longer than a few
+    // seconds, so give the pooler enough time to spin the compute back up.
+    connect_timeout: 30,
+    idle_timeout: 20,
+    max_lifetime: 60 * 30,
+  });
   _db = drizzle(client, { schema });
   return _db;
 }
