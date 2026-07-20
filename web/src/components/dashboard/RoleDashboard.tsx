@@ -59,7 +59,12 @@ type CandidateRow = {
 };
 
 type ActivityRow = {
-  event: { id: string; action: string; createdAt: Date };
+  event: {
+    id: string;
+    action: string;
+    createdAt: Date;
+    payload?: Record<string, unknown> | null;
+  };
   actorName: string | null;
 };
 
