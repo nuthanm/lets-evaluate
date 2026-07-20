@@ -53,6 +53,9 @@ export default async function AssignmentsPage() {
     (r) => urgencyFor(r.stage.dueAt ? r.stage.dueAt.toISOString() : null) === "overdue",
   );
 
+  const isManager = session.user.role === "manager";
+  const isHr = session.user.role === "hr";
+
   return (
     <CabinetPage
       title="My assignments"
@@ -75,9 +78,19 @@ export default async function AssignmentsPage() {
           <p className="text-sm font-semibold text-[var(--cyan-d)]">How it works</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-[var(--ink-soft)]">
             <li>Click a candidate below to open their case file</li>
-            <li>Review the AI analysis in Step 1</li>
-            <li>Generate questions in Step 2 and record answers</li>
-            <li>Submit your decision in Step 3 - PDF report is auto-generated</li>
+            {isManager || isHr ? (
+              <>
+                <li>Select a question category and generate or add your own questions</li>
+                <li>Conduct the {isManager ? "manager" : "HR"} round and record your assessment</li>
+                <li>Submit your recommendation in Step 2 — PDF report is auto-generated</li>
+              </>
+            ) : (
+              <>
+                <li>Review the AI analysis in Step 1</li>
+                <li>Generate questions in Step 2 and record answers</li>
+                <li>Submit your decision in Step 3 — PDF report is auto-generated</li>
+              </>
+            )}
           </ol>
         </div>
       )}

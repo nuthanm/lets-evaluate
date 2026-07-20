@@ -71,6 +71,7 @@ export default async function EvaluatePage({ params }: Params) {
     decision: s.stage.decision ?? null,
     comments: s.stage.comments ?? null,
     hasReport: Boolean(s.stage.reportKey),
+    handoffNote: s.stage.handoffNote ?? null,
   }));
 
   const myActiveStageId =

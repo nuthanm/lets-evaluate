@@ -562,6 +562,7 @@ export function InterviewerDashboard({
   counts,
   history = [],
   today,
+  userRole,
 }: {
   assignments: AssignmentRow[];
   counts?: {
@@ -573,7 +574,25 @@ export function InterviewerDashboard({
   };
   history?: HistoryRow[];
   today: string;
+  userRole?: MemberRole;
 }) {
+  const isManager = userRole === "manager";
+  const isHr = userRole === "hr";
+  const dashTitle = isManager
+    ? "Manager dashboard"
+    : isHr
+      ? "HR dashboard"
+      : "Interview dashboard";
+  const roundLabel = isManager
+    ? "manager round"
+    : isHr
+      ? "HR round"
+      : "interview";
+  const roundLabelPlural = isManager
+    ? "manager rounds"
+    : isHr
+      ? "HR rounds"
+      : "interviews";
   const [openingId, setOpeningId] = useState<string | null>(null);
   const pending = assignments.filter((a) => a.status === "active");
   const overdue = pending.filter((a) => urgencyFor(a.dueAt) === "overdue");
@@ -594,7 +613,7 @@ export function InterviewerDashboard({
 
   return (
     <CabinetPage
-      title="Interview dashboard"
+      title={dashTitle}
       subtitle={today}
       actions={
         <ButtonLink href="/assignments" className="px-5 py-2 text-[13px]">
@@ -611,7 +630,7 @@ export function InterviewerDashboard({
           <div>
             <h2 className="font-serif text-xl font-bold">Queue clear</h2>
             <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
-              Assignments will appear here when a recruiter books you for a candidate.
+              Assignments will appear here when a recruiter books you for a {roundLabel}.
             </p>
           </div>
         </div>
@@ -631,12 +650,12 @@ export function InterviewerDashboard({
             </div>
             <div>
               <h2 className="font-serif text-xl font-bold">
-                {alertOverdue ? `${overdue.length} overdue` : "Your interview queue"}
+                {alertOverdue ? `${overdue.length} overdue` : isManager ? "Your manager round queue" : isHr ? "Your HR round queue" : "Your interview queue"}
               </h2>
               <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
                 {alertOverdue
-                  ? `${pending.length} total pending — please complete overdue evaluations`
-                  : `${pending.length} candidate${pending.length !== 1 ? "s" : ""} awaiting your evaluation`}
+                  ? `${pending.length} total pending — please complete overdue ${roundLabelPlural}`
+                  : `${pending.length} candidate${pending.length !== 1 ? "s" : ""} awaiting your ${roundLabel} evaluation`}
               </p>
             </div>
           </div>
@@ -679,7 +698,7 @@ export function InterviewerDashboard({
       {/* ── Completion stats ───────────────────────────────────────── */}
       <section className="mb-5">
         <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-          Interviews completed
+          {isManager ? "Manager rounds completed" : isHr ? "HR rounds completed" : "Interviews completed"}
         </h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatBlock label="Today"        value={period.today}   icon={<IcCalendarDay />}   variant="cyan" />
@@ -693,7 +712,7 @@ export function InterviewerDashboard({
       <section className="mb-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            Pending interviews ({sortedPending.length})
+            Pending {roundLabelPlural} ({sortedPending.length})
           </h2>
           {sortedPending.length > 5 && (
             <ButtonLink href="/assignments" variant="ghost" className="px-3 py-1 text-[11px]">
@@ -846,7 +865,7 @@ export function InterviewerDashboard({
       {history.length > 0 && (
         <section className="mb-5">
           <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            Completed interviews ({history.length})
+            Completed {roundLabelPlural} ({history.length})
           </h2>
           <div className="case-card overflow-hidden">
             {history.slice(0, 8).map((h, idx) => (
@@ -892,9 +911,9 @@ export function InterviewerDashboard({
                     }
                   >
                     {h.decision === "yes"
-                      ? "Proceeded"
+                      ? (isManager ? "Recommended" : "Proceeded")
                       : h.decision === "no"
-                        ? "Not selected"
+                        ? (isManager ? "Not recommended" : "Not selected")
                         : "Reviewed"}
                   </Pill>
                   {h.hasReport ? (

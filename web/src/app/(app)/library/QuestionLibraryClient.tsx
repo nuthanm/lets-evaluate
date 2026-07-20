@@ -28,6 +28,17 @@ const CATEGORIES = [
   "Refactoring",
   "Technical",
   "General",
+  // Manager round categories
+  "Leadership & Ownership",
+  "People Management",
+  "Conflict Resolution",
+  "Decision Making",
+  // Shared people categories (manager + HR)
+  "Communication",
+  "Culture Fit",
+  // HR round categories
+  "Behavioural",
+  "Career Motivation",
 ];
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -46,6 +57,14 @@ const CAT_ICONS: Record<string, string> = {
   Refactoring: "✏️",
   Technical: "🔧",
   General: "📋",
+  "Leadership & Ownership": "🧭",
+  "People Management": "🤝",
+  "Conflict Resolution": "⚖️",
+  "Decision Making": "🎯",
+  Communication: "💬",
+  "Culture Fit": "🌱",
+  Behavioural: "🧩",
+  "Career Motivation": "🚀",
 };
 
 export function QuestionLibraryClient({
@@ -211,7 +230,9 @@ export function QuestionLibraryClient({
         {addOpen && (
           <div className="p-4 space-y-3">
             <div>
-              <label className="case-label mb-1.5 block">Question text <span className="text-[var(--orange)]">*</span></label>
+              <label className="case-label mb-1.5 block">
+                Question text <span className="text-[var(--orange)]">*</span>
+              </label>
               <textarea
                 rows={3}
                 placeholder="e.g. Explain the difference between REST and GraphQL…"

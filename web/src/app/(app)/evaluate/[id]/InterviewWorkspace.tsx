@@ -8,10 +8,12 @@ import type { ResumeMetrics } from "@/lib/ai";
 import { AnalysisReport } from "./EvaluateClient";
 
 type Metrics = Partial<ResumeMetrics>;
+type StageKind = "screening" | "technical" | "manager" | "hr" | "final" | "custom";
 
 /** Category metadata is duplicated here (as plain data) so this client bundle
- * never imports the server-only AI module. Ids must match the server list. */
-const CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+ * never imports the server-only AI module. Ids must match the server lists in
+ * `@/lib/ai` (`QUESTION_CATEGORIES` / `MANAGER_QUESTION_CATEGORIES` / `HR_QUESTION_CATEGORIES`). */
+const TECHNICAL_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
   { id: "Resume based",       label: "Resume based",          hint: "Probe claims & verify real depth",     code: false, icon: "📄" },
   { id: "Backend",            label: "Backend",               hint: "APIs, data, concurrency, scaling",     code: false, icon: "⚙️" },
   { id: "Frontend",           label: "Frontend",              hint: "UI, state, rendering, a11y",           code: false, icon: "🖥️" },
@@ -20,6 +22,30 @@ const CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon
   { id: "Code error spotting",label: "Find errors in code",   hint: "Snippets with bugs to identify",       code: true,  icon: "🐛" },
   { id: "Refactoring",        label: "Refactoring techniques",hint: "Snippets to clean and improve",        code: true,  icon: "✏️" },
 ];
+
+const MANAGER_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+  { id: "Resume based",           label: "Resume based",           hint: "Probe claims & verify real depth",          code: false, icon: "📄" },
+  { id: "Leadership & Ownership", label: "Leadership & Ownership",  hint: "Driving outcomes, owning failures",         code: false, icon: "🧭" },
+  { id: "People Management",      label: "People Management",      hint: "Mentoring, feedback, delegation",           code: false, icon: "🤝" },
+  { id: "Conflict Resolution",    label: "Conflict Resolution",     hint: "Difficult stakeholders & escalations",      code: false, icon: "⚖️" },
+  { id: "Decision Making",        label: "Decision Making",         hint: "Trade-offs & prioritisation under ambiguity", code: false, icon: "🎯" },
+  { id: "Communication",          label: "Communication",           hint: "Stakeholder updates & alignment",           code: false, icon: "💬" },
+  { id: "Culture Fit",            label: "Culture Fit",             hint: "Values alignment & collaboration style",    code: false, icon: "🌱" },
+];
+
+const HR_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+  { id: "Resume based",     label: "Resume based",     hint: "Probe career history & claims",       code: false, icon: "📄" },
+  { id: "Behavioural",      label: "Behavioural",      hint: "Ownership, teamwork, feedback",         code: false, icon: "🧩" },
+  { id: "Communication",    label: "Communication",    hint: "Clarity & stakeholder articulation",    code: false, icon: "💬" },
+  { id: "Culture Fit",      label: "Culture Fit",      hint: "Values alignment & working style",      code: false, icon: "🌱" },
+  { id: "Career Motivation",label: "Career Motivation",hint: "Reasons for change & expectations",      code: false, icon: "🚀" },
+];
+
+function categoriesForStageKind(kind: StageKind) {
+  if (kind === "manager") return MANAGER_CATEGORIES;
+  if (kind === "hr") return HR_CATEGORIES;
+  return TECHNICAL_CATEGORIES;
+}
 
 type AiInsight = { text: string; detail: string; type: "ok" | "warn" };
 
@@ -82,6 +108,141 @@ function aiInsightFor(categoryId: string, metrics?: Metrics): AiInsight | null {
         return { text: `Using their stack`, detail: `Snippets in: ${tech.join(", ")}`, type: "ok" };
       return null;
     }
+    case "Leadership & Ownership": {
+      // Experience level is the most useful signal — tailor ownership depth
+      // accordingly. Do NOT fall back to technical concerns.
+      const expLevel = metrics.experience_level;
+      if (expLevel && !/(not specified|unknown)/i.test(expLevel))
+        return {
+          text: `${expLevel} level candidate`,
+          detail: `Tailor ownership & initiative questions to their seniority`,
+          type: expLevel === "Senior" || expLevel === "Lead" ? "ok" : "warn",
+        };
+      const domains = metrics.domain_expertise ?? [];
+      if (domains.length > 0)
+        return {
+          text: `${domains.length} domain${domains.length !== 1 ? "s" : ""} of expertise`,
+          detail: `Explore ownership across: ${domains.slice(0, 3).join(", ")}`,
+          type: "ok",
+        };
+      return null;
+    }
+    case "People Management": {
+      // Total experience is the best proxy — managing people well requires
+      // enough years to have had direct reports or mentoring experience.
+      const exp = metrics.total_experience_calculated || metrics.total_experience_mentioned;
+      if (exp && !/(not specified|unknown)/i.test(exp))
+        return {
+          text: `${exp} total experience`,
+          detail: `Verify if they've held people-management or mentoring responsibilities`,
+          type: "ok",
+        };
+      const domains = metrics.domain_expertise ?? [];
+      if (domains.length > 0)
+        return { text: `${domains.length} domain${domains.length !== 1 ? "s" : ""} of expertise`, detail: domains.slice(0, 3).join(", "), type: "ok" };
+      return null;
+    }
+    case "Conflict Resolution": {
+      // Use career history depth as a proxy — more jobs/roles means more
+      // exposure to cross-team situations. Avoid technical concerns here.
+      const jobCount = (metrics.career_history ?? []).length;
+      if (jobCount > 0)
+        return {
+          text: `${jobCount} role${jobCount !== 1 ? "s" : ""} in career history`,
+          detail: `Use STAR method — ask for a specific conflict example from their past`,
+          type: "ok",
+        };
+      const domains = metrics.domain_expertise ?? [];
+      if (domains.length > 0)
+        return {
+          text: "Diverse domain experience",
+          detail: `Explore cross-team conflict in: ${domains.slice(0, 2).join(", ")}`,
+          type: "ok",
+        };
+      return null;
+    }
+    case "Decision Making": {
+      // Domain expertise signals how well-rounded their decision context is.
+      // Do NOT fall back to technical concerns here.
+      const domains = metrics.domain_expertise ?? [];
+      if (domains.length > 0)
+        return {
+          text: `${domains.length} domain${domains.length !== 1 ? "s" : ""} of expertise`,
+          detail: `Frame trade-off scenarios in: ${domains.slice(0, 3).join(", ")}`,
+          type: "ok",
+        };
+      const expLevel = metrics.experience_level;
+      if (expLevel && !/(not specified|unknown)/i.test(expLevel))
+        return {
+          text: `${expLevel} level — calibrate complexity`,
+          detail: `Tailor ambiguity & trade-off scenarios to their seniority`,
+          type: "ok",
+        };
+      return null;
+    }
+    case "Communication": {
+      // Strengths from the AI resume analysis often include communication
+      // signals (e.g. "cross-team collaboration"). Do NOT use tech concerns.
+      const strengths = metrics.strengths ?? [];
+      if (strengths.length > 0)
+        return {
+          text: `${strengths.length} strength${strengths.length !== 1 ? "s" : ""} on file`,
+          detail: `Validate: ${strengths.slice(0, 2).join("; ")}`,
+          type: "ok",
+        };
+      const expLevel = metrics.experience_level;
+      if (expLevel && !/(not specified|unknown)/i.test(expLevel))
+        return {
+          text: `${expLevel} candidate`,
+          detail: `Tailor stakeholder communication scenarios to their seniority`,
+          type: "ok",
+        };
+      return null;
+    }
+    case "Behavioural": {
+      const concerns = metrics.concerns ?? [];
+      if (concerns.length > 0)
+        return { text: `Probe ${concerns.length} concern${concerns.length !== 1 ? "s" : ""}`, detail: concerns.slice(0, 2).join("; "), type: "warn" };
+      const strengths = metrics.strengths ?? [];
+      if (strengths.length > 0)
+        return { text: "Validate AI-reported strengths", detail: strengths.slice(0, 2).join("; "), type: "ok" };
+      return null;
+    }
+    case "Culture Fit": {
+      // Show strengths as the primary cultural signal — strengths like
+      // "team player" or "cross-functional collaboration" are directly relevant.
+      // Avoid showing the technical AI recommendation (Proceed/Reject) here.
+      const strengths = metrics.strengths ?? [];
+      if (strengths.length > 0)
+        return {
+          text: `${strengths.length} strength${strengths.length !== 1 ? "s" : ""} to validate`,
+          detail: `Check team alignment: ${strengths.slice(0, 2).join("; ")}`,
+          type: "ok",
+        };
+      const expLevel = metrics.experience_level;
+      if (expLevel && !/(not specified|unknown)/i.test(expLevel))
+        return {
+          text: `${expLevel} candidate`,
+          detail: `Assess culture fit for their expected seniority & working style`,
+          type: "ok",
+        };
+      return null;
+    }
+    case "Career Motivation": {
+      // Current role & tenure tell you a lot about their reason for change.
+      const current = metrics.current_role;
+      const tenure = metrics.current_tenure;
+      const employed = metrics.is_currently_employed;
+      if (current && !/(not specified|unknown)/i.test(current))
+        return {
+          text: employed !== false ? `Currently: ${current}` : "Not currently employed",
+          detail: tenure && !/(not specified|unknown)/i.test(tenure ?? "")
+            ? `Tenure: ${tenure} — explore reason for change`
+            : "Explore reasons for change and career expectations",
+          type: "ok",
+        };
+      return null;
+    }
     default:
       return null;
   }
@@ -111,6 +272,7 @@ const nextId = () => `q_${Date.now()}_${seq++}`;
 export function InterviewWorkspace({
   stageId,
   stageLabel,
+  stageKind = "technical",
   candidateName,
   role,
   projectName,
@@ -120,6 +282,7 @@ export function InterviewWorkspace({
 }: {
   stageId: string;
   stageLabel: string;
+  stageKind?: StageKind;
   candidateName: string;
   role: string;
   projectName?: string;
@@ -127,6 +290,7 @@ export function InterviewWorkspace({
   onStepChange?: (step: number) => void;
   onDone: () => void;
 }) {
+  const CATEGORIES = categoriesForStageKind(stageKind);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [items, setItems] = useState<WorkItem[]>([]);
   const [ratings, setRatings] = useState<
@@ -188,10 +352,14 @@ export function InterviewWorkspace({
       .catch(() => {});
   }, []);
 
+  const isManagerRound = stageKind === "manager";
+
   // Notify EvaluateClient whenever the workspace step changes so the
   // tech-stack sidebar can show/hide based on the current step.
+  // For manager rounds there is no AI Analysis step so we offset by 1
+  // to ensure the sidebar never triggers (it only shows on wsStep === 1).
   useEffect(() => {
-    onStepChange?.(step);
+    onStepChange?.(isManagerRound ? step + 1 : step);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -348,11 +516,18 @@ export function InterviewWorkspace({
     setTimeout(onDone, 1500);
   }
 
-  const steps: { n: 1 | 2 | 3; label: string }[] = [
-    { n: 1, label: "AI Analysis" },
-    { n: 2, label: "Questions" },
-    { n: 3, label: "Final" },
-  ];
+  // Manager round: skip AI Analysis — only Questions → Final (2 steps).
+  // All other panel roles keep the 3-step flow.
+  const steps: { n: 1 | 2 | 3; label: string }[] = isManagerRound
+    ? [
+        { n: 1, label: "Questions" },
+        { n: 2, label: "Final" },
+      ]
+    : [
+        { n: 1, label: "AI Analysis" },
+        { n: 2, label: "Questions" },
+        { n: 3, label: "Final" },
+      ];
 
   if (submitted) {
     return (
@@ -406,8 +581,8 @@ export function InterviewWorkspace({
         </div>
       )}
 
-      {/* Step 1: AI Analysis */}
-      {step === 1 && (
+      {/* Step 1: AI Analysis — shown only for non-manager rounds */}
+      {step === 1 && !isManagerRound && (
         <section className="space-y-4">
           {metrics && metrics.tech_match_score != null ? (
             <AnalysisReport
@@ -434,8 +609,8 @@ export function InterviewWorkspace({
         </section>
       )}
 
-      {/* Step 2: Questions */}
-      {step === 2 && (
+      {/* Questions step — step 1 for manager rounds, step 2 for all others */}
+      {((step === 2 && !isManagerRound) || (step === 1 && isManagerRound)) && (
         <section className="space-y-4">
 
           {/* ── Category cards grid ── */}
@@ -718,7 +893,11 @@ export function InterviewWorkspace({
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+            {!isManagerRound ? (
+              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+            ) : (
+              <span />
+            )}
             <div className="flex items-center gap-3">
               {items.length === 0 && (
                 <span className="text-xs text-[var(--orange)] font-semibold">
@@ -726,7 +905,7 @@ export function InterviewWorkspace({
                 </span>
               )}
               <Button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(isManagerRound ? 2 : 3)}
                 disabled={items.length === 0}
                 className="px-6 py-2.5 text-sm disabled:opacity-50"
               >
@@ -737,8 +916,8 @@ export function InterviewWorkspace({
         </section>
       )}
 
-      {/* Step 3: Final Decision */}
-      {step === 3 && (
+      {/* Final Decision step — step 2 for manager rounds, step 3 for all others */}
+      {((step === 3 && !isManagerRound) || (step === 2 && isManagerRound)) && (
         <section className="space-y-4">
 
           {/* Pre-flight summary card */}
@@ -801,14 +980,19 @@ export function InterviewWorkspace({
 
           {/* Justification */}
           <div className="case-card p-5">
-            <label className="font-serif text-base font-bold block">Interviewer justification</label>
+            <label className="font-serif text-base font-bold block">
+              {isManagerRound ? "Manager's assessment" : "Interviewer justification"}
+            </label>
             <p className="mt-1 mb-3 text-[13px] text-[var(--ink-faint)]">
-              Summarise performance: technical depth, strengths, concerns, and your reasoning.
-              Your notes will appear in the PDF report sent to the recruiter.
+              {isManagerRound
+                ? "Summarise the candidate's leadership presence, people skills, decision-making, and cultural fit. Your notes will appear in the PDF report sent to the recruiter."
+                : "Summarise performance: technical depth, strengths, concerns, and your reasoning. Your notes will appear in the PDF report sent to the recruiter."}
             </p>
             <textarea
               rows={7}
-              placeholder="Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"
+              placeholder={isManagerRound
+                ? "Describe the candidate's performance across the manager round — cover leadership qualities, ownership mindset, how they handle conflict or ambiguity, communication style, and cultural fit. Explain why you are recommending to proceed or not proceed…"
+                : "Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"}
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
               className={cn(
@@ -880,10 +1064,12 @@ export function InterviewWorkspace({
                     "grid size-8 place-items-center rounded-full text-sm font-bold transition-colors",
                     decision === "yes" ? "bg-[var(--green)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
                   )}>✓</span>
-                  <span className="font-bold text-[var(--green)]">Proceed to next round</span>
+                  <span className="font-bold text-[var(--green)]">Recommend to proceed</span>
                 </div>
                 <p className="text-xs text-[var(--ink-soft)]">
-                  Candidate meets the technical bar. Move them forward in the hiring pipeline.
+                  {isManagerRound
+                    ? "Candidate demonstrates the leadership presence, ownership mindset, and cultural fit required for this role."
+                    : "Candidate meets the technical bar. Move them forward in the hiring pipeline."}
                 </p>
               </button>
               <button
@@ -901,10 +1087,12 @@ export function InterviewWorkspace({
                     "grid size-8 place-items-center rounded-full text-sm font-bold transition-colors",
                     decision === "no" ? "bg-[var(--orange)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
                   )}>✗</span>
-                  <span className="font-bold text-[var(--orange)]">Do not proceed</span>
+                  <span className="font-bold text-[var(--orange)]">Do not recommend</span>
                 </div>
                 <p className="text-xs text-[var(--ink-soft)]">
-                  Candidate does not meet requirements for this role at this stage.
+                  {isManagerRound
+                    ? "Candidate does not demonstrate the maturity or alignment needed for this role at this stage."
+                    : "Candidate does not meet requirements for this role at this stage."}
                 </p>
               </button>
             </div>
@@ -921,7 +1109,7 @@ export function InterviewWorkspace({
 
           {/* Submit row */}
           <div className="flex items-center justify-between gap-3">
-            <Button variant="ghost" onClick={() => setStep(2)}>← Back to questions</Button>
+            <Button variant="ghost" onClick={() => setStep(isManagerRound ? 1 : 2)}>← Back to questions</Button>
             <Button
               onClick={submit}
               disabled={busy || items.length === 0 || !decision || justification.trim().length < JUSTIFICATION_MIN_LEN}
