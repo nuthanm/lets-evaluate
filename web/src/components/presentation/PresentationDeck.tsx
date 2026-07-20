@@ -25,8 +25,52 @@ const COMPARE_ROWS: CompareRow[] = [
   { label: "ATS breadth", le: 35, zoho: 92, leLabel: "Eval core only", zohoLabel: "Full funnel" },
 ];
 
-const SLIDE_COUNT = 8;
-const SHOWCASE_SLIDE_INDEX = 7;
+type CompetitiveRow = {
+  criteria: string;
+  zoho: { stars: number; note: string };
+  le: { stars: number; note: string };
+};
+
+const COMPETITIVE_MATRIX: CompetitiveRow[] = [
+  {
+    criteria: "Security",
+    zoho: { stars: 4, note: "Enterprise certs" },
+    le: { stars: 3, note: "Self-hosted control; 2FA gap" },
+  },
+  {
+    criteria: "Cost",
+    zoho: { stars: 2, note: "Per-seat adds up" },
+    le: { stars: 5, note: "Usage-based, no seat tax" },
+  },
+  {
+    criteria: "Performance",
+    zoho: { stars: 3, note: "Can lag" },
+    le: { stars: 4, note: "Optimized eval path" },
+  },
+  {
+    criteria: "Transparency",
+    zoho: { stars: 2, note: "Opaque AI" },
+    le: { stars: 5, note: "Full AI + cost visibility" },
+  },
+  {
+    criteria: "Ease of use",
+    zoho: { stars: 2, note: "Complex" },
+    le: { stars: 4, note: "Focused workflow" },
+  },
+  {
+    criteria: "ATS breadth",
+    zoho: { stars: 5, note: "Full funnel" },
+    le: { stars: 2, note: "By design" },
+  },
+  {
+    criteria: "Technical evaluation depth",
+    zoho: { stars: 2, note: "Basic pipeline" },
+    le: { stars: 5, note: "Structured interviews" },
+  },
+];
+
+const SLIDE_COUNT = 9;
+const SHOWCASE_SLIDE_INDEX = 8;
 
 export function PresentationDeck() {
   const brand = useBrand();
@@ -101,7 +145,8 @@ export function PresentationDeck() {
             {slide === 4 && <SlideCost />}
             {slide === 5 && <SlideBuilt />}
             {slide === 6 && <SlideAsk />}
-            {slide === 7 && <PageShowcaseCarousel />}
+            {slide === 7 && <SlideCompetitiveMatrix />}
+            {slide === 8 && <PageShowcaseCarousel />}
           </div>
         </main>
       </div>
@@ -370,6 +415,76 @@ function SlideBuilt() {
   );
 }
 
+function SlideCompetitiveMatrix() {
+  return (
+    <div className="pres-stagger">
+      <p className="pres-kicker">Competitive scorecard</p>
+      <h2 className="pres-title mt-4">How we compete with mature Zoho Recruit</h2>
+      <p className="pres-subtitle">
+        Honest ratings across seven dimensions — strengths and trade-offs before the
+        product walkthrough.
+      </p>
+
+      <div className="pres-scorecard mt-6">
+        <div className="pres-scorecard-head">
+          <span className="pres-scorecard-criteria">Criteria</span>
+          <span className="pres-scorecard-col pres-scorecard-col-zoho">Zoho Recruit</span>
+          <span className="pres-scorecard-col pres-scorecard-col-le">Let&apos;s Evaluate</span>
+        </div>
+
+        {COMPETITIVE_MATRIX.map((row) => {
+          const leWins = row.le.stars > row.zoho.stars;
+          const zohoWins = row.zoho.stars > row.le.stars;
+
+          return (
+            <div key={row.criteria} className="pres-scorecard-row">
+              <div className="pres-scorecard-criteria">{row.criteria}</div>
+              <div
+                className={cn(
+                  "pres-scorecard-cell pres-scorecard-col-zoho",
+                  zohoWins && "pres-scorecard-cell-win-zoho",
+                )}
+              >
+                <StarRating score={row.zoho.stars} />
+                <span className="pres-scorecard-note">{row.zoho.note}</span>
+              </div>
+              <div
+                className={cn(
+                  "pres-scorecard-cell pres-scorecard-col-le",
+                  leWins && "pres-scorecard-cell-win-le",
+                )}
+              >
+                <StarRating score={row.le.stars} />
+                <span className="pres-scorecard-note">{row.le.note}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-5 text-center text-[13px] text-[var(--ink-faint)]">
+        Next slide → product showcase with interactive screen previews
+      </p>
+    </div>
+  );
+}
+
+function StarRating({ score }: { score: number }) {
+  return (
+    <span className="pres-stars" aria-label={`${score} out of 5 stars`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span
+          key={i}
+          className={cn("pres-star", i < score && "pres-star-filled")}
+          aria-hidden
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function SlideAsk() {
   return (
     <div className="pres-stagger text-center">
@@ -392,7 +507,7 @@ function SlideAsk() {
         ))}
       </div>
       <p className="mt-6 text-[13px] text-[var(--ink-faint)]">
-        Next slide → product showcase with interactive screen previews
+        Next slide → competitive scorecard vs Zoho Recruit
       </p>
     </div>
   );
