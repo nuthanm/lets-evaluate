@@ -33,7 +33,7 @@ const CATEGORIES = [
   "People Management",
   "Conflict Resolution",
   "Decision Making",
-  // Shared people categories
+  // Shared people categories (manager + HR)
   "Communication",
   "Culture Fit",
   // HR round categories
@@ -230,7 +230,9 @@ export function QuestionLibraryClient({
         {addOpen && (
           <div className="p-4 space-y-3">
             <div>
-              <label className="case-label mb-1.5 block">Question text <span className="text-[var(--orange)]">*</span></label>
+              <label className="case-label mb-1.5 block">
+                Question text <span className="text-[var(--orange)]">*</span>
+              </label>
               <textarea
                 rows={3}
                 placeholder="e.g. Explain the difference between REST and GraphQL…"

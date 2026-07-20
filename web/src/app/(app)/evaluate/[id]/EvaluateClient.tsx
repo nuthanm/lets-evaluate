@@ -291,8 +291,9 @@ export function EvaluateClient({
     (s) => s.status === "active" && s.kind !== "screening" && s.kind !== "final",
   );
 
-  // The most recently completed round before the panelist's own stage.
-  // Lets a manager/HR panelist see how the candidate did earlier without leaving the page.
+  // The most recently completed round before the panelist's own — gives a
+  // manager/HR panelist context on how the candidate did earlier in the
+  // process without having to go dig through the archive.
   const previousStage = myActiveStage
     ? [...stages]
         .filter(
@@ -681,16 +682,18 @@ export function EvaluateClient({
           {/* Terminal / hold outcome — always front-and-centre with the reason. */}
           {outcome && <OutcomeBanner outcome={outcome} />}
 
-          {/* Recruiter's handoff note for the panelist — surfaced inside the case file
-              so context like "focus on stakeholder management" is never lost. */}
+          {/* Recruiter's handoff note for the panelist's own active round — was
+              previously only visible on the Assignments list, so it disappeared
+              the moment they opened the case file. Surface it here too. */}
           {!showWizard && myActiveStage?.handoffNote && (
             <div className="case-card mb-4 border-[var(--orange)] bg-[var(--orange-soft)] p-4 text-sm">
               <strong>Handoff note from recruiter:</strong> {myActiveStage.handoffNote}
             </div>
           )}
 
-          {/* Previous-round context card — lets manager/HR see the prior verdict
-              and notes without leaving the case file. */}
+          {/* Previous round context — lets a manager/HR panelist see how the
+              candidate did earlier in the process (who ran it, the verdict,
+              and their notes) without leaving the case file. */}
           {!showWizard && myActiveStage && previousStage && (
             <div
               className={cn(
@@ -700,6 +703,7 @@ export function EvaluateClient({
                   : "border-l-[var(--orange)]",
               )}
             >
+              {/* Header band */}
               <div
                 className={cn(
                   "flex flex-wrap items-center gap-2 px-4 py-3",
@@ -708,10 +712,14 @@ export function EvaluateClient({
                     : "bg-[var(--orange-soft)]",
                 )}
               >
-                <span className={cn(
-                  "case-label",
-                  previousStage.status === "passed" ? "text-[var(--green)]" : "text-[var(--orange)]",
-                )}>
+                <span
+                  className={cn(
+                    "case-label",
+                    previousStage.status === "passed"
+                      ? "text-[var(--green)]"
+                      : "text-[var(--orange)]",
+                  )}
+                >
                   {previousStage.label} — completed
                 </span>
                 <Pill variant={previousStage.status === "passed" ? "green" : "orange"}>
@@ -739,6 +747,7 @@ export function EvaluateClient({
                   </a>
                 )}
               </div>
+              {/* Comments body */}
               {previousStage.comments && (
                 <p className="px-4 py-3 text-sm text-[var(--ink-soft)]">{previousStage.comments}</p>
               )}

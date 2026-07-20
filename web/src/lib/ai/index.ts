@@ -711,13 +711,16 @@ export type QuestionCategory =
   | "Culture Fit"
   | "Career Motivation";
 
-export const QUESTION_CATEGORIES: {
+type CategoryDef = {
   id: QuestionCategory;
   label: string;
   hint: string;
   /** Whether questions in this category are expected to include a code snippet. */
   code: boolean;
-}[] = [
+};
+
+/** Technical interview rounds. */
+export const QUESTION_CATEGORIES: CategoryDef[] = [
   { id: "Resume based", label: "Resume based", hint: "Probe claims made in the candidate's resume", code: false },
   { id: "Backend", label: "Backend", hint: "APIs, databases, concurrency, performance", code: false },
   { id: "Frontend", label: "Frontend", hint: "UI, state, rendering, accessibility", code: false },
@@ -727,30 +730,30 @@ export const QUESTION_CATEGORIES: {
   { id: "Refactoring", label: "Refactoring techniques", hint: "Snippets to improve / refactor", code: true },
 ];
 
-/** Manager rounds: leadership, ownership and people-management readiness. */
-export const MANAGER_QUESTION_CATEGORIES: { id: QuestionCategory; label: string; hint: string; code: boolean }[] = [
-  { id: "Resume based", label: "Resume based", hint: "Probe claims & verify real depth", code: false },
-  { id: "Leadership & Ownership", label: "Leadership & Ownership", hint: "Driving outcomes, owning failures", code: false },
-  { id: "People Management", label: "People Management", hint: "Mentoring, feedback, delegation", code: false },
-  { id: "Conflict Resolution", label: "Conflict Resolution", hint: "Difficult stakeholders & escalations", code: false },
-  { id: "Decision Making", label: "Decision Making", hint: "Trade-offs & prioritisation under ambiguity", code: false },
-  { id: "Communication", label: "Communication", hint: "Stakeholder updates & alignment", code: false },
+/** Manager rounds: assess leadership, ownership and people-management readiness. */
+export const MANAGER_QUESTION_CATEGORIES: CategoryDef[] = [
+  { id: "Resume based", label: "Resume based", hint: "Probe claims made in the candidate's resume", code: false },
+  { id: "Leadership & Ownership", label: "Leadership & Ownership", hint: "Driving outcomes, taking initiative, owning failures", code: false },
+  { id: "People Management", label: "People Management", hint: "Mentoring, feedback, delegation, performance conversations", code: false },
+  { id: "Conflict Resolution", label: "Conflict Resolution", hint: "Difficult stakeholders, team disagreements, escalations", code: false },
+  { id: "Decision Making", label: "Decision Making", hint: "Prioritisation & trade-offs under ambiguity", code: false },
+  { id: "Communication", label: "Communication", hint: "Stakeholder updates & cross-team alignment", code: false },
   { id: "Culture Fit", label: "Culture Fit", hint: "Values alignment & collaboration style", code: false },
 ];
 
-/** HR rounds: behaviour, communication and organisational fit. */
-export const HR_QUESTION_CATEGORIES: { id: QuestionCategory; label: string; hint: string; code: boolean }[] = [
-  { id: "Resume based", label: "Resume based", hint: "Probe career history & claims", code: false },
-  { id: "Behavioural", label: "Behavioural", hint: "Ownership, teamwork, feedback", code: false },
-  { id: "Communication", label: "Communication", hint: "Clarity & stakeholder articulation", code: false },
+/** HR rounds: assess behaviour, communication and organisational fit. */
+export const HR_QUESTION_CATEGORIES: CategoryDef[] = [
+  { id: "Resume based", label: "Resume based", hint: "Probe career history & claims made in the resume", code: false },
+  { id: "Behavioural", label: "Behavioural", hint: "Ownership, teamwork, conflict handling, feedback reception", code: false },
+  { id: "Communication", label: "Communication", hint: "Clarity, articulation, stakeholder communication", code: false },
   { id: "Culture Fit", label: "Culture Fit", hint: "Values alignment & working style", code: false },
-  { id: "Career Motivation", label: "Career Motivation", hint: "Reasons for change & expectations", code: false },
+  { id: "Career Motivation", label: "Career Motivation", hint: "Reasons for change, long-term goals, expectations", code: false },
 ];
 
 /** Pick the right category set for a given interview-process stage kind. */
 export function questionCategoriesForStageKind(
   kind: "screening" | "technical" | "manager" | "hr" | "final" | "custom" | string,
-): { id: QuestionCategory; label: string; hint: string; code: boolean }[] {
+): CategoryDef[] {
   if (kind === "manager") return MANAGER_QUESTION_CATEGORIES;
   if (kind === "hr") return HR_QUESTION_CATEGORIES;
   return QUESTION_CATEGORIES;
@@ -804,6 +807,7 @@ export async function generateCategoryQuestions(
     "Career Motivation",
   ];
   const isPeopleCategory = PEOPLE_CATEGORIES.includes(category);
+
   const tech = isPeopleCategory ? "" : (ctx.techStack ?? []).join(", ") || "the relevant stack";
 
   const guidance: Record<QuestionCategory, string> = {
@@ -854,7 +858,7 @@ Return ONLY a valid JSON array of exactly ${count} objects, each with keys:
       {
         role: "system",
         content: isPeopleCategory
-          ? 'You are an expert in behavioural and leadership interviewing. Generate practical, people-focused interview questions and return strict JSON. Never include code snippets or ask about specific technologies. Respond with a JSON object shaped as {"questions": [...]}. '
+          ? 'You are an expert in behavioural and leadership interviewing. Generate practical, people-focused interview questions and return strict JSON. Never include code snippets or ask about specific technologies. Respond with a JSON object shaped as {"questions": [...]}.'
           : 'You generate practical, role-relevant interview questions and return strict JSON. When code is requested, produce compilable-looking, realistic snippets. Respond with a JSON object shaped as {"questions": [...]}.',
       },
       { role: "user", content: prompt },

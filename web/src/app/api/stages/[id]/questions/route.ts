@@ -61,6 +61,8 @@ export async function POST(req: Request, { params }: Params) {
     return apiError("You are not assigned to this stage", 403);
   }
 
+  // The question set depends on the stage's round type (technical / manager / hr)
+  // so a manager round gets leadership questions instead of coding ones.
   const categoryIds = questionCategoriesForStageKind(stage.kind).map((c) => c.id) as string[];
   if (!categoryIds.includes(body.category)) {
     return apiError("Unknown category", 400);

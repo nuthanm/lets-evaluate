@@ -7,6 +7,12 @@ export function LandingNav() {
       <Logo href="/" />
       <div className="flex items-center gap-6 text-sm font-semibold">
         <a
+          href="/presentation"
+          className="hidden text-[var(--ink-soft)] no-underline transition-colors hover:text-[var(--cyan-d)] sm:inline"
+        >
+          Approval deck
+        </a>
+        <a
           href="#workflow"
           className="hidden text-[var(--ink-soft)] no-underline transition-colors hover:text-[var(--cyan-d)] sm:inline"
         >

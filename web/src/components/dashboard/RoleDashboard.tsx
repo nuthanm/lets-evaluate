@@ -583,8 +583,16 @@ export function InterviewerDashboard({
     : isHr
       ? "HR dashboard"
       : "Interview dashboard";
-  const roundLabel = isManager ? "manager round" : isHr ? "HR round" : "interview";
-  const roundLabelPlural = isManager ? "manager rounds" : isHr ? "HR rounds" : "interviews";
+  const roundLabel = isManager
+    ? "manager round"
+    : isHr
+      ? "HR round"
+      : "interview";
+  const roundLabelPlural = isManager
+    ? "manager rounds"
+    : isHr
+      ? "HR rounds"
+      : "interviews";
   const [openingId, setOpeningId] = useState<string | null>(null);
   const pending = assignments.filter((a) => a.status === "active");
   const overdue = pending.filter((a) => urgencyFor(a.dueAt) === "overdue");
@@ -645,9 +653,7 @@ export function InterviewerDashboard({
             </div>
             <div>
               <h2 className="font-serif text-xl font-bold">
-                {alertOverdue
-                  ? `${overdue.length} overdue`
-                  : isManager ? "Your manager round queue" : isHr ? "Your HR round queue" : "Your interview queue"}
+                {alertOverdue ? `${overdue.length} overdue` : isManager ? "Your manager round queue" : isHr ? "Your HR round queue" : "Your interview queue"}
               </h2>
               <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
                 {alertOverdue
@@ -709,7 +715,7 @@ export function InterviewerDashboard({
       <section className="mb-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            Pending interviews ({sortedPending.length})
+            Pending {roundLabelPlural} ({sortedPending.length})
           </h2>
           {sortedPending.length > 5 && (
             <ButtonLink href="/assignments" variant="ghost" className="px-3 py-1 text-[11px]">

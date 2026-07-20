@@ -63,6 +63,9 @@ export default async function HomePage() {
 
           <div className="land-fade-up land-fade-up-delay-3 mt-8 flex flex-wrap gap-3">
             <ButtonLink href="/register">Open a case file →</ButtonLink>
+            <ButtonLink href="/presentation" variant="ghost">
+              View approval deck
+            </ButtonLink>
             <ButtonLink href="#workflow" variant="ghost">
               See the workflow
             </ButtonLink>
