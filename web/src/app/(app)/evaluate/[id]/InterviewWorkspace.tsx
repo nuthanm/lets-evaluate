@@ -9,17 +9,43 @@ import { AnalysisReport } from "./EvaluateClient";
 
 type Metrics = Partial<ResumeMetrics>;
 
-/** Category metadata is duplicated here (as plain data) so this client bundle
- * never imports the server-only AI module. Ids must match the server list. */
-const CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
-  { id: "Resume based",       label: "Resume based",          hint: "Probe claims & verify real depth",     code: false, icon: "📄" },
-  { id: "Backend",            label: "Backend",               hint: "APIs, data, concurrency, scaling",     code: false, icon: "⚙️" },
-  { id: "Frontend",           label: "Frontend",              hint: "UI, state, rendering, a11y",           code: false, icon: "🖥️" },
-  { id: "Architecture",       label: "Architecture",          hint: "System design & trade-offs",           code: false, icon: "🏗️" },
+/** Category metadata — client bundle copy so we never import server-only AI module.
+ * Ids must match the server lists in `@/lib/ai`. */
+const TECHNICAL_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+  { id: "Resume based",       label: "Resume based",          hint: "Probe claims & verify real depth",       code: false, icon: "📄" },
+  { id: "Backend",            label: "Backend",               hint: "APIs, data, concurrency, scaling",       code: false, icon: "⚙️" },
+  { id: "Frontend",           label: "Frontend",              hint: "UI, state, rendering, a11y",             code: false, icon: "🖥️" },
+  { id: "Architecture",       label: "Architecture",          hint: "System design & trade-offs",             code: false, icon: "🏗️" },
   { id: "Scenario based",     label: "Scenario based",        hint: "Real-world judgement & problem solving", code: false, icon: "💡" },
-  { id: "Code error spotting",label: "Find errors in code",   hint: "Snippets with bugs to identify",       code: true,  icon: "🐛" },
-  { id: "Refactoring",        label: "Refactoring techniques",hint: "Snippets to clean and improve",        code: true,  icon: "✏️" },
+  { id: "Code error spotting",label: "Find errors in code",   hint: "Snippets with bugs to identify",         code: true,  icon: "🐛" },
+  { id: "Refactoring",        label: "Refactoring techniques",hint: "Snippets to clean and improve",          code: true,  icon: "✏️" },
 ];
+
+const MANAGER_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+  { id: "Resume based",           label: "Resume based",           hint: "Probe claims & verify real depth",          code: false, icon: "📄" },
+  { id: "Leadership & Ownership", label: "Leadership & Ownership", hint: "Driving outcomes, owning failures",         code: false, icon: "🧭" },
+  { id: "People Management",      label: "People Management",      hint: "Mentoring, feedback, delegation",           code: false, icon: "🤝" },
+  { id: "Conflict Resolution",    label: "Conflict Resolution",    hint: "Difficult stakeholders & escalations",      code: false, icon: "⚖️" },
+  { id: "Decision Making",        label: "Decision Making",        hint: "Trade-offs & prioritisation under ambiguity",code: false, icon: "🎯" },
+  { id: "Communication",          label: "Communication",          hint: "Stakeholder updates & alignment",           code: false, icon: "💬" },
+  { id: "Culture Fit",            label: "Culture Fit",            hint: "Values alignment & collaboration style",    code: false, icon: "🌱" },
+];
+
+const HR_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
+  { id: "Resume based",     label: "Resume based",     hint: "Probe career history & claims",     code: false, icon: "📄" },
+  { id: "Behavioural",      label: "Behavioural",      hint: "Ownership, teamwork, feedback",     code: false, icon: "🧩" },
+  { id: "Communication",    label: "Communication",    hint: "Clarity & stakeholder articulation",code: false, icon: "💬" },
+  { id: "Culture Fit",      label: "Culture Fit",      hint: "Values alignment & working style",  code: false, icon: "🌱" },
+  { id: "Career Motivation",label: "Career Motivation",hint: "Reasons for change & expectations", code: false, icon: "🚀" },
+];
+
+type StageKind = "screening" | "technical" | "manager" | "hr" | "final" | "custom";
+
+function categoriesForStageKind(kind: StageKind) {
+  if (kind === "manager") return MANAGER_CATEGORIES;
+  if (kind === "hr") return HR_CATEGORIES;
+  return TECHNICAL_CATEGORIES;
+}
 
 type AiInsight = { text: string; detail: string; type: "ok" | "warn" };
 
@@ -111,6 +137,7 @@ const nextId = () => `q_${Date.now()}_${seq++}`;
 export function InterviewWorkspace({
   stageId,
   stageLabel,
+  stageKind = "technical",
   candidateName,
   role,
   projectName,
@@ -120,6 +147,7 @@ export function InterviewWorkspace({
 }: {
   stageId: string;
   stageLabel: string;
+  stageKind?: StageKind;
   candidateName: string;
   role: string;
   projectName?: string;
@@ -127,6 +155,8 @@ export function InterviewWorkspace({
   onStepChange?: (step: number) => void;
   onDone: () => void;
 }) {
+  const isManagerRound = stageKind === "manager";
+  const CATEGORIES = categoriesForStageKind(stageKind);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [items, setItems] = useState<WorkItem[]>([]);
   const [ratings, setRatings] = useState<
@@ -190,8 +220,9 @@ export function InterviewWorkspace({
 
   // Notify EvaluateClient whenever the workspace step changes so the
   // tech-stack sidebar can show/hide based on the current step.
+  // Manager rounds have no AI Analysis step so offset by 1 to prevent sidebar.
   useEffect(() => {
-    onStepChange?.(step);
+    onStepChange?.(isManagerRound ? step + 1 : step);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -348,11 +379,17 @@ export function InterviewWorkspace({
     setTimeout(onDone, 1500);
   }
 
-  const steps: { n: 1 | 2 | 3; label: string }[] = [
-    { n: 1, label: "AI Analysis" },
-    { n: 2, label: "Questions" },
-    { n: 3, label: "Final" },
-  ];
+  // Manager round: skip AI Analysis — only Questions → Final (2 steps).
+  const steps: { n: 1 | 2 | 3; label: string }[] = isManagerRound
+    ? [
+        { n: 1, label: "Questions" },
+        { n: 2, label: "Final" },
+      ]
+    : [
+        { n: 1, label: "AI Analysis" },
+        { n: 2, label: "Questions" },
+        { n: 3, label: "Final" },
+      ];
 
   if (submitted) {
     return (
@@ -406,8 +443,8 @@ export function InterviewWorkspace({
         </div>
       )}
 
-      {/* Step 1: AI Analysis */}
-      {step === 1 && (
+      {/* Step 1: AI Analysis — shown only for non-manager rounds */}
+      {step === 1 && !isManagerRound && (
         <section className="space-y-4">
           {metrics && metrics.tech_match_score != null ? (
             <AnalysisReport
@@ -434,8 +471,8 @@ export function InterviewWorkspace({
         </section>
       )}
 
-      {/* Step 2: Questions */}
-      {step === 2 && (
+      {/* Questions — step 1 for manager, step 2 for all others */}
+      {((step === 2 && !isManagerRound) || (step === 1 && isManagerRound)) && (
         <section className="space-y-4">
 
           {/* ── Category cards grid ── */}
@@ -607,7 +644,7 @@ export function InterviewWorkspace({
                       <button
                         type="button"
                         onClick={addManual}
-                        className="rounded-lg bg-[var(--ink)] px-4 py-1.5 text-xs font-bold text-white hover:bg-[var(--cyan-d)] transition-colors"
+                        className="rounded-lg bg-[var(--ink)] px-4 py-1.5 text-xs font-bold text-white hover:bg-[var(--navy)] transition-colors"
                       >
                         Add question
                       </button>
@@ -718,7 +755,11 @@ export function InterviewWorkspace({
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+            {!isManagerRound ? (
+              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+            ) : (
+              <span />
+            )}
             <div className="flex items-center gap-3">
               {items.length === 0 && (
                 <span className="text-xs text-[var(--orange)] font-semibold">
@@ -726,7 +767,7 @@ export function InterviewWorkspace({
                 </span>
               )}
               <Button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(isManagerRound ? 2 : 3)}
                 disabled={items.length === 0}
                 className="px-6 py-2.5 text-sm disabled:opacity-50"
               >
@@ -737,8 +778,8 @@ export function InterviewWorkspace({
         </section>
       )}
 
-      {/* Step 3: Final Decision */}
-      {step === 3 && (
+      {/* Final Decision — step 2 for manager, step 3 for all others */}
+      {((step === 3 && !isManagerRound) || (step === 2 && isManagerRound)) && (
         <section className="space-y-4">
 
           {/* Pre-flight summary card */}
@@ -746,7 +787,9 @@ export function InterviewWorkspace({
             <div className="flex items-center gap-3 border-b border-[var(--cream-2)] bg-[var(--navy)] px-5 py-4">
               <span className="grid size-9 place-items-center rounded-full bg-white/10 text-lg">📊</span>
               <div>
-                <h3 className="font-serif text-base font-bold text-white">Interview summary</h3>
+                <h3 className="font-serif text-base font-bold text-white">
+                  {isManagerRound ? "Manager round summary" : "Interview summary"}
+                </h3>
                 <p className="text-[11px] text-white/55">{candidateName} · {stageLabel}</p>
               </div>
             </div>
@@ -801,14 +844,19 @@ export function InterviewWorkspace({
 
           {/* Justification */}
           <div className="case-card p-5">
-            <label className="font-serif text-base font-bold block">Interviewer justification</label>
+            <label className="font-serif text-base font-bold block">
+              {isManagerRound ? "Manager's assessment" : "Interviewer justification"}
+            </label>
             <p className="mt-1 mb-3 text-[13px] text-[var(--ink-faint)]">
-              Summarise performance: technical depth, strengths, concerns, and your reasoning.
-              Your notes will appear in the PDF report sent to the recruiter.
+              {isManagerRound
+                ? "Summarise the candidate's leadership presence, people skills, decision-making, and cultural fit. Your notes will appear in the PDF report sent to the recruiter."
+                : "Summarise performance: technical depth, strengths, concerns, and your reasoning. Your notes will appear in the PDF report sent to the recruiter."}
             </p>
             <textarea
               rows={7}
-              placeholder="Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"
+              placeholder={isManagerRound
+                ? "Describe the candidate's performance across the manager round — cover leadership qualities, ownership mindset, communication style, and cultural fit. Explain why you are recommending to proceed or not proceed…"
+                : "Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"}
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
               className={cn(
@@ -880,10 +928,14 @@ export function InterviewWorkspace({
                     "grid size-8 place-items-center rounded-full text-sm font-bold transition-colors",
                     decision === "yes" ? "bg-[var(--green)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
                   )}>✓</span>
-                  <span className="font-bold text-[var(--green)]">Proceed to next round</span>
+                  <span className="font-bold text-[var(--green)]">
+                    {isManagerRound ? "Recommend to proceed" : "Proceed to next round"}
+                  </span>
                 </div>
                 <p className="text-xs text-[var(--ink-soft)]">
-                  Candidate meets the technical bar. Move them forward in the hiring pipeline.
+                  {isManagerRound
+                    ? "Candidate demonstrates the leadership presence, ownership mindset, and cultural fit required for this role."
+                    : "Candidate meets the technical bar. Move them forward in the hiring pipeline."}
                 </p>
               </button>
               <button
@@ -901,10 +953,14 @@ export function InterviewWorkspace({
                     "grid size-8 place-items-center rounded-full text-sm font-bold transition-colors",
                     decision === "no" ? "bg-[var(--orange)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
                   )}>✗</span>
-                  <span className="font-bold text-[var(--orange)]">Do not proceed</span>
+                  <span className="font-bold text-[var(--orange)]">
+                    {isManagerRound ? "Do not recommend" : "Do not proceed"}
+                  </span>
                 </div>
                 <p className="text-xs text-[var(--ink-soft)]">
-                  Candidate does not meet requirements for this role at this stage.
+                  {isManagerRound
+                    ? "Candidate does not demonstrate the maturity or alignment needed for this role at this stage."
+                    : "Candidate does not meet requirements for this role at this stage."}
                 </p>
               </button>
             </div>
@@ -921,7 +977,7 @@ export function InterviewWorkspace({
 
           {/* Submit row */}
           <div className="flex items-center justify-between gap-3">
-            <Button variant="ghost" onClick={() => setStep(2)}>← Back to questions</Button>
+            <Button variant="ghost" onClick={() => setStep(isManagerRound ? 1 : 2)}>← Back to questions</Button>
             <Button
               onClick={submit}
               disabled={busy || items.length === 0 || !decision || justification.trim().length < JUSTIFICATION_MIN_LEN}
@@ -1140,7 +1196,7 @@ function QuestionCard({
                   type="button"
                   onClick={saveToLibrary}
                   disabled={saving}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--cyan-d)] hover:-translate-y-px disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--navy)] hover:-translate-y-px disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "💾 Save to library"}
                 </button>

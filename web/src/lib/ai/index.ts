@@ -701,7 +701,15 @@ export type QuestionCategory =
   | "Architecture"
   | "Scenario based"
   | "Code error spotting"
-  | "Refactoring";
+  | "Refactoring"
+  | "Leadership & Ownership"
+  | "People Management"
+  | "Conflict Resolution"
+  | "Decision Making"
+  | "Communication"
+  | "Behavioural"
+  | "Culture Fit"
+  | "Career Motivation";
 
 export const QUESTION_CATEGORIES: {
   id: QuestionCategory;
@@ -718,6 +726,35 @@ export const QUESTION_CATEGORIES: {
   { id: "Code error spotting", label: "Find errors in code", hint: "Snippets with bugs to identify", code: true },
   { id: "Refactoring", label: "Refactoring techniques", hint: "Snippets to improve / refactor", code: true },
 ];
+
+/** Manager rounds: leadership, ownership and people-management readiness. */
+export const MANAGER_QUESTION_CATEGORIES: { id: QuestionCategory; label: string; hint: string; code: boolean }[] = [
+  { id: "Resume based", label: "Resume based", hint: "Probe claims & verify real depth", code: false },
+  { id: "Leadership & Ownership", label: "Leadership & Ownership", hint: "Driving outcomes, owning failures", code: false },
+  { id: "People Management", label: "People Management", hint: "Mentoring, feedback, delegation", code: false },
+  { id: "Conflict Resolution", label: "Conflict Resolution", hint: "Difficult stakeholders & escalations", code: false },
+  { id: "Decision Making", label: "Decision Making", hint: "Trade-offs & prioritisation under ambiguity", code: false },
+  { id: "Communication", label: "Communication", hint: "Stakeholder updates & alignment", code: false },
+  { id: "Culture Fit", label: "Culture Fit", hint: "Values alignment & collaboration style", code: false },
+];
+
+/** HR rounds: behaviour, communication and organisational fit. */
+export const HR_QUESTION_CATEGORIES: { id: QuestionCategory; label: string; hint: string; code: boolean }[] = [
+  { id: "Resume based", label: "Resume based", hint: "Probe career history & claims", code: false },
+  { id: "Behavioural", label: "Behavioural", hint: "Ownership, teamwork, feedback", code: false },
+  { id: "Communication", label: "Communication", hint: "Clarity & stakeholder articulation", code: false },
+  { id: "Culture Fit", label: "Culture Fit", hint: "Values alignment & working style", code: false },
+  { id: "Career Motivation", label: "Career Motivation", hint: "Reasons for change & expectations", code: false },
+];
+
+/** Pick the right category set for a given interview-process stage kind. */
+export function questionCategoriesForStageKind(
+  kind: "screening" | "technical" | "manager" | "hr" | "final" | "custom" | string,
+): { id: QuestionCategory; label: string; hint: string; code: boolean }[] {
+  if (kind === "manager") return MANAGER_QUESTION_CATEGORIES;
+  if (kind === "hr") return HR_QUESTION_CATEGORIES;
+  return QUESTION_CATEGORIES;
+}
 
 export type GeneratedQuestion = {
   question: string;
@@ -752,9 +789,22 @@ export async function generateCategoryQuestions(
   }
 
   const role = ctx.roleName?.trim() || "the role";
-  const tech = (ctx.techStack ?? []).join(", ") || "the relevant stack";
   const wantsCode =
     category === "Code error spotting" || category === "Refactoring";
+
+  // People / leadership categories are purely behavioural — tech stack is
+  // irrelevant and including it causes the model to drift toward technical
+  // questions even for manager/HR rounds.
+  const PEOPLE_CATEGORIES: string[] = [
+    "Leadership & Ownership",
+    "People Management",
+    "Conflict Resolution",
+    "Decision Making",
+    "Culture Fit",
+    "Career Motivation",
+  ];
+  const isPeopleCategory = PEOPLE_CATEGORIES.includes(category);
+  const tech = isPeopleCategory ? "" : (ctx.techStack ?? []).join(", ") || "the relevant stack";
 
   const guidance: Record<QuestionCategory, string> = {
     "Resume based": `Base each question on concrete claims, projects and technologies from the candidate's resume below so the interviewer can verify real, hands-on depth.\n\nResume:\n${(ctx.resumeText ?? "").slice(0, MAX_RESUME_Q)}`,
@@ -764,9 +814,29 @@ export async function generateCategoryQuestions(
     "Scenario based": "Pose realistic on-the-job situations (incidents, ambiguous requirements, tight deadlines, cross-team conflicts) that reveal judgement and problem solving.",
     "Code error spotting": "For each item, include a short, realistic code snippet (in the candidate's primary language/stack) that contains one or more bugs. The question asks the candidate to find and explain the errors.",
     Refactoring: "For each item, include a short code snippet that works but has poor quality (duplication, bad naming, tight coupling, inefficiency). The question asks how the candidate would refactor it.",
+    "Leadership & Ownership": "Assess how the candidate drives outcomes, takes initiative beyond their remit, and owns mistakes or failed projects without deflecting blame.",
+    "People Management": "Assess mentoring style, how they give and receive feedback, delegate work, and handle underperformance or performance reviews.",
+    "Conflict Resolution": "Pose realistic team conflicts, disagreements with peers/stakeholders, or escalations, and assess how the candidate navigates them fairly.",
+    "Decision Making": "Assess how the candidate prioritises, makes trade-offs under ambiguity or incomplete data, and justifies decisions to others.",
+    Communication: "Assess clarity, structure, stakeholder communication, and the ability to explain complex or sensitive topics to different audiences.",
+    Behavioural: "Assess ownership, teamwork, conflict handling, and how the candidate receives and acts on feedback under pressure.",
+    "Culture Fit": "Assess alignment with collaborative, ownership-driven values and working style — not right/wrong answers, but fit signals.",
+    "Career Motivation": "Assess reasons for seeking a change, career goals, and realistic expectations around the role, team and growth path.",
   };
 
-  const prompt = `You are helping an interviewer prepare ${count} "${category}" interview questions for ${role}. Tech stack: ${tech}.
+  const prompt = isPeopleCategory
+    ? `You are helping a hiring manager prepare ${count} "${category}" interview questions for the ${role} role.
+${guidance[category]}
+${ctx.roleRequirements?.trim() ? `\nRole context:\n${ctx.roleRequirements.slice(0, MAX_ROLE)}` : ""}
+
+Do NOT ask about technology, programming languages, or coding. Focus entirely on the person's behaviour, mindset, and leadership qualities.
+
+Return ONLY a valid JSON array of exactly ${count} objects, each with keys:
+- "question" (string): a clear, open-ended behavioural or situational question.
+- "difficulty" (string): one of "Easy", "Medium", "Hard".
+- "code" (string): leave as an empty string "".
+- "expected_answer_hints" (string): concise notes on what a strong answer looks like (use STAR indicators where relevant).`
+    : `You are helping an interviewer prepare ${count} "${category}" interview questions for ${role}. Tech stack: ${tech}.
 ${guidance[category]}
 ${ctx.roleRequirements?.trim() ? `\nRole requirements:\n${ctx.roleRequirements.slice(0, MAX_ROLE)}` : ""}
 
@@ -783,8 +853,9 @@ Return ONLY a valid JSON array of exactly ${count} objects, each with keys:
     messages: [
       {
         role: "system",
-        content:
-          'You generate practical, role-relevant interview questions and return strict JSON. When code is requested, produce compilable-looking, realistic snippets. Respond with a JSON object shaped as {"questions": [...]}.',
+        content: isPeopleCategory
+          ? 'You are an expert in behavioural and leadership interviewing. Generate practical, people-focused interview questions and return strict JSON. Never include code snippets or ask about specific technologies. Respond with a JSON object shaped as {"questions": [...]}. '
+          : 'You generate practical, role-relevant interview questions and return strict JSON. When code is requested, produce compilable-looking, realistic snippets. Respond with a JSON object shaped as {"questions": [...]}.',
       },
       { role: "user", content: prompt },
     ],

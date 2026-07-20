@@ -66,6 +66,7 @@ function matchesFilter(status: string, filter: FilterKey) {
 export function ArchiveClient({
   candidates,
   currentUserId,
+  userRole,
 }: {
   candidates: ArchivedCandidateRow[];
   currentUserId: string;
@@ -130,7 +131,9 @@ export function ArchiveClient({
             Completed evaluations will appear here once candidates are finalised.
           </p>
         </div>
-        <ButtonLink href="/candidates">View active candidates →</ButtonLink>
+        <ButtonLink href={userRole === "interviewer" || userRole === "manager" || userRole === "hr" ? "/people" : "/candidates"}>
+          {userRole === "interviewer" || userRole === "manager" || userRole === "hr" ? "Go to dashboard →" : "View active candidates →"}
+        </ButtonLink>
       </div>
     );
   }

@@ -85,6 +85,7 @@ export default async function PeoplePage() {
         counts={counts}
         history={historyRows}
         today={today}
+        userRole={session.user.role}
       />
     );
   }
