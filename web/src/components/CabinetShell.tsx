@@ -9,6 +9,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import type { MemberRole } from "@/lib/auth/config";
 import { getRoleDisplayName } from "@/lib/auth/validation";
 import { cn } from "@/lib/utils";
+import { DemoGuideShell } from "@/components/presentation/DemoGuideBar";
 import {
   DashboardIcon,
   ProjectsIcon,
@@ -378,7 +379,7 @@ export function CabinetShell({
             </Link>
             <LogoutButton className="!w-auto shrink-0 rounded-full px-3 py-1.5 text-[11px]" />
           </div>
-          {children}
+          <DemoGuideShell>{children}</DemoGuideShell>
         </div>
       </div>
 

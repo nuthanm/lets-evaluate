@@ -1,0 +1,409 @@
+/* ── Approval presentation deck ── */
+
+.pres-root {
+  --pres-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  min-height: 100dvh;
+  background: var(--cream);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.pres-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--cream-2);
+  z-index: 50;
+}
+
+.pres-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  transition: width 0.55s var(--pres-ease);
+}
+
+.pres-shell {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-rows: auto 1fr auto;
+}
+
+.pres-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--cream-2);
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.pres-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.5rem 5rem;
+  overflow: hidden;
+}
+
+.pres-slide {
+  width: min(920px, 100%);
+  animation: pres-slide-in 0.65s var(--pres-ease) both;
+}
+
+.pres-slide-out {
+  animation: pres-slide-out 0.4s var(--pres-ease) both;
+}
+
+@keyframes pres-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pres-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+.pres-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.pres-kicker::before {
+  content: "";
+  width: 2rem;
+  height: 2px;
+  background: var(--cyan);
+}
+
+.pres-title {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.pres-subtitle {
+  margin-top: 1rem;
+  max-width: 36rem;
+  font-size: clamp(1rem, 2vw, 1.125rem);
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.pres-stagger > * {
+  animation: pres-fade-up 0.55s var(--pres-ease) both;
+}
+
+.pres-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.pres-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.pres-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.pres-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.pres-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.pres-stagger > *:nth-child(6) { animation-delay: 0.4s; }
+
+@keyframes pres-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pres-card {
+  border: 1px solid var(--cream-2);
+  border-radius: 1rem;
+  background: var(--white);
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 1px 0 rgba(41, 41, 41, 0.04);
+}
+
+.pres-grid-2 {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 640px) {
+  .pres-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pres-metric-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cream-2);
+  overflow: hidden;
+}
+
+.pres-metric-fill {
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left;
+  animation: pres-bar-grow 1s var(--pres-ease) both;
+}
+
+@keyframes pres-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.pres-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pres-pill-win {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+}
+
+.pres-pill-gap {
+  background: var(--orange-soft);
+  color: var(--orange);
+  border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
+}
+
+.pres-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.5rem;
+  border-top: 1px solid var(--cream-2);
+  background: color-mix(in srgb, var(--white) 94%, transparent);
+  backdrop-filter: blur(8px);
+  z-index: 40;
+}
+
+.pres-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  cursor: pointer;
+}
+
+.pres-nav-btn:hover:not(:disabled) {
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+}
+
+.pres-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pres-demo-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .pres-demo-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .pres-demo-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.pres-demo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+
+.pres-demo-card:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 8px 24px rgba(35, 176, 230, 0.12);
+  transform: translateY(-2px);
+}
+
+.pres-demo-card-num {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--cyan-d);
+}
+
+.pres-launch {
+  animation: pres-pulse-ring 2.4s ease-in-out infinite;
+}
+
+@keyframes pres-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(35, 176, 230, 0.25); }
+  50% { box-shadow: 0 0 0 10px rgba(35, 176, 230, 0); }
+}
+
+/* ── Live demo guide bar (in-app) ── */
+
+.demo-guide-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  border-top: 1px solid var(--cream-2);
+  background: color-mix(in srgb, var(--navy) 96%, transparent);
+  color: var(--white);
+  backdrop-filter: blur(10px);
+  animation: demo-bar-in 0.45s var(--pres-ease) both;
+}
+
+.demo-guide-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.75rem 1.25rem;
+}
+
+.demo-guide-step {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.demo-guide-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.demo-guide-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 28rem;
+}
+
+.demo-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.demo-guide-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
+  transition: background 0.15s, border-color 0.15s;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.demo-guide-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--cyan);
+  color: var(--white);
+  text-decoration: none;
+}
+
+.demo-guide-btn-primary {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--navy);
+}
+
+.demo-guide-btn-primary:hover {
+  background: var(--cyan-d);
+  border-color: var(--cyan-d);
+  color: var(--white);
+}
+
+.demo-guide-shell-pad {
+  padding-bottom: 5.5rem;
+}
+
+@media (min-width: 768px) {
+  .demo-guide-shell-pad {
+    padding-bottom: 4.5rem;
+  }
+}
+
+@keyframes demo-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pres-slide,
+  .pres-slide-out,
+  .pres-stagger > *,
+  .pres-metric-fill,
+  .pres-launch,
+  .demo-guide-bar {
+    animation: none !important;
+  }
+}
