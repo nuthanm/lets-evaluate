@@ -1058,6 +1058,7 @@ export async function getAuditLog(
   organizationId: string,
   limit = 100,
   offset = 0,
+  actorId?: string | null,
 ) {
   return db
     .select({
@@ -1074,7 +1075,12 @@ export async function getAuditLog(
         eq(evaluationEvents.entityId, candidates.id),
       ),
     )
-    .where(eq(evaluationEvents.organizationId, organizationId))
+    .where(
+      and(
+        eq(evaluationEvents.organizationId, organizationId),
+        actorId ? eq(evaluationEvents.actorId, actorId) : undefined,
+      ),
+    )
     .orderBy(desc(evaluationEvents.createdAt))
     .limit(limit)
     .offset(offset);

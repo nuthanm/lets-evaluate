@@ -29,7 +29,20 @@ const FILTERS: TableFilter[] = [
   { key: "date", placeholder: "Filter by date", type: "date" },
 ];
 
-export function AuditLogClient({ rows }: { rows: AuditRow[] }) {
+export function AuditLogClient({
+  rows,
+  showUserColumn = true,
+}: {
+  rows: AuditRow[];
+  showUserColumn?: boolean;
+}) {
+  const columns = showUserColumn
+    ? COLUMNS
+    : COLUMNS.filter((c) => c.key !== "user");
+  const filters = showUserColumn
+    ? FILTERS
+    : FILTERS.filter((f) => f.key !== "user");
+
   const tableRows: TableRow[] = rows.map((row) => {
     const actorLabel = row.actorName ?? "System";
     const actionLabel = formatAuditAction(row.action, row.payload);
@@ -37,22 +50,42 @@ export function AuditLogClient({ rows }: { rows: AuditRow[] }) {
     const dateLabel = new Date(row.createdAt).toLocaleString("en-GB");
     const isoDate = row.createdAt.slice(0, 10);
 
+    const cells = [
+      ...(showUserColumn
+        ? [
+            <span key="u" className="font-semibold text-[var(--ink)]">
+              {actorLabel}
+            </span>,
+          ]
+        : []),
+      <span key="a" className="text-[var(--ink-soft)]">
+        {actionLabel}
+      </span>,
+      <span
+        key="e"
+        className="text-[var(--ink-faint)]"
+        title={`${row.entityType} · ${row.entityId}`}
+      >
+        {entityLabel}
+      </span>,
+      <span key="d" className="text-[var(--ink-faint)]">
+        {dateLabel}
+      </span>,
+    ];
+
     return {
       id: row.id,
-      cells: [
-        <span key="u" className="font-semibold text-[var(--ink)]">{actorLabel}</span>,
-        <span key="a" className="text-[var(--ink-soft)]">{actionLabel}</span>,
-        <span key="e" className="text-[var(--ink-faint)]" title={`${row.entityType} · ${row.entityId}`}>{entityLabel}</span>,
-        <span key="d" className="text-[var(--ink-faint)]">{dateLabel}</span>,
-      ],
-      searchValues: [actorLabel, actionLabel, entityLabel, isoDate],
+      cells,
+      searchValues: showUserColumn
+        ? [actorLabel, actionLabel, entityLabel, isoDate]
+        : [actionLabel, entityLabel, isoDate],
     };
   });
 
   return (
     <FilterTable
-      columns={COLUMNS}
-      filters={FILTERS}
+      columns={columns}
+      filters={filters}
       rows={tableRows}
       emptyMessage="No events yet."
     />

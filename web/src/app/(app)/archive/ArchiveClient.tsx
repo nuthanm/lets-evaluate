@@ -1,101 +1,41 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { FaceAvatar } from "@/components/FaceAvatar";
+import { Pill } from "@/components/Pill";
+import { ButtonLink } from "@/components/Button";
+import { StatBlock, CasePanel } from "@/components/CabinetPage";
 import type { ArchivedCandidateRow } from "@/lib/db/queries";
 import type { MemberRole } from "@/lib/auth/config";
 
-// ─── Status / display helpers ────────────────────────────────────────────────
+const ACTIVE_STATUSES = [
+  "ready_for_interview",
+  "assigned",
+  "interview_in_progress",
+  "interview_complete",
+];
 
-const FINAL_STATUS: Record<string, {
+function statusMeta(status: string): {
   label: string;
-  pillClass: string;
-  spineClass: string;
-}> = {
-  selected: {
-    label: "Selected",
-    pillClass: "border-[var(--green)]/25 bg-[var(--green-soft)] text-[var(--green)]",
-    spineClass: "bg-[var(--green)]",
-  },
-  rejected: {
-    label: "Rejected",
-    pillClass: "border-red-200 bg-red-50 text-red-600",
-    spineClass: "bg-red-500",
-  },
-  screened_rejected: {
-    label: "Screened out",
-    pillClass: "border-red-200 bg-red-50 text-red-600",
-    spineClass: "bg-red-400",
-  },
-  hold: {
-    label: "On hold",
-    pillClass: "border-[var(--orange)]/25 bg-[var(--orange-soft)] text-[var(--orange)]",
-    spineClass: "bg-[var(--orange)]",
-  },
-  interview_complete: {
-    label: "Rounds complete",
-    pillClass: "border-[var(--cyan)]/25 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-    spineClass: "bg-[var(--cyan)]",
-  },
-  ready_for_interview: {
-    label: "Next round pending",
-    pillClass: "border-[var(--cyan)]/25 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-    spineClass: "bg-[var(--cyan)]",
-  },
-  assigned: {
-    label: "Round assigned",
-    pillClass: "border-[var(--cyan)]/25 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-    spineClass: "bg-[var(--cyan)]",
-  },
-  interview_in_progress: {
-    label: "In progress",
-    pillClass: "border-[var(--cyan)]/25 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-    spineClass: "bg-[var(--cyan)]",
-  },
-};
-
-const STAGE_KIND_ICON: Record<string, string> = {
-  screening: "📋",
-  technical: "💻",
-  manager: "👔",
-  hr: "🤝",
-  final: "🏁",
-  custom: "📌",
-};
-
-const STAGE_STATUS_META: Record<string, {
-  icon: string;
-  iconClass: string;
-}> = {
-  passed: {
-    icon: "✓",
-    iconClass: "border-[var(--green)]/25 bg-[var(--green-soft)] text-[var(--green)]",
-  },
-  failed: {
-    icon: "✗",
-    iconClass: "border-red-200 bg-red-50 text-red-500",
-  },
-  active: {
-    icon: "●",
-    iconClass: "border-[var(--cyan)]/25 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-  },
-  pending: {
-    icon: "○",
-    iconClass: "border-[var(--cream-2)] bg-[var(--cream)] text-[var(--ink-faint)]",
-  },
-  skipped: {
-    icon: "—",
-    iconClass: "border-[var(--cream-2)] bg-[var(--cream)] text-[var(--ink-faint)]",
-  },
-};
-
-const STAGE_STATUS_BADGE: Record<string, string> = {
-  passed: "border-[var(--green)]/20 bg-[var(--green-soft)] text-[var(--green)]",
-  failed: "border-red-200 bg-red-50 text-red-500",
-  active: "border-[var(--cyan)]/20 bg-[var(--cyan-soft)] text-[var(--cyan-d)]",
-  skipped: "border-[var(--cream-2)] bg-[var(--cream)] text-[var(--ink-faint)]",
-  pending: "border-[var(--cream-2)] bg-[var(--cream)] text-[var(--ink-faint)]",
-};
+  variant: "green" | "orange" | "cyan" | "neutral" | "red";
+} {
+  if (status === "selected") return { label: "Selected", variant: "green" };
+  if (status === "rejected") return { label: "Rejected", variant: "orange" };
+  if (status === "screened_rejected")
+    return { label: "Screened out", variant: "red" };
+  if (status === "hold") return { label: "On hold", variant: "neutral" };
+  if (status === "interview_complete")
+    return { label: "Rounds complete", variant: "cyan" };
+  if (status === "ready_for_interview")
+    return { label: "Next round pending", variant: "cyan" };
+  if (status === "assigned")
+    return { label: "Round assigned", variant: "cyan" };
+  if (status === "interview_in_progress")
+    return { label: "In progress", variant: "cyan" };
+  return { label: status.replace(/_/g, " "), variant: "neutral" };
+}
 
 const STAGE_STATUS_LABEL: Record<string, string> = {
   passed: "Passed",
@@ -111,15 +51,17 @@ const FILTER_OPTIONS = [
   { key: "rejected", label: "Rejected" },
   { key: "screened_rejected", label: "Screened out" },
   { key: "hold", label: "On hold" },
-  { key: "interview_complete", label: "Rounds complete" },
-  { key: "ready_for_interview", label: "Next round pending" },
-  { key: "assigned", label: "Round assigned" },
-  { key: "interview_in_progress", label: "In progress" },
+  { key: "active", label: "In progress" },
 ] as const;
 
 type FilterKey = (typeof FILTER_OPTIONS)[number]["key"];
 
-// ─── Main component ───────────────────────────────────────────────────────────
+function matchesFilter(status: string, filter: FilterKey) {
+  if (filter === "all") return true;
+  if (filter === "active") return ACTIVE_STATUSES.includes(status);
+  if (filter === "rejected") return status === "rejected";
+  return status === filter;
+}
 
 export function ArchiveClient({
   candidates,
@@ -132,19 +74,22 @@ export function ArchiveClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState<"all" | "month" | "quarter">("all");
+  const [dateRange, setDateRange] = useState<"all" | "month" | "quarter">(
+    "all",
+  );
 
-  const stats = useMemo(() => ({
-    total: candidates.length,
-    selected: candidates.filter((c) => c.status === "selected").length,
-    rejected: candidates.filter(
-      (c) => c.status === "rejected" || c.status === "screened_rejected",
-    ).length,
-    hold: candidates.filter((c) => c.status === "hold").length,
-    inProgress: candidates.filter((c) =>
-      ["ready_for_interview", "assigned", "interview_in_progress", "interview_complete"].includes(c.status)
-    ).length,
-  }), [candidates]);
+  const stats = useMemo(
+    () => ({
+      total: candidates.length,
+      selected: candidates.filter((c) => c.status === "selected").length,
+      rejected: candidates.filter(
+        (c) => c.status === "rejected" || c.status === "screened_rejected",
+      ).length,
+      inProgress: candidates.filter((c) => ACTIVE_STATUSES.includes(c.status))
+        .length,
+    }),
+    [candidates],
+  );
 
   const filtered = useMemo(() => {
     const now = Date.now();
@@ -152,18 +97,20 @@ export function ArchiveClient({
     const quarterAgo = now - 91 * 24 * 60 * 60 * 1000;
     const needle = search.toLowerCase();
     return candidates.filter((c) => {
-      if (filter !== "all" && c.status !== filter) return false;
+      if (!matchesFilter(c.status, filter)) return false;
       if (search) {
         const inName = c.name.toLowerCase().includes(needle);
         const inRole = (c.roleName ?? "").toLowerCase().includes(needle);
         const inProject = (c.projectName ?? "").toLowerCase().includes(needle);
-        const inStage = c.stages.some((s) => s.label.toLowerCase().includes(needle));
+        const inStage = c.stages.some((s) =>
+          s.label.toLowerCase().includes(needle),
+        );
         if (!inName && !inRole && !inProject && !inStage) return false;
       }
       if (dateRange !== "all") {
         const cutoff = dateRange === "month" ? monthAgo : quarterAgo;
         const latestDecided = c.stages
-          .map((s) => s.decidedAt ? new Date(s.decidedAt).getTime() : 0)
+          .map((s) => (s.decidedAt ? new Date(s.decidedAt).getTime() : 0))
           .reduce((a, b) => Math.max(a, b), 0);
         if (latestDecided < cutoff) return false;
       }
@@ -171,48 +118,44 @@ export function ArchiveClient({
     });
   }, [candidates, filter, search, dateRange]);
 
-  // ── Empty state ──────────────────────────────────────────────────────────
   if (candidates.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-[var(--cream-2)] bg-white py-16 text-center">
-        <div className="grid size-16 place-items-center rounded-full bg-[var(--cream)] text-3xl">▤</div>
+        <div className="grid size-16 place-items-center rounded-full bg-[var(--cream)] text-3xl">
+          ▤
+        </div>
         <div>
           <h3 className="font-serif text-xl font-bold">No archived cases yet</h3>
           <p className="mt-1 text-sm text-[var(--ink-faint)]">
             Completed evaluations will appear here once candidates are finalised.
           </p>
         </div>
-        <a
-          href="/candidates"
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--cyan-d)]"
-        >
-          View active candidates →
-        </a>
+        <ButtonLink href="/candidates">View active candidates →</ButtonLink>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* ── Stats bar ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        {[
-          { label: "Total", count: stats.total, cls: "text-[var(--ink)]" },
-          { label: "Selected", count: stats.selected, cls: "text-[var(--green)]" },
-          { label: "Rejected", count: stats.rejected, cls: "text-red-500" },
-          { label: "On Hold", count: stats.hold, cls: "text-[var(--orange)]" },
-          { label: "In Progress", count: stats.inProgress, cls: "text-[var(--cyan-d)]" },
-        ].map((s) => (
-          <div key={s.label} className="case-card flex items-center gap-3 px-4 py-2.5">
-            <span className={cn("font-serif text-2xl font-bold", s.cls)}>{s.count}</span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ink-faint)]">
-              {s.label}
-            </span>
-          </div>
-        ))}
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatBlock label="Total cases" value={stats.total} variant="default" />
+        <StatBlock
+          label="Selected"
+          value={stats.selected}
+          variant="green"
+        />
+        <StatBlock
+          label="Rejected"
+          value={stats.rejected}
+          variant="orange"
+        />
+        <StatBlock
+          label="In progress"
+          value={stats.inProgress}
+          variant="cyan"
+        />
       </div>
 
-      {/* ── Search + filter tabs ───────────────────────────────────────────── */}
       <div className="space-y-2">
         <input
           type="search"
@@ -221,10 +164,14 @@ export function ArchiveClient({
           onChange={(e) => setSearch(e.target.value)}
           className="case-input w-full px-4 py-2.5 text-sm"
         />
-        {/* Date range tabs */}
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {(["all", "month", "quarter"] as const).map((r) => {
-            const label = r === "all" ? "All time" : r === "month" ? "Last 30 days" : "Last quarter";
+            const label =
+              r === "all"
+                ? "All time"
+                : r === "month"
+                  ? "Last 30 days"
+                  : "Last quarter";
             return (
               <button
                 key={r}
@@ -247,7 +194,8 @@ export function ArchiveClient({
             const count =
               opt.key === "all"
                 ? candidates.length
-                : candidates.filter((c) => c.status === opt.key).length;
+                : candidates.filter((c) => matchesFilter(c.status, opt.key))
+                    .length;
             if (opt.key !== "all" && count === 0) return null;
             return (
               <button
@@ -268,102 +216,80 @@ export function ArchiveClient({
         </div>
       </div>
 
-      {/* ── Candidate list ────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--cream-2)] bg-white px-4 py-8 text-center">
-          <p className="text-sm text-[var(--ink-faint)]">No candidates match your filters.</p>
+          <p className="text-sm text-[var(--ink-faint)]">
+            No candidates match your filters.
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => {
-            const meta = FINAL_STATUS[c.status] ?? FINAL_STATUS.interview_complete;
+        <CasePanel title={`Case files (${filtered.length})`}>
+          {filtered.map((c, idx) => {
+            const meta = statusMeta(c.status);
             const isOpen = expandedId === c.id;
-            const myStages = c.stages.filter((s) => s.decidedById === currentUserId);
+            const myStages = c.stages.filter(
+              (s) => s.decidedById === currentUserId,
+            );
             const nonScreeningStages = c.stages.filter(
               (s) => s.kind !== "screening",
             );
             const completedCount = c.stages.filter(
               (s) => s.status === "passed" || s.status === "failed",
             ).length;
+            const context = [c.roleName, c.projectName]
+              .filter(Boolean)
+              .join(" · ");
 
             return (
               <div
                 key={c.id}
                 className={cn(
-                  "case-card overflow-hidden transition-shadow",
-                  isOpen && "shadow-md",
+                  idx < filtered.length - 1 && "border-b border-[var(--cream-2)]",
                 )}
               >
-                {/* Coloured spine */}
-                <div className={cn("h-1", meta.spineClass)} />
-
-                {/* Card header row */}
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(isOpen ? null : c.id)}
-                  className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-[var(--cream)]"
-                >
-                  {/* Avatar */}
-                  <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--cream-2)] bg-[var(--ink)] font-serif text-sm font-extrabold text-white">
-                    {c.name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </div>
-
-                  {/* Name + meta */}
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="font-serif text-base font-bold text-[var(--ink)]">
-                        {c.name}
-                      </span>
+                <div className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--cream)]">
+                  <FaceAvatar name={c.name} size="md" />
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isOpen ? null : c.id)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="text-[var(--ink)]">{c.name}</strong>
                       {myStages.length > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cyan)]/25 bg-[var(--cyan-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--cyan-d)]">
-                          ★ Interviewed by you
-                        </span>
+                        <Pill variant="cyan" className="px-2 py-0.5 text-[9px]">
+                          ★ You interviewed
+                        </Pill>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-[var(--ink-faint)]">
-                      {c.roleName && (
-                        <span className="font-semibold text-[var(--ink-soft)]">
-                          {c.roleName}
-                        </span>
-                      )}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-[var(--ink-faint)]">
+                      {context && <span>{context}</span>}
                       {c.roleLevel && (
                         <>
-                          <span>·</span>
+                          {context && <span>·</span>}
                           <span>{c.roleLevel}</span>
-                        </>
-                      )}
-                      {c.projectName && (
-                        <>
-                          <span>·</span>
-                          <span>{c.projectName}</span>
                         </>
                       )}
                       {c.techScore != null && (
                         <>
                           <span>·</span>
-                          <span className="font-bold text-[var(--cyan-d)]">
+                          <span className="font-semibold text-[var(--cyan-d)]">
                             AI {c.techScore}%
                           </span>
                         </>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Status + date + expand indicator */}
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold",
-                        meta.pillClass,
+                      {nonScreeningStages.length > 0 && (
+                        <>
+                          <span>·</span>
+                          <span>
+                            {completedCount}/{nonScreeningStages.length} rounds
+                          </span>
+                        </>
                       )}
-                    >
-                      {meta.label}
-                    </span>
+                    </div>
+                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Pill variant={meta.variant}>{meta.label}</Pill>
                     <span className="text-[11px] text-[var(--ink-faint)]">
                       {new Date(c.updatedAt).toLocaleDateString("en-GB", {
                         day: "numeric",
@@ -371,113 +297,86 @@ export function ArchiveClient({
                         year: "numeric",
                       })}
                     </span>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      {nonScreeningStages.length > 0 && (
-                        <span className="text-[10px] text-[var(--ink-faint)]">
-                          {completedCount}/{nonScreeningStages.length} rounds
-                        </span>
-                      )}
-                      <svg
-                        className={cn(
-                          "size-4 text-[var(--ink-faint)] transition-transform",
-                          isOpen && "rotate-180",
-                        )}
-                        fill="none"
-                        viewBox="0 0 16 16"
-                      >
-                        <path
-                          d="M4 6l4 4 4-4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
                   </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isOpen ? null : c.id)}
+                    className="grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--cream-2)] text-[var(--ink-faint)] transition-colors hover:border-[var(--cyan)] hover:text-[var(--cyan-d)]"
+                    aria-label={isOpen ? "Collapse" : "Expand"}
+                  >
+                    <svg
+                      className={cn(
+                        "size-4 transition-transform",
+                        isOpen && "rotate-180",
+                      )}
+                      fill="none"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M4 6l4 4 4-4"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
 
-                {/* ── Expanded: stage pipeline ─────────────────────────────── */}
                 {isOpen && (
-                  <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] p-4">
-                    <p className="case-label mb-4">Interview pipeline</p>
-
-                    <div className="space-y-0">
-                      {c.stages.map((s, si) => {
-                        const stageMeta =
-                          STAGE_STATUS_META[s.status] ?? STAGE_STATUS_META.pending;
-                        const badgeClass =
-                          STAGE_STATUS_BADGE[s.status] ?? STAGE_STATUS_BADGE.pending;
+                  <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] px-4 py-4">
+                    <p className="case-label mb-3">Interview pipeline</p>
+                    <div className="space-y-2">
+                      {c.stages.map((s) => {
+                        const isMe = s.decidedById === currentUserId;
+                        const isSkipped = s.status === "skipped";
                         const statusLabel =
                           STAGE_STATUS_LABEL[s.status] ?? s.status;
-                        const isMe = s.decidedById === currentUserId;
-                        const isLast = si === c.stages.length - 1;
-                        const kindIcon = STAGE_KIND_ICON[s.kind] ?? "📌";
-                        const hasReport = Boolean(s.reportKey);
-                        const isSkipped = s.status === "skipped";
+                        const stageVariant =
+                          s.status === "passed"
+                            ? "green"
+                            : s.status === "failed"
+                              ? "orange"
+                              : s.status === "active"
+                                ? "cyan"
+                                : "neutral";
 
                         return (
-                          <div key={s.id} className="flex gap-3">
-                            {/* Timeline track */}
-                            <div className="flex flex-col items-center">
-                              <div
-                                className={cn(
-                                  "flex size-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold",
-                                  stageMeta.iconClass,
-                                  isSkipped && "opacity-50",
-                                )}
-                              >
-                                {stageMeta.icon}
-                              </div>
-                              {!isLast && (
-                                <div
-                                  className="my-1 w-px flex-1 bg-[var(--cream-2)]"
-                                  style={{ minHeight: "14px" }}
-                                />
-                              )}
-                            </div>
-
-                            {/* Stage content */}
-                            <div
-                              className={cn(
-                                "flex-1 pb-4",
-                                isLast && "pb-0",
-                                isSkipped && "opacity-50",
-                              )}
-                            >
-                              {/* Stage name row */}
-                              <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <div
+                            key={s.id}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg border border-[var(--cream-2)] bg-white px-3 py-2.5",
+                              isSkipped && "opacity-60",
+                            )}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span
                                   className={cn(
-                                    "text-sm font-bold text-[var(--ink)]",
+                                    "text-sm font-semibold text-[var(--ink)]",
                                     isSkipped && "line-through",
                                   )}
                                 >
-                                  {kindIcon} {s.label}
+                                  {s.label}
                                 </span>
-
-                                {/* Status badge */}
                                 {s.status !== "pending" && (
-                                  <span
-                                    className={cn(
-                                      "rounded-full border px-2 py-0.5 text-[9px] font-bold",
-                                      badgeClass,
-                                    )}
+                                  <Pill
+                                    variant={stageVariant}
+                                    className="px-2 py-0.5 text-[9px]"
                                   >
                                     {statusLabel}
-                                  </span>
+                                  </Pill>
                                 )}
-
-                                {/* "You" badge */}
                                 {isMe && (
-                                  <span className="rounded-full border border-[var(--cyan)]/30 bg-[var(--cyan-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--cyan-d)]">
-                                    ★ You
-                                  </span>
+                                  <Pill
+                                    variant="cyan"
+                                    className="px-2 py-0.5 text-[9px]"
+                                  >
+                                    You
+                                  </Pill>
                                 )}
                               </div>
-
-                              {/* Assignee + date + report */}
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--ink-faint)]">
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-[var(--ink-faint)]">
                                 {s.assigneeName && !isSkipped && (
                                   <span>
                                     {isMe
@@ -497,39 +396,36 @@ export function ArchiveClient({
                                     )}
                                   </span>
                                 )}
-                                {hasReport && (
-                                  <a
-                                    href={`/api/stages/${s.id}/report`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="inline-flex items-center gap-1 font-semibold text-[var(--cyan-d)] hover:underline"
-                                  >
-                                    📄 Report
-                                  </a>
-                                )}
                               </div>
                             </div>
+                            {s.reportKey && (
+                              <a
+                                href={`/api/stages/${s.id}/report`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white"
+                              >
+                                PDF
+                              </a>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-
-                    {/* Link to full case file */}
-                    <div className="mt-4 border-t border-[var(--cream-2)] pt-3">
-                      <a
+                    <div className="mt-3 border-t border-[var(--cream-2)] pt-3">
+                      <Link
                         href={`/evaluate/${c.id}`}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--cyan-d)] hover:underline"
+                        className="text-xs font-semibold text-[var(--cyan-d)] hover:underline"
                       >
                         View full case file →
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
-        </div>
+        </CasePanel>
       )}
     </div>
   );
