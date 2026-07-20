@@ -331,7 +331,7 @@ export function QuestionLibraryClient({
                 type="button"
                 onClick={addQuestion}
                 disabled={addBusy}
-                className="rounded-lg bg-[var(--ink)] px-5 py-2 text-xs font-bold text-white hover:bg-[var(--cyan-d)] transition-colors disabled:opacity-50"
+                className="rounded-lg bg-[var(--ink)] px-5 py-2 text-xs font-bold text-white hover:bg-[var(--navy)] transition-colors disabled:opacity-50"
               >
                 {addBusy ? "Saving…" : "Save to library"}
               </button>
@@ -354,15 +354,15 @@ export function QuestionLibraryClient({
             <button
               type="button"
               onClick={() => { setAddOpen(true); setAddError(null); }}
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--cyan-d)]"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--ink)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--navy)]"
             >
               + Add first question
             </button>
             <a
-              href="/candidates"
+              href={userRole === "interviewer" || userRole === "manager" || userRole === "hr" ? "/assignments" : "/candidates"}
               className="inline-flex items-center gap-2 rounded-xl border border-[var(--cream-2)] bg-white px-5 py-2.5 text-sm font-bold text-[var(--ink)] transition-all hover:border-[var(--ink)]"
             >
-              Go to candidates →
+              {userRole === "interviewer" || userRole === "manager" || userRole === "hr" ? "View my assignments →" : "Go to candidates →"}
             </a>
           </div>
         </div>

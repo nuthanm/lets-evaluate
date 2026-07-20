@@ -616,7 +616,10 @@ export function InterviewerDashboard({
       title={dashTitle}
       subtitle={today}
       actions={
-        <ButtonLink href="/assignments" className="px-5 py-2 text-[13px]">
+        <ButtonLink
+          href="/assignments"
+          className="px-5 py-2 text-[13px]"
+        >
           View all assignments →
         </ButtonLink>
       }
@@ -818,7 +821,7 @@ export function InterviewerDashboard({
                           isOpening
                             ? "border-[var(--cyan)] bg-[var(--cyan)] text-white shadow-[var(--cyan)]/20"
                             : isTopItem
-                              ? "border-[var(--cyan)] bg-[var(--cyan)] text-white hover:bg-[var(--cyan-d)] hover:border-[var(--cyan-d)]"
+                              ? "border-[var(--cyan)] bg-[var(--cyan)] text-white hover:bg-[var(--navy)] hover:border-[var(--navy)]"
                               : urgency === "overdue"
                                 ? "border-[var(--orange)] bg-white text-[var(--orange)] hover:bg-[var(--orange)] hover:text-white"
                                 : "border-[var(--cyan)] bg-white text-[var(--cyan-d)] hover:bg-[var(--cyan)] hover:text-white",

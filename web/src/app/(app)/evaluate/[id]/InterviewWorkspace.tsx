@@ -19,8 +19,8 @@ const TECHNICAL_CATEGORIES: { id: string; label: string; hint: string; code: boo
   { id: "Frontend",           label: "Frontend",              hint: "UI, state, rendering, a11y",           code: false, icon: "🖥️" },
   { id: "Architecture",       label: "Architecture",          hint: "System design & trade-offs",           code: false, icon: "🏗️" },
   { id: "Scenario based",     label: "Scenario based",        hint: "Real-world judgement & problem solving", code: false, icon: "💡" },
-  { id: "Code error spotting",label: "Find errors in code",   hint: "Snippets with bugs to identify",       code: true,  icon: "🐛" },
-  { id: "Refactoring",        label: "Refactoring techniques",hint: "Snippets to clean and improve",        code: true,  icon: "✏️" },
+  { id: "Code error spotting",label: "Find errors in code",   hint: "Snippets with bugs to identify",         code: true,  icon: "🐛" },
+  { id: "Refactoring",        label: "Refactoring techniques",hint: "Snippets to clean and improve",          code: true,  icon: "✏️" },
 ];
 
 const MANAGER_CATEGORIES: { id: string; label: string; hint: string; code: boolean; icon: string }[] = [
@@ -782,7 +782,7 @@ export function InterviewWorkspace({
                       <button
                         type="button"
                         onClick={addManual}
-                        className="rounded-lg bg-[var(--ink)] px-4 py-1.5 text-xs font-bold text-white hover:bg-[var(--cyan-d)] transition-colors"
+                        className="rounded-lg bg-[var(--ink)] px-4 py-1.5 text-xs font-bold text-white hover:bg-[var(--navy)] transition-colors"
                       >
                         Add question
                       </button>
@@ -925,7 +925,9 @@ export function InterviewWorkspace({
             <div className="flex items-center gap-3 border-b border-[var(--cream-2)] bg-[var(--navy)] px-5 py-4">
               <span className="grid size-9 place-items-center rounded-full bg-white/10 text-lg">📊</span>
               <div>
-                <h3 className="font-serif text-base font-bold text-white">Interview summary</h3>
+                <h3 className="font-serif text-base font-bold text-white">
+                  {isManagerRound ? "Manager round summary" : "Interview summary"}
+                </h3>
                 <p className="text-[11px] text-white/55">{candidateName} · {stageLabel}</p>
               </div>
             </div>
@@ -1328,7 +1330,7 @@ function QuestionCard({
                   type="button"
                   onClick={saveToLibrary}
                   disabled={saving}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--cyan-d)] hover:-translate-y-px disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-[var(--navy)] hover:-translate-y-px disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "💾 Save to library"}
                 </button>

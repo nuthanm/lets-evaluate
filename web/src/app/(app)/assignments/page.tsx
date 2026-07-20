@@ -3,7 +3,8 @@ import { getStageAssignmentsForUser } from "@/lib/db/queries";
 import Link from "next/link";
 import { Pill } from "@/components/Pill";
 import { FaceAvatar } from "@/components/FaceAvatar";
-import { CabinetPage, CaseCard } from "@/components/CabinetPage";
+import { CabinetPage } from "@/components/CabinetPage";
+import { cn } from "@/lib/utils";
 import { AssignmentCards } from "./AssignmentCards";
 
 function urgencyFor(dueAt: string | null): "overdue" | "soon" | "none" {
@@ -65,7 +66,7 @@ export default async function AssignmentsPage() {
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--orange)] bg-[var(--orange-soft)] px-5 py-4">
           <div>
             <p className="font-bold text-[var(--orange)]">
-              {overdue.length} overdue interview{overdue.length !== 1 ? "s" : ""}
+              {overdue.length} overdue {isManager ? "manager round" : isHr ? "HR round" : "interview"}{overdue.length !== 1 ? "s" : ""}
             </p>
             <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
               Please complete these evaluations as soon as possible.
@@ -117,9 +118,10 @@ export default async function AssignmentsPage() {
           <h2 className="mb-3 mt-7 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
             Completed ({done.length})
           </h2>
-          <ul className="space-y-2">
-            {done.map(({ stage, candidate, roleName, projectName }) => {
-              const context = [roleName, projectName].filter(Boolean).join(" - ");
+          <div className="case-card overflow-hidden">
+            <ul>
+              {done.map(({ stage, candidate, roleName, projectName }, idx) => {
+              const context = [roleName, projectName].filter(Boolean).join(" · ");
               const hasReport = Boolean(
                 (stage as { reportKey?: string | null; decision?: string | null }).reportKey ||
                 (stage as { reportKey?: string | null; decision?: string | null }).decision,
@@ -128,27 +130,45 @@ export default async function AssignmentsPage() {
               const decisionLabel = stage.decision === "yes" ? "Proceeded" : stage.decision === "no" ? "Not proceeded" : stage.status.replace(/_/g, " ");
               return (
                 <li key={stage.id}>
-                  <CaseCard className="flex items-center gap-4 p-4 opacity-80 transition-opacity hover:opacity-100">
+                  <div
+                    className={cn(
+                      "flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-[var(--cream)]",
+                      idx < done.length - 1 ? "border-b border-[var(--cream-2)]" : "",
+                    )}
+                  >
                     <FaceAvatar name={candidate.name} size="md" />
                     <div className="min-w-0 flex-1">
                       <strong className="text-[var(--ink)]">{candidate.name}</strong>
-                      <p className="mt-0.5 text-xs text-[var(--ink-faint)]">{stage.label}{context ? ` - ${context}` : ""}</p>
+                      <p className="mt-0.5 text-xs text-[var(--ink-faint)]">
+                        {stage.label}{context ? ` · ${context}` : ""}
+                      </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Pill variant={decisionVariant}>{decisionLabel}</Pill>
                       {hasReport ? (
-                        <a href={`/api/stages/${stage.id}/report`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white">
-                          PDF Report
+                        <a
+                          href={`/api/stages/${stage.id}/report`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:bg-[var(--cyan)] hover:text-white"
+                        >
+                          PDF
                         </a>
                       ) : (
-                        <Link href={`/evaluate/${candidate.id}`} className="text-[11px] font-semibold text-[var(--ink-faint)] hover:text-[var(--cyan-d)]">Open</Link>
+                        <Link
+                          href={`/evaluate/${candidate.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--cream-2)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--ink-soft)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)]"
+                        >
+                          Open
+                        </Link>
                       )}
                     </div>
-                  </CaseCard>
+                  </div>
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </div>
         </>
       )}
     </CabinetPage>

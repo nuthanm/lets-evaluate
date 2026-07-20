@@ -564,7 +564,7 @@ export function EvaluateClient({
                       href={`/api/candidates/${candidateId}/resume`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--ink)] px-4 py-2 text-xs font-bold text-white transition-all hover:bg-[var(--cyan-d)]"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--ink)] px-4 py-2 text-xs font-bold text-white transition-all hover:bg-[var(--navy)]"
                     >
                       Download to view ↓
                     </a>

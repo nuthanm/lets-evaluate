@@ -17,7 +17,7 @@ export function Button({
       className={cn(
         "inline-flex items-center justify-center rounded-xl px-8 py-3.5 text-sm font-bold transition-all disabled:opacity-50",
         variant === "main" &&
-          "bg-[var(--ink)] text-white shadow-sm hover:bg-[var(--cyan-d)] hover:-translate-y-px",
+          "bg-[var(--ink)] text-white shadow-sm hover:bg-[var(--navy)] hover:-translate-y-px",
         variant === "ghost" &&
           "border border-[var(--cream-2)] bg-white text-[var(--ink)] hover:border-[var(--cyan)] hover:bg-[var(--cream)]",
         variant === "outline" &&
@@ -48,7 +48,7 @@ export function ButtonLink({
       className={cn(
         "inline-flex items-center justify-center rounded-xl px-8 py-3.5 text-sm font-bold transition-all",
         variant === "main" &&
-          "bg-[var(--ink)] text-white shadow-sm hover:bg-[var(--cyan-d)] hover:-translate-y-px",
+          "bg-[var(--ink)] text-white shadow-sm hover:bg-[var(--navy)] hover:-translate-y-px",
         variant === "ghost" &&
           "border border-[var(--cream-2)] bg-white text-[var(--ink)] hover:border-[var(--cyan)] hover:bg-[var(--cream)]",
         className,
