@@ -500,29 +500,30 @@ export async function getCandidateDetail(
     .limit(1);
   if (!candidate) return null;
 
-  const [screening] = await db
-    .select()
-    .from(screenings)
-    .where(eq(screenings.candidateId, candidateId))
-    .limit(1);
-
-  const [review] = await db
-    .select()
-    .from(interviewReviews)
-    .where(eq(interviewReviews.candidateId, candidateId))
-    .limit(1);
-
-  const assignments = await db
-    .select({
-      assignment: interviewAssignments,
-      assigneeName: users.name,
-      assigneeEmail: users.email,
-    })
-    .from(interviewAssignments)
-    .innerJoin(users, eq(interviewAssignments.assignedToId, users.id))
-    .where(eq(interviewAssignments.candidateId, candidateId));
-
-  const stages = await getCandidateStages(candidateId, organizationId);
+  // These four queries are independent of each other — run them in
+  // parallel instead of awaiting one round-trip at a time.
+  const [[screening], [review], assignments, stages] = await Promise.all([
+    db
+      .select()
+      .from(screenings)
+      .where(eq(screenings.candidateId, candidateId))
+      .limit(1),
+    db
+      .select()
+      .from(interviewReviews)
+      .where(eq(interviewReviews.candidateId, candidateId))
+      .limit(1),
+    db
+      .select({
+        assignment: interviewAssignments,
+        assigneeName: users.name,
+        assigneeEmail: users.email,
+      })
+      .from(interviewAssignments)
+      .innerJoin(users, eq(interviewAssignments.assignedToId, users.id))
+      .where(eq(interviewAssignments.candidateId, candidateId)),
+    getCandidateStages(candidateId, organizationId),
+  ]);
 
   return { candidate, screening, review, assignments, stages };
 }

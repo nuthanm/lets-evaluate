@@ -48,7 +48,10 @@ export function DocxPreview({ fileUrl, filename }: DocxPreviewProps) {
           className: "docx-preview-render",
           inWrapper: true,
           breakPages: true,
-          ignoreWidth: true,
+          // Keep the document's real table/column widths so wide tables
+          // overflow their page and trigger the horizontal scrollbar below
+          // instead of being silently squeezed to fit the container.
+          ignoreWidth: false,
           ignoreHeight: true,
           useBase64URL: true,
         });
@@ -122,7 +125,9 @@ export function DocxPreview({ fileUrl, filename }: DocxPreviewProps) {
 
         /* Each rendered page scrolls its own overflow horizontally so wide
            tables get a scrollbar right under them instead of blowing out
-           the whole preview's layout. */
+           the whole preview's layout. The page section itself is capped to
+           the container width, but its content (e.g. a table with its
+           original document widths) can be wider and will scroll. */
         .docx-preview-host .docx-preview-render {
           max-width: 100% !important;
           overflow-x: auto !important;
