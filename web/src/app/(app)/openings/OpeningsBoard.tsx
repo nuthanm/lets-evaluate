@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CaseCard } from "@/components/CabinetPage";
+import { BulkUploadCard } from "@/components/BulkUploadCard";
 import { Pill } from "@/components/Pill";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { cn } from "@/lib/utils";
 
 export type OpeningRole = {
@@ -61,9 +62,22 @@ export function OpeningsBoard({
   stats: Record<string, RoleStats>;
 }) {
   const router = useRouter();
+  const { tasks } = useNotifications();
   const [roles, setRoles] = useState<OpeningRole[]>(initialRoles);
   const [filter, setFilter] = useState<Filter>("open");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+
+  useEffect(() => {
+    setRoles(initialRoles);
+  }, [initialRoles]);
+
+  useEffect(() => {
+    const done = tasks.some(
+      (t) => t.entity === "openings" && t.status === "completed" && !t.read,
+    );
+    if (done) router.refresh();
+  }, [tasks, router]);
 
   async function toggleStatus(role: OpeningRole) {
     const next = role.status === "open" ? "closed" : "open";
@@ -89,16 +103,6 @@ export function OpeningsBoard({
     router.refresh();
   }
 
-  const rolesForProject = (projectId: string) =>
-    roles.filter(
-      (r) =>
-        r.projectId === projectId || (r.projectIds ?? []).includes(projectId),
-    );
-
-  const unassigned = roles.filter(
-    (r) => !r.projectId && (r.projectIds ?? []).length === 0,
-  );
-
   const matchesFilter = (role: OpeningRole) =>
     filter === "all" ? true : role.status === filter;
 
@@ -107,103 +111,91 @@ export function OpeningsBoard({
     return { all: roles.length, open, closed: roles.length - open };
   }, [roles]);
 
+  const filteredRoles = useMemo(
+    () => roles.filter((r) => (filter === "all" ? true : r.status === filter)),
+    [roles, filter],
+  );
+
+  const projectName = (role: OpeningRole) => {
+    const ids = role.projectIds?.length ? role.projectIds : role.projectId ? [role.projectId] : [];
+    return ids
+      .map((id) => projects.find((p) => p.id === id)?.name)
+      .filter(Boolean)
+      .join(" · ");
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {(["open", "closed", "all"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            aria-pressed={filter === f}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-xs font-bold capitalize transition-colors",
-              filter === f
-                ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
-                : "border-[var(--cream-2)] bg-white text-[var(--ink-faint)] hover:text-[var(--ink)]",
-            )}
-          >
-            {f} ({counts[f]})
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-        {projects.map((project) => {
-          const projectRoles = rolesForProject(project.id).filter(matchesFilter);
-          const openCount = rolesForProject(project.id).filter(
-            (r) => r.status === "open",
-          ).length;
-          return (
-            <CaseCard key={project.id} className="overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cream-2)] bg-[var(--cream)] px-5 py-4">
-                <div className="min-w-0">
-                  <h2 className="font-serif text-lg font-bold">{project.name}</h2>
-                  <p className="mt-0.5 text-xs text-[var(--ink-faint)]">
-                    {(project.techStack ?? []).join(" · ") ||
-                      "No tech stack configured"}
-                  </p>
-                </div>
-                <Pill variant={openCount ? "cyan" : "neutral"}>
-                  {openCount} open
-                </Pill>
-              </div>
-              {projectRoles.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-[var(--ink-faint)]">
-                  {filter === "all"
-                    ? "No roles linked to this project yet."
-                    : `No ${filter} roles for this project.`}
-                </p>
-              ) : (
-                <ul className="divide-y divide-[var(--cream-2)]">
-                  {projectRoles.map((role) => (
-                    <OpeningRow
-                      key={role.id}
-                      role={role}
-                      stats={stats[role.id] ?? emptyStats}
-                      busy={busyId === role.id}
-                      onToggle={() => toggleStatus(role)}
-                    />
-                  ))}
-                </ul>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {(["open", "closed", "all"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-xs font-bold capitalize transition-colors",
+                filter === f
+                  ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
+                  : "border-[var(--cream-2)] bg-white text-[var(--ink-faint)] hover:text-[var(--ink)]",
               )}
-            </CaseCard>
-          );
-        })}
-
-        {unassigned.filter(matchesFilter).length > 0 && (
-          <CaseCard className="overflow-hidden xl:col-span-2">
-            <div className="border-b border-[var(--cream-2)] bg-[var(--cream)] px-5 py-4">
-              <h2 className="font-serif text-lg font-bold">Unassigned roles</h2>
-              <p className="mt-0.5 text-xs text-[var(--ink-faint)]">
-                Roles not yet linked to a project
-              </p>
-            </div>
-            <ul className="divide-y divide-[var(--cream-2)]">
-              {unassigned.filter(matchesFilter).map((role) => (
-                <OpeningRow
-                  key={role.id}
-                  role={role}
-                  stats={stats[role.id] ?? emptyStats}
-                  busy={busyId === role.id}
-                  onToggle={() => toggleStatus(role)}
-                />
-              ))}
-            </ul>
-          </CaseCard>
-        )}
+            >
+              {f} ({counts[f]})
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowUpload((v) => !v)}
+          className="rounded-lg border border-[var(--cream-2)] bg-white px-3.5 py-1.5 text-xs font-bold text-[var(--ink-soft)] transition-colors hover:border-[var(--cyan)] hover:text-[var(--ink)]"
+        >
+          {showUpload ? "Hide bulk upload" : "Bulk upload openings"}
+        </button>
       </div>
+
+      {showUpload ? (
+        <BulkUploadCard
+          entity="openings"
+          title="Upload openings"
+          description="Create multiple open roles from a spreadsheet. Projects are matched by name."
+          onComplete={() => router.refresh()}
+        />
+      ) : null}
+
+      {filteredRoles.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-[var(--cream-2)] bg-white/50 px-6 py-12 text-center text-sm text-[var(--ink-faint)]">
+          {filter === "all" ? "No openings yet." : `No ${filter} openings.`}
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
+          <ul className="divide-y divide-[var(--cream-2)]">
+            {filteredRoles.map((role) => (
+              <OpeningRow
+                key={role.id}
+                role={role}
+                projectLabel={projectName(role)}
+                stats={stats[role.id] ?? emptyStats}
+                busy={busyId === role.id}
+                onToggle={() => toggleStatus(role)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
 function OpeningRow({
   role,
+  projectLabel,
   stats,
   busy,
   onToggle,
 }: {
   role: OpeningRole;
+  projectLabel: string;
   stats: RoleStats;
   busy: boolean;
   onToggle: () => void;
@@ -228,7 +220,8 @@ function OpeningRow({
             </Pill>
           </div>
           <p className="mt-1 line-clamp-1 text-xs text-[var(--ink-faint)]">
-            {role.requirements || "No requirements captured"}
+            {projectLabel || "No project linked"}
+            {role.requirements ? ` · ${role.requirements}` : ""}
           </p>
         </div>
         <button

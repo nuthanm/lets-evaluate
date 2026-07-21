@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
+import { BulkUploadCard, SetupCreateRow } from "@/components/BulkUploadCard";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel } from "@/components/FormField";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { cn } from "@/lib/utils";
 
 type OfficeLocation = {
   id: string;
@@ -11,6 +14,7 @@ type OfficeLocation = {
 };
 
 export function LocationsClient({ initialLocations }: { initialLocations: OfficeLocation[] }) {
+  const { tasks } = useNotifications();
   const [locations, setLocations] = useState<OfficeLocation[]>(initialLocations);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,6 +28,13 @@ export function LocationsClient({ initialLocations }: { initialLocations: Office
     const rows = (await res.json()) as OfficeLocation[];
     setLocations(rows);
   }
+
+  useEffect(() => {
+    const done = tasks.some(
+      (t) => t.entity === "locations" && t.status === "completed" && !t.read,
+    );
+    if (done) refresh();
+  }, [tasks]);
 
   async function addLocation() {
     if (!name.trim()) return;
@@ -94,35 +105,44 @@ export function LocationsClient({ initialLocations }: { initialLocations: Office
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <CaseCard className="p-5">
-        <h2 className="font-serif text-xl font-bold">New office location</h2>
-        <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-          These options appear in the Job Description generator for recruiter selection.
-        </p>
-
-        <div className="mt-4">
-          <FieldLabel htmlFor="office-name">Location name</FieldLabel>
-          <FieldInput
-            id="office-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Chennai"
+    <div className="space-y-5">
+      <SetupCreateRow
+        manual={
+          <CaseCard className="p-5">
+            <h2 className="font-serif text-xl font-bold">New office location</h2>
+            <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
+              These options appear in the Job Description generator for recruiter selection.
+            </p>
+            <div className="mt-4">
+              <FieldLabel htmlFor="office-name">Location name</FieldLabel>
+              <FieldInput
+                id="office-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Chennai"
+              />
+            </div>
+            {error ? <p className="mt-3 text-[13px] font-semibold text-[var(--orange)]">{error}</p> : null}
+            <div className="mt-4">
+              <Button
+                onClick={addLocation}
+                disabled={busy || !name.trim()}
+                className="w-full px-5 py-2.5 text-[13px]"
+              >
+                {busy ? "Saving..." : "Add location"}
+              </Button>
+            </div>
+          </CaseCard>
+        }
+        upload={
+          <BulkUploadCard
+            entity="locations"
+            title="Upload office locations"
+            description="Import many locations from a spreadsheet."
+            onComplete={refresh}
           />
-        </div>
-
-        {error && <p className="mt-3 text-[13px] font-semibold text-[var(--orange)]">{error}</p>}
-
-        <div className="mt-4">
-          <Button
-            onClick={addLocation}
-            disabled={busy || !name.trim()}
-            className="w-full px-5 py-2.5 text-[13px]"
-          >
-            {busy ? "Saving..." : "Add location"}
-          </Button>
-        </div>
-      </CaseCard>
+        }
+      />
 
       <CaseCard className="p-5">
         <h2 className="font-serif text-xl font-bold">Configured office locations</h2>
@@ -135,13 +155,16 @@ export function LocationsClient({ initialLocations }: { initialLocations: Office
             No office locations configured yet.
           </p>
         ) : (
-          <div className="mt-4 space-y-2">
-            {locations.map((location) => {
+          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
+            {locations.map((location, i) => {
               const isEditing = editingId === location.id;
               return (
                 <div
                   key={location.id}
-                  className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cream-2)] bg-white p-3"
+                  className={cn(
+                    "flex flex-wrap items-center gap-2 px-4 py-3",
+                    i < locations.length - 1 && "border-b border-[var(--cream-2)]",
+                  )}
                 >
                   {isEditing ? (
                     <FieldInput

@@ -23,6 +23,7 @@ import {
   CollapseIcon,
   LibraryIcon,
 } from "@/components/NavIcons";
+import { NotificationMenu } from "@/components/notifications/NotificationMenu";
 
 type IconType = (props: { className?: string }) => React.ReactElement;
 
@@ -366,8 +367,12 @@ export function CabinetShell({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-r-xl">
-          <div className="flex items-center justify-between border-b border-[var(--cream-2)] px-4 py-3 md:hidden">
-            <Link href="/profile" prefetch className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--cyan)]/10">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--cream-2)] px-4 py-2.5">
+            <Link
+              href="/profile"
+              prefetch
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--cyan)]/10 md:hidden"
+            >
               <FaceAvatar name={userName} size="sm" />
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-bold text-[var(--ink)]">{userName}</div>
@@ -376,7 +381,10 @@ export function CabinetShell({
                 </div>
               </div>
             </Link>
-            <LogoutButton className="!w-auto shrink-0 rounded-full px-3 py-1.5 text-[11px]" />
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationMenu />
+              <LogoutButton className="!w-auto shrink-0 rounded-full px-3 py-1.5 text-[11px] md:hidden" />
+            </div>
           </div>
           {children}
         </div>

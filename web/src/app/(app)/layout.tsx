@@ -1,4 +1,5 @@
 import { CabinetShell } from "@/components/CabinetShell";
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { requireSession } from "@/lib/auth/rbac";
 import { isPanelRole } from "@/lib/auth/capabilities";
 import { getCachedNavBadges } from "@/lib/db/cache";
@@ -21,12 +22,14 @@ export default async function AppLayout({
   }
 
   return (
-    <CabinetShell
-      userName={session.user.name}
-      userRole={session.user.role}
-      navBadges={navBadges}
-    >
-      {children}
-    </CabinetShell>
+    <NotificationProvider>
+      <CabinetShell
+        userName={session.user.name}
+        userRole={session.user.role}
+        navBadges={navBadges}
+      >
+        {children}
+      </CabinetShell>
+    </NotificationProvider>
   );
 }

@@ -145,6 +145,7 @@ export function WorkflowDesigner({
 
   function addStage() {
     const id = `stage-${Date.now()}`;
+    const lastStage = [...nodes].reverse().find((n) => n.data.nodeType === "stage");
     const nextNodes: Node<FlowData>[] = [
       ...nodes,
       {
@@ -154,8 +155,21 @@ export function WorkflowDesigner({
         data: { label: "New stage", kind: "custom", nodeType: "stage" },
       },
     ];
+    let nextEdges = edges;
+    if (lastStage) {
+      nextEdges = addEdge(
+        {
+          id: `edge-${lastStage.id}-${id}`,
+          source: lastStage.id,
+          target: id,
+          animated: true,
+        },
+        edges,
+      );
+    }
     setNodes(nextNodes);
-    emit(nextNodes, edges);
+    setEdges(nextEdges);
+    emit(nextNodes, nextEdges);
   }
 
   function addDecision() {
@@ -206,8 +220,8 @@ export function WorkflowDesigner({
       </div>
       {!readOnly && (
         <p className="text-[11px] text-[var(--ink-faint)]">
-          Drag nodes to arrange lanes · connect handles to define transitions ·
-          saving syncs stage order for recruiters
+          New stages auto-link to the previous stage. Drag to rearrange · connect handles for
+          branching · saving syncs stage order for recruiters
         </p>
       )}
     </div>

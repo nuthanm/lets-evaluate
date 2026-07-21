@@ -32,7 +32,7 @@ function kindVariant(kind: StageKind): "cyan" | "green" | "orange" | "neutral" {
 
 export function PipelineConfigClient({ projects }: { projects: Project[] }) {
   const [scope, setScope] = useState<string>("");
-  const [view, setView] = useState<ViewMode>("designer");
+  const [view, setView] = useState<ViewMode>("list");
   const [stages, setStages] = useState<Stage[]>([]);
   const [graph, setGraph] = useState<WorkflowGraph>({ nodes: [], edges: [] });
   const [inherited, setInherited] = useState(false);
@@ -228,6 +228,18 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
           </CaseCard>
         ) : view === "designer" ? (
           <>
+            <div className="mb-3 rounded-lg border border-[var(--cyan)]/20 bg-[var(--cyan-soft)]/40 px-4 py-3 text-xs leading-relaxed text-[var(--ink-soft)]">
+              <strong className="text-[var(--ink)]">Tip:</strong> Use{" "}
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className="font-bold text-[var(--cyan-d)] underline-offset-2 hover:underline"
+              >
+                List view
+              </button>{" "}
+              to add stages in order — links are created automatically. Switch here only when you
+              need branching or custom transitions.
+            </div>
             <WorkflowDesigner
               key={scope || "general"}
               graph={graph}

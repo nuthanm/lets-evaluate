@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
+import { BulkUploadCard, SetupCreateRow } from "@/components/BulkUploadCard";
 import { CabinetPage } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect, FieldTextarea } from "@/components/FormField";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { cn } from "@/lib/utils";
 
 type Project = {
@@ -22,23 +24,21 @@ type Role = {
   projectIds: string[] | null;
 };
 
-type ViewMode = "grid" | "list";
-
-const accentColors = [
-  "border-l-[var(--cyan)]",
-  "border-l-[var(--green)]",
-  "border-l-[#7c6fe0]",
-  "border-l-[var(--orange,#e67e22)]",
-];
-
 export function ProjectsClient({ projects: initialProjects }: { projects: Project[] }) {
   const router = useRouter();
-  const [view, setView] = useState<ViewMode>("grid");
+  const { tasks } = useNotifications();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
 
   useEffect(() => {
     setProjects(initialProjects);
   }, [initialProjects]);
+
+  useEffect(() => {
+    const done = tasks.some(
+      (t) => t.entity === "projects" && t.status === "completed" && !t.read,
+    );
+    if (done) refreshProjects();
+  }, [tasks]);
 
   async function refreshProjects() {
     const r = await fetch("/api/projects");
@@ -52,40 +52,45 @@ export function ProjectsClient({ projects: initialProjects }: { projects: Projec
       subtitle="Configure hiring context once — reuse everywhere"
       bodyClassName="p-5 md:p-6"
     >
-      <SetupLayout
-        form={<ProjectCreateForm onChanged={refreshProjects} />}
-        count={projects.length}
-        label={projects.length === 1 ? "project" : "projects"}
-        view={view}
-        onViewChange={setView}
-      >
-        {projects.length === 0 ? (
-          <EmptyState label="No projects yet — create your first one on the left." />
-        ) : view === "grid" ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {projects.map((p, i) => (
-              <ProjectCard key={p.id} project={p} colorIndex={i} onChanged={refreshProjects} />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
-            {projects.map((p, i) => (
-              <ProjectRow
-                key={p.id}
-                project={p}
-                last={i === projects.length - 1}
-                onChanged={refreshProjects}
-              />
-            ))}
-          </div>
-        )}
-      </SetupLayout>
+      <div className="space-y-5">
+        <SetupCreateRow
+          manual={<ProjectCreateForm onChanged={refreshProjects} />}
+          upload={
+            <BulkUploadCard
+              entity="projects"
+              title="Upload projects"
+              description="Import many projects from a spreadsheet."
+              icon={<UploadGlyph className="size-4" />}
+              onComplete={refreshProjects}
+            />
+          }
+        />
+        <section>
+          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            {projects.length} {projects.length === 1 ? "project" : "projects"}
+          </h3>
+          {projects.length === 0 ? (
+            <EmptyState label="No projects yet — create one manually or upload a file above." />
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
+              {projects.map((p, i) => (
+                <ProjectRow
+                  key={p.id}
+                  project={p}
+                  last={i === projects.length - 1}
+                  onChanged={refreshProjects}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </CabinetPage>
   );
 }
 
 export function RolesClient({ projects }: { projects: Project[] }) {
-  const [view, setView] = useState<ViewMode>("grid");
+  const { tasks } = useNotifications();
   const [roles, setRoles] = useState<Role[]>([]);
 
   useEffect(() => {
@@ -94,6 +99,11 @@ export function RolesClient({ projects }: { projects: Project[] }) {
       .then(setRoles)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const done = tasks.some((t) => t.entity === "roles" && t.status === "completed" && !t.read);
+    if (done) refreshRoles();
+  }, [tasks]);
 
   async function refreshRoles() {
     const r = await fetch("/api/roles");
@@ -113,111 +123,46 @@ export function RolesClient({ projects }: { projects: Project[] }) {
       subtitle="Define positions and requirements for your hiring pipeline"
       bodyClassName="p-5 md:p-6"
     >
-      <SetupLayout
-        form={<RoleCreateForm projects={projects} onChanged={refreshRoles} />}
-        count={roles.length}
-        label={roles.length === 1 ? "role" : "roles"}
-        view={view}
-        onViewChange={setView}
-      >
-        {roles.length === 0 ? (
-          <EmptyState label="No roles yet — create your first one on the left." />
-        ) : view === "grid" ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {roles.map((r) => (
-              <RoleCard
-                key={r.id}
-                role={r}
-                projects={projects}
-                projectNames={projectNames(r)}
-                onChanged={refreshRoles}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
-            {roles.map((r, i) => (
-              <RoleRow
-                key={r.id}
-                role={r}
-                projects={projects}
-                projectNames={projectNames(r)}
-                last={i === roles.length - 1}
-                onChanged={refreshRoles}
-              />
-            ))}
-          </div>
-        )}
-      </SetupLayout>
+      <div className="space-y-5">
+        <SetupCreateRow
+          manual={<RoleCreateForm projects={projects} onChanged={refreshRoles} />}
+          upload={
+            <BulkUploadCard
+              entity="roles"
+              title="Upload roles"
+              description="Import roles with or without project links. Multiple projects per row are supported."
+              icon={<UploadGlyph className="size-4" />}
+              onComplete={refreshRoles}
+            />
+          }
+        />
+        <section>
+          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            {roles.length} {roles.length === 1 ? "role" : "roles"}
+          </h3>
+          {roles.length === 0 ? (
+            <EmptyState label="No roles yet — create one manually or upload a file above." />
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
+              {roles.map((r, i) => (
+                <RoleRow
+                  key={r.id}
+                  role={r}
+                  projects={projects}
+                  projectNames={projectNames(r)}
+                  last={i === roles.length - 1}
+                  onChanged={refreshRoles}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </CabinetPage>
   );
 }
 
-/* --------------------------------- Layout --------------------------------- */
-
-function SetupLayout({
-  form,
-  count,
-  label,
-  view,
-  onViewChange,
-  children,
-}: {
-  form: React.ReactNode;
-  count: number;
-  label: string;
-  view: ViewMode;
-  onViewChange: (v: ViewMode) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid items-start gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <div className="lg:sticky lg:top-0">{form}</div>
-      <section className="min-w-0">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            {count} {label}
-          </h3>
-          <ViewToggle view={view} onChange={onViewChange} />
-        </div>
-        {children}
-      </section>
-    </div>
-  );
-}
-
-function ViewToggle({
-  view,
-  onChange,
-}: {
-  view: ViewMode;
-  onChange: (v: ViewMode) => void;
-}) {
-  return (
-    <div className="inline-flex shrink-0 rounded-lg border border-[var(--cream-2)] bg-white p-0.5 shadow-sm">
-      {(["grid", "list"] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onChange(v)}
-          aria-pressed={view === v}
-          title={v === "grid" ? "Tiles" : "List"}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-bold capitalize transition-colors",
-            view === v
-              ? "bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
-              : "text-[var(--ink-faint)] hover:text-[var(--ink)]",
-          )}
-        >
-          {v === "grid" ? <GridIcon /> : <ListIcon />}
-          {v === "grid" ? "Tiles" : "List"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ---------------------------------- Projects --------------------------------- */
+/* ----------------------------------- Roles ----------------------------------- */
 
 function ProjectCreateForm({ onChanged }: { onChanged: () => void | Promise<void> }) {
   const [name, setName] = useState("");
@@ -270,63 +215,6 @@ function ProjectCreateForm({ onChanged }: { onChanged: () => void | Promise<void
         </Button>
       </div>
     </FormShell>
-  );
-}
-
-function ProjectCard({
-  project,
-  colorIndex,
-  onChanged,
-}: {
-  project: Project;
-  colorIndex: number;
-  onChanged: () => void | Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const tags = project.techStack ?? [];
-
-  if (editing) {
-    return (
-      <div className="rounded-xl border border-[var(--cream-2)] bg-white p-4 shadow-sm sm:col-span-2 xl:col-span-3">
-        <ProjectEditForm
-          project={project}
-          onClose={() => setEditing(false)}
-          onChanged={onChanged}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className={cn(
-        "group flex h-full flex-col rounded-xl border border-[var(--cream-2)] border-l-4 bg-white p-4 text-left shadow-sm transition-all hover:border-[var(--cyan)] hover:shadow-md",
-        accentColors[colorIndex % accentColors.length],
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-serif text-base font-bold">{project.name}</h3>
-        <span className="shrink-0 rounded-md bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100">
-          Edit
-        </span>
-      </div>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {tags.length ? (
-          tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-md bg-[var(--cream)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ink-soft)]"
-            >
-              {tag}
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-[var(--ink-faint)]">No tech stack configured</span>
-        )}
-      </div>
-    </button>
   );
 }
 
@@ -516,70 +404,6 @@ function RoleCreateForm({
         </Button>
       </div>
     </FormShell>
-  );
-}
-
-function RoleCard({
-  role,
-  projects,
-  projectNames,
-  onChanged,
-}: {
-  role: Role;
-  projects: Project[];
-  projectNames: string[];
-  onChanged: () => void | Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-
-  if (editing) {
-    return (
-      <div className="rounded-xl border border-[var(--cream-2)] bg-white p-4 shadow-sm sm:col-span-2 xl:col-span-3">
-        <RoleEditForm
-          role={role}
-          projects={projects}
-          onClose={() => setEditing(false)}
-          onChanged={onChanged}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className="group flex h-full flex-col rounded-xl border border-[var(--cream-2)] border-l-4 border-l-[var(--green)] bg-white p-4 text-left shadow-sm transition-all hover:border-[var(--cyan)] hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="font-bold">{role.name}</h3>
-          {role.level && (
-            <span className="mt-1 inline-block rounded-md bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-soft)]">
-              {role.level}
-            </span>
-          )}
-        </div>
-        <span className="shrink-0 rounded-md bg-[var(--cream)] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100">
-          Edit
-        </span>
-      </div>
-      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-[var(--ink-faint)]">
-        {role.requirements || "No requirements"}
-      </p>
-      {projectNames.length > 0 && (
-        <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
-          {projectNames.map((n) => (
-            <span
-              key={n}
-              className="rounded-md bg-[var(--cyan-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--cyan-d)]"
-            >
-              {n}
-            </span>
-          ))}
-        </div>
-      )}
-    </button>
   );
 }
 
@@ -898,23 +722,16 @@ function RolesGlyph({ className }: { className?: string }) {
   );
 }
 
-function GridIcon() {
+function UploadGlyph({ className }: { className?: string }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <rect x="0.5" y="0.5" width="4.5" height="4.5" rx="1" fill="currentColor" />
-      <rect x="7" y="0.5" width="4.5" height="4.5" rx="1" fill="currentColor" />
-      <rect x="0.5" y="7" width="4.5" height="4.5" rx="1" fill="currentColor" />
-      <rect x="7" y="7" width="4.5" height="4.5" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ListIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <rect x="0" y="1" width="12" height="2" rx="1" fill="currentColor" />
-      <rect x="0" y="5" width="12" height="2" rx="1" fill="currentColor" />
-      <rect x="0" y="9" width="12" height="2" rx="1" fill="currentColor" />
+    <svg className={className ?? "size-5"} viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path
+        d="M10 3v10M6 7l4-4 4 4M4 14h12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -76,14 +76,14 @@ function renderPreviewHtml(template: {
 
   const bodyContent = template.body;
   const showHeaderText = Boolean(template.header && !template.headerImageUrl);
-  const showHeaderPanel = Boolean(showHeaderText || template.logoUrl);
+  const showHeaderPanel = Boolean(showHeaderText);
   const hideFooterText = Boolean(template.footerImageUrl);
 
   return [
     '<div style="background:#f4efe4;padding:20px;font-family:Segoe UI,Arial,sans-serif;">',
     '<div style="margin:0 auto;max-width:680px;overflow:hidden;border:1px solid #e5d9bf;border-radius:22px;background:#ffffff;box-shadow:0 18px 40px rgba(34,49,58,0.08);">',
     showHeaderPanel
-      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:20px 28px;color:#ffffff;">${template.logoUrl ? `<div style="margin:0 0 ${showHeaderText ? "12px" : "0"};"><img src="${escape(template.logoUrl)}" alt="Organization logo" style="display:block;max-height:56px;max-width:220px;width:auto;height:auto;border:0;" /></div>` : ""}${showHeaderText ? `<div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escape(template.header).replaceAll("\n", "<br />")}</div>` : ""}</div>`
+      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:20px 28px;color:#ffffff;">${showHeaderText ? `<div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escape(template.header).replaceAll("\n", "<br />")}</div>` : ""}</div>`
       : "",
     template.headerImageUrl
       ? `<div style="background:#ffffff;"><img src="${escape(template.headerImageUrl)}" alt="Header image" style="display:block;width:100%;max-width:100%;height:auto;border:0;" /></div>`

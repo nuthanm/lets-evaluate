@@ -100,7 +100,7 @@ export function renderStructuredMail(input: {
   const hideFooterText = Boolean(assets.footerImageUrl);
   const showHeaderText = Boolean(header && !assets.headerImageUrl);
   const bodyContent = body;
-  const showHeaderPanel = Boolean(showHeaderText || assets.logoUrl);
+  const showHeaderPanel = Boolean(showHeaderText);
 
   const plainTextParts = showHeaderText ? [header, body] : [body];
   if (tagline) plainTextParts.push(`Tagline: ${tagline}`);
@@ -121,7 +121,7 @@ export function renderStructuredMail(input: {
     '<div style="background:#f4efe4;padding:24px;font-family:Segoe UI,Arial,sans-serif;">',
     '<div style="margin:0 auto;max-width:680px;overflow:hidden;border:1px solid #e5d9bf;border-radius:22px;background:#ffffff;box-shadow:0 18px 40px rgba(34,49,58,0.08);">',
     showHeaderPanel
-      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:20px 28px;color:#ffffff;">${assets.logoUrl ? `<div style="margin:0 0 ${showHeaderText ? "12px" : "0"};"><img src="${escapeHtml(assets.logoUrl)}" alt="Organization logo" style="display:block;max-height:56px;max-width:220px;width:auto;height:auto;border:0;" /></div>` : ""}${showHeaderText ? `<div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Configured header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escapeHtml(header).replaceAll("\n", "<br />")}</div>` : ""}</div>`
+      ? `<div style="background:linear-gradient(135deg,#12343b,#1f5a63);padding:20px 28px;color:#ffffff;">${showHeaderText ? `<div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.72;margin:0 0 8px;">Configured header</div><div style="font-size:24px;font-weight:700;line-height:1.35;white-space:pre-wrap;">${escapeHtml(header).replaceAll("\n", "<br />")}</div>` : ""}</div>`
       : "",
     assets.headerImageUrl
       ? `<div style="background:#ffffff;"><img src="${escapeHtml(assets.headerImageUrl)}" alt="Header image" style="display:block;width:100%;max-width:100%;height:auto;border:0;" /></div>`

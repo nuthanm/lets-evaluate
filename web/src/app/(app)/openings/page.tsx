@@ -4,9 +4,8 @@ import {
   getOrgRoles,
   getRoleCandidateStats,
 } from "@/lib/db/queries";
-import { CabinetPage, CaseCard } from "@/components/CabinetPage";
+import { CabinetPage } from "@/components/CabinetPage";
 import { ButtonLink } from "@/components/Button";
-import Link from "next/link";
 import { OpeningsBoard, type OpeningRole } from "./OpeningsBoard";
 
 export default async function OpeningsPage() {
@@ -41,25 +40,15 @@ export default async function OpeningsPage() {
         </ButtonLink>
       }
     >
-      {projects.length === 0 ? (
-        <CaseCard className="p-6 text-sm text-[var(--ink-faint)]">
-          No projects yet. Create a project first in{" "}
-          <Link href="/setup/projects" className="font-semibold text-[var(--cyan-d)]">
-            Configuration → Projects
-          </Link>
-          .
-        </CaseCard>
-      ) : (
-        <OpeningsBoard
-          projects={projects.map((p) => ({
-            id: p.id,
-            name: p.name,
-            techStack: (p.techStack as string[] | null) ?? [],
-          }))}
-          roles={openRoles}
-          stats={stats}
-        />
-      )}
+      <OpeningsBoard
+        projects={projects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          techStack: (p.techStack as string[] | null) ?? [],
+        }))}
+        roles={openRoles}
+        stats={stats}
+      />
     </CabinetPage>
   );
 }
