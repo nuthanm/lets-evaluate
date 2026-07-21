@@ -18,20 +18,22 @@ body {
   font-family: var(--font-fraunces), Georgia, serif;
 }
 
-/* ── Link Styles ── */
-a {
-  color: var(--cyan-d);
-  text-decoration: none;
-  transition: color 0.2s ease;
-  cursor: pointer;
-}
+/* ── Link Styles (base layer so Tailwind utilities can override) ── */
+@layer base {
+  a {
+    color: var(--cyan-d);
+    text-decoration: none;
+    transition: color 0.2s ease;
+    cursor: pointer;
+  }
 
-a:hover {
-  color: var(--cyan);
-}
+  a:hover {
+    color: var(--cyan);
+  }
 
-a:active {
-  color: var(--cyan-d);
+  a:active {
+    color: var(--cyan-d);
+  }
 }
 
 /* ── Open Link Badge Style ── */
