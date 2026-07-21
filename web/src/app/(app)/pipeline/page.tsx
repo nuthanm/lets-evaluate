@@ -4,20 +4,18 @@ import { CabinetPage } from "@/components/CabinetPage";
 import { PipelineKanbanBoard } from "@/components/workflow/PipelineKanbanBoard";
 
 export default async function PipelinePage() {
-  const session = await requireRole(["admin", "ta"]);
+  const session = await requireRole(["ta"]);
   const { columns, cards } = await getPipelineKanbanData(
     session.user.organizationId,
     session.user.id,
     session.user.role,
   );
 
-  const subtitle =
-    session.user.role === "admin"
-      ? "Drag candidates across configured stages · full team visibility"
-      : "Your candidates · drag to advance stages";
-
   return (
-    <CabinetPage title="Team pipeline" subtitle={subtitle}>
+    <CabinetPage
+      title="Team pipeline"
+      subtitle="Your candidates · drag to advance stages"
+    >
       <PipelineKanbanBoard initialColumns={columns} initialCards={cards} />
     </CabinetPage>
   );

@@ -16,7 +16,7 @@ const IcCheck     = () => <svg {...S}><circle cx="10" cy="10" r="7"/><path d="m6
 const IcChart     = () => <svg {...S}><path d="M3 15.5V10M7.5 15.5V5.5M12 15.5V9.5M16.5 15.5V7"/><path d="M1.5 17h17"/></svg>;
 
 export default async function CandidatesPage() {
-  const session = await requireRole(["admin", "ta"]);
+  const session = await requireRole(["ta"]);
   const [candidates, projects, roles] = await Promise.all([
     getCachedCandidatesGrid(
       session.user.organizationId,

@@ -408,8 +408,8 @@ export function AdminDashboard({
             />
           </div>
           <div className="border-t border-[var(--cream-2)] px-4 py-3 text-right">
-            <Link href="/pipeline" className="text-xs font-semibold text-[var(--cyan-d)]">
-              Full pipeline →
+            <Link href="/admin/candidates" className="text-xs font-semibold text-[var(--cyan-d)]">
+              All candidates →
             </Link>
           </div>
         </CasePanel>
@@ -520,8 +520,8 @@ export function AdminDashboard({
             ))
           )}
           <div className="border-t border-[var(--cream-2)] px-4 py-3 text-right">
-            <Link href="/interviewers" className="text-xs font-semibold text-[var(--cyan-d)]">
-              Interviewer roster →
+            <Link href="/admin/employees" className="text-xs font-semibold text-[var(--cyan-d)]">
+              Employee directory →
             </Link>
           </div>
         </CasePanel>
@@ -619,8 +619,8 @@ export function AdminDashboard({
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <QuickLink href="/setup/projects" label="Configuration" hint="Projects, pipeline, templates" />
-          <QuickLink href="/candidates" label="All candidates" hint="Org-wide case files" />
-          <QuickLink href="/interviewers" label="Interviewers" hint="Panel load and availability" />
+          <QuickLink href="/admin/candidates" label="All candidates" hint="Org-wide candidate directory" />
+          <QuickLink href="/admin/employees" label="Office employees" hint="Admins, recruiters, and panel" />
           <QuickLink href="/setup/audit" label="Audit log" hint="Who changed what and when" />
         </div>
       </section>

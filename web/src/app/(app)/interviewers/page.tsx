@@ -6,7 +6,7 @@ import { Pill } from "@/components/Pill";
 import { ButtonLink } from "@/components/Button";
 
 export default async function InterviewersPage() {
-  const session = await requireRole(["admin", "ta"]);
+  const session = await requireRole(["ta"]);
   const [interviewers, bookings] = await Promise.all([
     getInterviewers(session.user.organizationId),
     getStageBookings(session.user.organizationId),

@@ -107,8 +107,8 @@ function laneYOffset(kind: StageKind): number {
   return offsets[lane];
 }
 
-/** Extract ordered stage templates from a workflow graph (stage nodes only). */
-export function workflowGraphToStages(graph: WorkflowGraph): StageTemplateItem[] {
+/** Ordered stage nodes from graph topology (edges first, then x-position). */
+export function orderedStageNodes(graph: WorkflowGraph): WorkflowGraphNode[] {
   const stageNodes = graph.nodes.filter(
     (n): n is WorkflowGraphNode & { kind: StageKind } =>
       n.type === "stage" && Boolean(n.kind),
@@ -145,7 +145,12 @@ export function workflowGraphToStages(graph: WorkflowGraph): StageTemplateItem[]
     .sort((a, b) => a.position.x - b.position.x);
   for (const node of remainder) ordered.push(node);
 
-  return ordered.map((n) => ({
+  return ordered;
+}
+
+/** Extract ordered stage templates from a workflow graph (stage nodes only). */
+export function workflowGraphToStages(graph: WorkflowGraph): StageTemplateItem[] {
+  return orderedStageNodes(graph).map((n) => ({
     label: n.label,
     kind: n.kind!,
   }));

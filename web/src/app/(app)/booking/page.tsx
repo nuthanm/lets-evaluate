@@ -4,7 +4,7 @@ import { CabinetPage } from "@/components/CabinetPage";
 import { BookingClient } from "./BookingClient";
 
 export default async function BookingPage() {
-  const session = await requireRole(["admin", "ta"]);
+  const session = await requireRole(["ta"]);
   const [bookable, bookings] = await Promise.all([
     getCachedBookableCandidates(session.user.organizationId),
     getCachedStageBookings(session.user.organizationId),

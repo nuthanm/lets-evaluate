@@ -580,6 +580,37 @@ export async function getInterviewers(organizationId: string) {
     );
 }
 
+/** All active org members — for admin employee directory. */
+export async function getOrgMembers(organizationId: string) {
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: organizationMembers.role,
+      joinedAt: organizationMembers.createdAt,
+      lastActiveAt: organizationMembers.lastActiveAt,
+    })
+    .from(organizationMembers)
+    .innerJoin(users, eq(organizationMembers.userId, users.id))
+    .where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        isNull(organizationMembers.deletedAt),
+      ),
+    )
+    .orderBy(desc(organizationMembers.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    role: r.role,
+    joinedAt: r.joinedAt.toISOString(),
+    lastActiveAt: r.lastActiveAt?.toISOString() ?? null,
+  }));
+}
+
 /**
  * All interview bookings for the org, flattened for the scheduling calendar.
  * Includes who is interviewing, for which candidate, when, and the state.

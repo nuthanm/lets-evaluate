@@ -6,7 +6,7 @@ import { JobDescriptionClient } from "./JobDescriptionClient";
 
 export default async function JobDescriptionsPage() {
   const brand = getBrand();
-  const session = await requireRole(["admin", "ta"]);
+  const session = await requireRole(["ta"]);
   const [roles, locations, orgProjects] = await Promise.all([
     getOrgRoles(session.user.organizationId),
     getOrgOfficeLocations(session.user.organizationId),

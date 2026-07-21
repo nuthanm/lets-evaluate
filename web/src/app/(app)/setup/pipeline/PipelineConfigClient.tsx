@@ -6,8 +6,12 @@ import { Pill } from "@/components/Pill";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
 import { WorkflowDesigner } from "@/components/workflow/WorkflowDesigner";
-import type { WorkflowGraph } from "@/lib/domain/workflow-graph";
-import { stagesToWorkflowGraph } from "@/lib/domain/workflow-graph";
+import {
+  orderedStageNodes,
+  stagesToWorkflowGraph,
+  workflowGraphToStages,
+  type WorkflowGraph,
+} from "@/lib/domain/workflow-graph";
 import { cn } from "@/lib/utils";
 
 type Project = { id: string; name: string };
@@ -110,6 +114,17 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
       setGraph(stagesToWorkflowGraph(next));
       return next;
     });
+  }
+
+  function removeByNodeId(nodeId: string) {
+    const ordered = orderedStageNodes(graph);
+    const idx = ordered.findIndex((n) => n.id === nodeId);
+    if (idx >= 0) remove(idx);
+  }
+
+  function handleGraphChange(nextGraph: WorkflowGraph) {
+    setGraph(nextGraph);
+    setStages(workflowGraphToStages(nextGraph));
   }
 
   async function save() {
@@ -237,13 +252,15 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
               >
                 List view
               </button>{" "}
-              to add stages in order — links are created automatically. Switch here only when you
-              need branching or custom transitions.
+              to edit stage names and types. Switch here when you need branching or custom
+              transitions.
             </div>
             <WorkflowDesigner
               key={scope || "general"}
               graph={graph}
-              onChange={setGraph}
+              onChange={handleGraphChange}
+              onAddStage={add}
+              onRemoveStage={removeByNodeId}
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button className="px-5 py-2 text-sm" onClick={save} disabled={saving}>

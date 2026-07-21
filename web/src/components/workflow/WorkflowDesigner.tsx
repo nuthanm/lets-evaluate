@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,8 @@ import {
   Handle,
   Position,
   type NodeProps,
+  type OnNodesChange,
+  applyNodeChanges,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./workflow-flow.css";
@@ -38,13 +40,14 @@ type FlowData = {
   label: string;
   kind?: StageKindOption;
   nodeType: "stage" | "decision" | "end";
+  onRemove?: () => void;
 };
 
 function FlowNode({ data, selected }: NodeProps<Node<FlowData>>) {
   return (
     <div
       className={cn(
-        "workflow-flow-node",
+        "workflow-flow-node group/node",
         data.nodeType === "stage" && "workflow-flow-node-stage",
         data.nodeType === "decision" && "workflow-flow-node-decision",
         data.nodeType === "end" && "workflow-flow-node-end",
@@ -52,6 +55,20 @@ function FlowNode({ data, selected }: NodeProps<Node<FlowData>>) {
       )}
     >
       <Handle type="target" position={Position.Left} className="!bg-[var(--cyan)]" />
+      {data.onRemove && (
+        <button
+          type="button"
+          aria-label="Remove stage"
+          title="Remove stage"
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onRemove?.();
+          }}
+          className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border border-[var(--cream-2)] bg-white text-[10px] font-bold text-[var(--ink-soft)] opacity-0 shadow-sm transition-opacity hover:border-red-300 hover:text-red-600 group-hover/node:opacity-100"
+        >
+          ✕
+        </button>
+      )}
       <div className="workflow-flow-node-label">{data.label}</div>
       {data.kind && (
         <div className="workflow-flow-node-meta">{data.kind.replace(/_/g, " ")}</div>
@@ -63,7 +80,10 @@ function FlowNode({ data, selected }: NodeProps<Node<FlowData>>) {
 
 const nodeTypes = { workflow: FlowNode };
 
-function toFlowNodes(graph: WorkflowGraph): Node<FlowData>[] {
+function toFlowNodes(
+  graph: WorkflowGraph,
+  onRemoveStage?: (nodeId: string) => void,
+): Node<FlowData>[] {
   return graph.nodes.map((node) => ({
     id: node.id,
     type: "workflow",
@@ -72,6 +92,10 @@ function toFlowNodes(graph: WorkflowGraph): Node<FlowData>[] {
       label: node.label,
       kind: node.kind,
       nodeType: node.type,
+      onRemove:
+        node.type === "stage" && onRemoveStage
+          ? () => onRemoveStage(node.id)
+          : undefined,
     },
   }));
 }
@@ -108,22 +132,50 @@ function fromFlow(nodes: Node<FlowData>[], edges: Edge[]): WorkflowGraph {
 export function WorkflowDesigner({
   graph,
   onChange,
+  onAddStage,
+  onRemoveStage,
   readOnly = false,
 }: {
   graph: WorkflowGraph;
   onChange?: (graph: WorkflowGraph) => void;
+  onAddStage?: () => void;
+  onRemoveStage?: (nodeId: string) => void;
   readOnly?: boolean;
 }) {
-  const initialNodes = useMemo(() => toFlowNodes(graph), [graph]);
+  const buildNodes = useCallback(
+    () => toFlowNodes(graph, readOnly ? undefined : onRemoveStage),
+    [graph, onRemoveStage, readOnly],
+  );
+
+  const initialNodes = useMemo(() => buildNodes(), [buildNodes]);
   const initialEdges = useMemo(() => toFlowEdges(graph), [graph]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    setNodes(buildNodes());
+    setEdges(toFlowEdges(graph));
+  }, [graph, buildNodes, setNodes, setEdges]);
 
   const emit = useCallback(
     (nextNodes: Node<FlowData>[], nextEdges: Edge[]) => {
       onChange?.(fromFlow(nextNodes, nextEdges));
     },
     [onChange],
+  );
+
+  const handleNodesChange: OnNodesChange<Node<FlowData>> = useCallback(
+    (changes) => {
+      const removedIds = changes
+        .filter((c) => c.type === "remove")
+        .map((c) => c.id);
+      if (removedIds.length && onRemoveStage) {
+        for (const id of removedIds) onRemoveStage(id);
+        return;
+      }
+      setNodes((nds) => applyNodeChanges(changes, nds));
+    },
+    [onRemoveStage, setNodes],
   );
 
   const onConnect = useCallback(
@@ -144,6 +196,10 @@ export function WorkflowDesigner({
   }, [emit, edges, nodes, readOnly]);
 
   function addStage() {
+    if (onAddStage) {
+      onAddStage();
+      return;
+    }
     const id = `stage-${Date.now()}`;
     const lastStage = [...nodes].reverse().find((n) => n.data.nodeType === "stage");
     const nextNodes: Node<FlowData>[] = [
@@ -191,7 +247,7 @@ export function WorkflowDesigner({
     <div className="grid gap-3">
       {!readOnly && (
         <div className="flex flex-wrap gap-2">
-          <ToolbarBtn onClick={addStage}>+ Stage</ToolbarBtn>
+          <ToolbarBtn onClick={addStage}>+ Add stage</ToolbarBtn>
           <ToolbarBtn onClick={addDecision}>+ Decision</ToolbarBtn>
         </div>
       )}
@@ -200,7 +256,7 @@ export function WorkflowDesigner({
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          onNodesChange={readOnly ? undefined : onNodesChange}
+          onNodesChange={readOnly ? undefined : handleNodesChange}
           onEdgesChange={readOnly ? undefined : onEdgesChange}
           onConnect={onConnect}
           onNodeDragStop={onNodeDragStop}
@@ -220,8 +276,8 @@ export function WorkflowDesigner({
       </div>
       {!readOnly && (
         <p className="text-[11px] text-[var(--ink-faint)]">
-          New stages auto-link to the previous stage. Drag to rearrange · connect handles for
-          branching · saving syncs stage order for recruiters
+          Hover a stage and click ✕ to remove · new stages auto-link to the previous stage · drag
+          to rearrange · connect handles for branching · saving syncs stage order for recruiters
         </p>
       )}
     </div>

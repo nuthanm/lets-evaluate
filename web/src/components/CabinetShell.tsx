@@ -93,20 +93,10 @@ function navForRole(role: MemberRole): NavSection[] {
       ],
     },
     {
-      label: "Talent",
+      label: "People",
       items: [
-        { href: "/candidates", label: "Candidates", icon: CandidatesIcon },
-        { href: "/interviewers", label: "Interviewers", icon: InterviewersIcon },
-        { href: "/booking", label: "Schedule", icon: BookingIcon },
-      ],
-    },
-    {
-      label: "Records",
-      items: [
-        { href: "/pipeline", label: "Pipeline", icon: PipelineIcon },
-        { href: "/library", label: "Question Library", icon: LibraryIcon },
-        { href: "/job-descriptions", label: "Job Descriptions", icon: RolesIcon },
-        { href: "/archive", label: "Archives", icon: ArchivesIcon },
+        { href: "/admin/candidates", label: "Candidates", icon: CandidatesIcon },
+        { href: "/admin/employees", label: "Office employees", icon: InterviewersIcon },
       ],
     },
   ];
@@ -119,6 +109,15 @@ function mobileNavForRole(role: MemberRole) {
       { href: "/assignments", label: "Queue" },
       { href: "/library", label: "Library" },
       { href: "/archive", label: "Archive" },
+    ];
+  }
+
+  if (role === "admin") {
+    return [
+      { href: "/people", label: "Home" },
+      { href: "/admin/candidates", label: "Candidates" },
+      { href: "/admin/employees", label: "Team" },
+      { href: "/setup/projects", label: "Setup" },
     ];
   }
 
@@ -177,6 +176,7 @@ export function CabinetShell({
   const sections = navForRole(userRole);
 
   function navBadge(href: string) {
+    if (userRole !== "ta") return 0;
     if (href === "/candidates" && navBadges?.candidates) {
       return navBadges.candidates;
     }
