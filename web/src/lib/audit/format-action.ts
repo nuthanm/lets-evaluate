@@ -104,6 +104,12 @@ export function formatAuditAction(
     }
     case "pipeline.updated":
       return "Interview pipeline updated";
+    case "kanban.stage_moved": {
+      const stageLabel = payload.stageLabel as string | undefined;
+      return stageLabel
+        ? `Moved to stage — ${stageLabel}`
+        : "Candidate moved on pipeline board";
+    }
     case "opening.closed":
       return "Opening closed";
     case "opening.reopened":

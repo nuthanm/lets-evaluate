@@ -1141,9 +1141,146 @@
   .pres-mock-split { grid-template-columns: 1fr; }
 }
 
+/* ── Platform stack tiles slide ── */
+
+.pres-stack {
+  width: 100%;
+}
+
+.pres-stack-arena {
+  position: relative;
+  margin-top: 1rem;
+  height: min(56vh, 500px);
+  border-radius: 1rem;
+  border: 1px solid var(--cream-2);
+  background:
+    radial-gradient(
+      circle at 88% 12%,
+      color-mix(in srgb, var(--cyan) 10%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 8% 88%,
+      color-mix(in srgb, var(--green) 8%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(
+      165deg,
+      var(--white) 0%,
+      color-mix(in srgb, var(--cream) 55%, var(--white)) 100%
+    );
+  overflow: hidden;
+}
+
+.pres-stack-tile {
+  position: absolute;
+  z-index: 1;
+  cursor: default;
+}
+
+.pres-stack-tile:hover {
+  z-index: 50;
+}
+
+.pres-stack-tile-inner {
+  padding: 0.72rem 0.78rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--cream-2);
+  background: color-mix(in srgb, var(--white) 92%, var(--cream));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--navy) 7%, transparent);
+  animation: pres-stack-drift 14s ease-in-out infinite;
+  transition:
+    border-color 0.28s var(--pres-ease),
+    background 0.28s var(--pres-ease),
+    box-shadow 0.28s var(--pres-ease),
+    filter 0.28s var(--pres-ease);
+  will-change: transform;
+}
+
+.pres-stack-tile:hover .pres-stack-tile-inner {
+  border-color: var(--cyan);
+  background: var(--white);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--cyan) 35%, transparent),
+    0 10px 28px color-mix(in srgb, var(--cyan) 20%, transparent);
+  filter: brightness(1.02);
+}
+
+.pres-stack-tile-green:hover .pres-stack-tile-inner,
+.pres-stack-tile:hover.pres-stack-tile-green .pres-stack-tile-inner {
+  border-color: var(--green);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--green) 35%, transparent),
+    0 10px 28px color-mix(in srgb, var(--green) 18%, transparent);
+}
+
+.pres-stack-tile-orange:hover .pres-stack-tile-inner,
+.pres-stack-tile-planned:hover .pres-stack-tile-inner {
+  border-color: var(--orange);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--orange) 35%, transparent),
+    0 10px 28px color-mix(in srgb, var(--orange) 18%, transparent);
+}
+
+.pres-stack-tile-cat {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+
+.pres-stack-tile-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.pres-stack-tile-ver {
+  margin-top: 0.28rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.pres-stack-tile-note {
+  margin-top: 0.2rem;
+  font-size: 0.62rem;
+  line-height: 1.35;
+  color: var(--ink-faint);
+}
+
+.pres-stack-foot {
+  margin-top: 0.65rem;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+@keyframes pres-stack-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(5px, -8px) rotate(0.5deg); }
+  50% { transform: translate(-3px, 6px) rotate(-0.35deg); }
+  75% { transform: translate(6px, 3px) rotate(0.25deg); }
+}
+
+@media (max-width: 899px) {
+  .pres-stack-arena {
+    height: min(52vh, 420px);
+  }
+
+  .pres-stack-tile {
+    transform: scale(0.88);
+    transform-origin: top left;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pres-mock-shimmer,
-  .pres-showcase-highlight {
+  .pres-showcase-highlight,
+  .pres-stack-tile-inner {
     animation: none !important;
   }
 }

@@ -308,6 +308,35 @@ export const pipelineStages = pgTable(
 );
 
 /**
+ * Visual workflow graph (React Flow) for admin designer — one row per scope.
+ * projectId = null is the org-wide default; project rows override.
+ */
+export const pipelineWorkflows = pgTable(
+  "pipeline_workflows",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    graph: jsonb("graph").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("pipeline_workflows_org_idx").on(t.organizationId),
+    index("pipeline_workflows_project_idx").on(t.projectId),
+    uniqueIndex("pipeline_workflows_scope_uq").on(t.organizationId, t.projectId),
+  ],
+);
+
+/**
  * A candidate's materialized progress through their project's interview flow.
  * One row per stage, ordered by position.
  */

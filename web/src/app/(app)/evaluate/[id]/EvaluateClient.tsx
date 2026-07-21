@@ -21,6 +21,8 @@ import {
   validateScreeningDecision,
 } from "@/lib/candidates/screening-decision";
 import { InterviewWorkspace } from "./InterviewWorkspace";
+import { CandidateTimeline } from "@/components/workflow/CandidateTimeline";
+import { ApprovalSwimlane } from "@/components/workflow/ApprovalSwimlane";
 
 type Metrics = Partial<ResumeMetrics>;
 
@@ -113,6 +115,7 @@ export function EvaluateClient({
   );
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [preparedMails, setPreparedMails] = useState<RenderedMail[] | null>(null);
+  const [caseTab, setCaseTab] = useState<"case" | "timeline" | "approvals">("case");
 
   useEffect(() => {
     if (canScreen) {
@@ -694,6 +697,29 @@ export function EvaluateClient({
           {/* Terminal / hold outcome — always front-and-centre with the reason. */}
           {outcome && <OutcomeBanner outcome={outcome} />}
 
+          {!showWizard && stages.length > 0 && !myActiveStage && (
+            <CaseFileViewTabs active={caseTab} onChange={setCaseTab} />
+          )}
+
+          {!showWizard && !myActiveStage && caseTab === "timeline" && (
+            <CandidateTimeline candidateId={candidateId} />
+          )}
+
+          {!showWizard && !myActiveStage && caseTab === "approvals" && (
+            <ApprovalSwimlane
+              stages={stages.map((s) => ({
+                id: s.id,
+                label: s.label,
+                kind: s.kind,
+                status: s.status,
+                assigneeName: s.assigneeName,
+                decision: s.decision,
+              }))}
+            />
+          )}
+
+          {(showWizard || myActiveStage || caseTab === "case") && (
+            <>
           {/* Full pipeline history for recruiters — shows what happened at each round. */}
           {viewerIsRecruiter && !myActiveStage && !showWizard && stages.length > 0 && (
             <WorkflowHistoryPanel
@@ -1141,6 +1167,9 @@ export function EvaluateClient({
             </section>
           )}
 
+            </>
+          )}
+
         </main>
 
         {showSidebar && (
@@ -1205,6 +1234,42 @@ export function EvaluateClient({
           </Button>
         </footer>
       )}
+    </div>
+  );
+}
+
+/* ─────────────────────────── Case file view tabs ─────────────────────────── */
+
+function CaseFileViewTabs({
+  active,
+  onChange,
+}: {
+  active: "case" | "timeline" | "approvals";
+  onChange: (tab: "case" | "timeline" | "approvals") => void;
+}) {
+  const tabs = [
+    ["case", "Case file"],
+    ["timeline", "Timeline"],
+    ["approvals", "Approvals"],
+  ] as const;
+
+  return (
+    <div className="mb-4 flex gap-1 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-1">
+      {tabs.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={cn(
+            "flex-1 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors",
+            active === id
+              ? "bg-white text-[var(--ink)] shadow-sm"
+              : "text-[var(--ink-faint)] hover:text-[var(--ink-soft)]",
+          )}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

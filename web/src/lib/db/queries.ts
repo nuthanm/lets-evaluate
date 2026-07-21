@@ -12,6 +12,7 @@ import {
   organizationMembers,
   users,
   pipelineStages,
+  pipelineWorkflows,
   candidateStages,
   interviewerAvailability,
   aiAnalysisUsage,
@@ -20,6 +21,11 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import type { MemberRole } from "@/lib/auth/config";
+import type { WorkflowGraph } from "@/lib/domain/workflow-graph";
+import {
+  stagesToWorkflowGraph,
+  workflowGraphToStages,
+} from "@/lib/domain/workflow-graph";
 
 export type StageKind =
   | "screening"
@@ -767,6 +773,225 @@ export async function savePipelineStages(
       position: i,
     })),
   );
+}
+
+export async function getPipelineWorkflowGraph(
+  organizationId: string,
+  projectId: string | null,
+): Promise<WorkflowGraph | null> {
+  const [row] = await db
+    .select({ graph: pipelineWorkflows.graph })
+    .from(pipelineWorkflows)
+    .where(
+      and(
+        eq(pipelineWorkflows.organizationId, organizationId),
+        projectId
+          ? eq(pipelineWorkflows.projectId, projectId)
+          : isNull(pipelineWorkflows.projectId),
+      ),
+    )
+    .limit(1);
+
+  if (!row?.graph || typeof row.graph !== "object") return null;
+  const graph = row.graph as WorkflowGraph;
+  if (!Array.isArray(graph.nodes)) return null;
+  return graph;
+}
+
+export async function savePipelineWorkflowGraph(
+  organizationId: string,
+  projectId: string | null,
+  graph: WorkflowGraph,
+  stages: StageTemplateItem[],
+) {
+  await savePipelineStages(organizationId, projectId, stages);
+
+  const [existing] = await db
+    .select({ id: pipelineWorkflows.id })
+    .from(pipelineWorkflows)
+    .where(
+      and(
+        eq(pipelineWorkflows.organizationId, organizationId),
+        projectId
+          ? eq(pipelineWorkflows.projectId, projectId)
+          : isNull(pipelineWorkflows.projectId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(pipelineWorkflows)
+      .set({ graph, updatedAt: new Date() })
+      .where(eq(pipelineWorkflows.id, existing.id));
+    return;
+  }
+
+  await db.insert(pipelineWorkflows).values({
+    id: uuid(),
+    organizationId,
+    projectId,
+    graph,
+  });
+}
+
+/** Effective workflow graph for a scope — falls back to linear graph from stages. */
+export async function getEffectiveWorkflowGraph(
+  organizationId: string,
+  projectId: string | null,
+): Promise<WorkflowGraph> {
+  if (projectId) {
+    const projectGraph = await getPipelineWorkflowGraph(organizationId, projectId);
+    if (projectGraph?.nodes?.length) return projectGraph;
+  }
+
+  const scoped = await getPipelineWorkflowGraph(organizationId, projectId);
+  if (scoped?.nodes?.length) return scoped;
+
+  if (projectId) {
+    const general = await getPipelineWorkflowGraph(organizationId, null);
+    if (general?.nodes?.length) return general;
+  }
+
+  const template = await getEffectiveStageTemplate(organizationId, projectId);
+  return stagesToWorkflowGraph(template);
+}
+
+export type CandidateTimelineEntry = {
+  id: string;
+  at: string;
+  actorName: string | null;
+  action: string;
+  label: string;
+  payload: Record<string, unknown>;
+};
+
+export async function getCandidateTimeline(
+  organizationId: string,
+  candidateId: string,
+  limit = 50,
+): Promise<CandidateTimelineEntry[]> {
+  const rows = await db
+    .select({
+      event: evaluationEvents,
+      actorName: users.name,
+    })
+    .from(evaluationEvents)
+    .leftJoin(users, eq(evaluationEvents.actorId, users.id))
+    .where(
+      and(
+        eq(evaluationEvents.organizationId, organizationId),
+        eq(evaluationEvents.entityType, "candidate"),
+        eq(evaluationEvents.entityId, candidateId),
+      ),
+    )
+    .orderBy(desc(evaluationEvents.createdAt))
+    .limit(limit);
+
+  return rows.map(({ event, actorName }) => ({
+    id: event.id,
+    at: event.createdAt.toISOString(),
+    actorName,
+    action: event.action,
+    label: event.action,
+    payload: (event.payload ?? {}) as Record<string, unknown>,
+  }));
+}
+
+export type KanbanCard = {
+  id: string;
+  name: string;
+  status: string;
+  stageId: string | null;
+  columnKey: string;
+};
+
+export type KanbanColumn = {
+  key: string;
+  label: string;
+  kind: StageKind | "decided";
+};
+
+const DECIDED_STATUSES = new Set([
+  "selected",
+  "rejected",
+  "hold",
+  "screened_rejected",
+]);
+
+export async function getPipelineKanbanData(
+  organizationId: string,
+  userId: string,
+  role: MemberRole,
+) {
+  const [template, candidateRows] = await Promise.all([
+    getEffectiveStageTemplate(organizationId, null),
+    getCandidatesForUser(organizationId, userId, role),
+  ]);
+
+  const columns: KanbanColumn[] = [
+    ...template.map((s, i) => ({
+      key: `stage-${i}`,
+      label: s.label,
+      kind: s.kind,
+    })),
+    { key: "decided", label: "Decided", kind: "decided" as const },
+  ];
+
+  const candidateIds = candidateRows.map((c) => c.id);
+  const stageRows =
+    candidateIds.length > 0
+      ? await db
+          .select({
+            stage: candidateStages,
+            candidateId: candidateStages.candidateId,
+          })
+          .from(candidateStages)
+          .where(
+            and(
+              eq(candidateStages.organizationId, organizationId),
+              inArray(candidateStages.candidateId, candidateIds),
+            ),
+          )
+          .orderBy(asc(candidateStages.position))
+      : [];
+
+  const stagesByCandidate = new Map<string, typeof stageRows>();
+  for (const row of stageRows) {
+    const list = stagesByCandidate.get(row.candidateId) ?? [];
+    list.push(row);
+    stagesByCandidate.set(row.candidateId, list);
+  }
+
+  const cards: KanbanCard[] = candidateRows.map((c) => {
+    const stages = stagesByCandidate.get(c.id) ?? [];
+    let columnKey = "stage-0";
+
+    if (DECIDED_STATUSES.has(c.status)) {
+      columnKey = "decided";
+    } else if (stages.length) {
+      const active = stages.find((s) => s.stage.status === "active");
+      const activeIndex = active
+        ? stages.findIndex((s) => s.stage.id === active.stage.id)
+        : stages.findIndex((s) => s.stage.status === "pending");
+      columnKey =
+        activeIndex >= 0 ? `stage-${activeIndex}` : `stage-${stages.length - 1}`;
+    } else if (c.status === "ready_for_interview") {
+      columnKey = "stage-1";
+    }
+
+    const activeStage = stages.find((s) => s.stage.status === "active");
+
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      stageId: activeStage?.stage.id ?? null,
+      columnKey,
+    };
+  });
+
+  return { columns, cards };
 }
 
 /**

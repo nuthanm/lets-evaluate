@@ -5,15 +5,21 @@ import { Button } from "@/components/Button";
 import { Pill } from "@/components/Pill";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect } from "@/components/FormField";
+import { WorkflowDesigner } from "@/components/workflow/WorkflowDesigner";
+import type { WorkflowGraph } from "@/lib/domain/workflow-graph";
+import { stagesToWorkflowGraph } from "@/lib/domain/workflow-graph";
+import { cn } from "@/lib/utils";
 
 type Project = { id: string; name: string };
 type StageKind = "screening" | "technical" | "manager" | "hr" | "final" | "custom";
 type Stage = { label: string; kind: StageKind };
+type ViewMode = "list" | "designer";
 
 const KIND_OPTIONS: { value: StageKind; label: string }[] = [
   { value: "screening", label: "Screening (AI / TA)" },
   { value: "technical", label: "Technical round → Interviewer" },
   { value: "manager", label: "Manager round → Manager" },
+  { value: "hr", label: "HR round → HR" },
   { value: "custom", label: "Custom → Interviewer" },
 ];
 
@@ -26,7 +32,9 @@ function kindVariant(kind: StageKind): "cyan" | "green" | "orange" | "neutral" {
 
 export function PipelineConfigClient({ projects }: { projects: Project[] }) {
   const [scope, setScope] = useState<string>("");
+  const [view, setView] = useState<ViewMode>("designer");
   const [stages, setStages] = useState<Stage[]>([]);
+  const [graph, setGraph] = useState<WorkflowGraph>({ nodes: [], edges: [] });
   const [inherited, setInherited] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,21 +50,24 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
         `/api/pipeline-stages${scopeId ? `?projectId=${scopeId}` : ""}`,
       );
       const data = await res.json();
+      let nextStages: Stage[] = data.defaults;
       if (data.configured?.length) {
-        setStages(data.configured);
+        nextStages = data.configured;
         setInherited(false);
       } else if (scopeId) {
-        // Project has no override yet — prefill from general (or defaults).
-        setStages(
-          data.generalConfigured?.length
-            ? data.generalConfigured
-            : data.defaults,
-        );
+        nextStages = data.generalConfigured?.length
+          ? data.generalConfigured
+          : data.defaults;
         setInherited(true);
       } else {
-        setStages(data.defaults);
         setInherited(true);
       }
+      setStages(nextStages);
+      setGraph(
+        data.graph?.nodes?.length
+          ? data.graph
+          : stagesToWorkflowGraph(nextStages),
+      );
     } catch {
       setError("Could not load the interview process.");
     } finally {
@@ -65,13 +76,16 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
   }, []);
 
   useEffect(() => {
-    // Data fetch on scope change; state updates happen after the awaited fetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load(scope);
   }, [scope, load]);
 
   function update(i: number, patch: Partial<Stage>) {
-    setStages((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setStages((prev) => {
+      const next = prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s));
+      setGraph(stagesToWorkflowGraph(next));
+      return next;
+    });
   }
   function move(i: number, dir: -1 | 1) {
     setStages((prev) => {
@@ -79,14 +93,23 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
       const j = i + dir;
       if (j < 0 || j >= next.length) return prev;
       [next[i], next[j]] = [next[j], next[i]];
+      setGraph(stagesToWorkflowGraph(next));
       return next;
     });
   }
   function remove(i: number) {
-    setStages((prev) => prev.filter((_, idx) => idx !== i));
+    setStages((prev) => {
+      const next = prev.filter((_, idx) => idx !== i);
+      setGraph(stagesToWorkflowGraph(next));
+      return next;
+    });
   }
   function add() {
-    setStages((prev) => [...prev, { label: "New stage", kind: "custom" }]);
+    setStages((prev) => {
+      const next = [...prev, { label: "New stage", kind: "custom" as StageKind }];
+      setGraph(stagesToWorkflowGraph(next));
+      return next;
+    });
   }
 
   async function save() {
@@ -103,6 +126,7 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
         body: JSON.stringify({
           projectId: scope || null,
           stages: stages.map((s) => ({ label: s.label.trim(), kind: s.kind })),
+          graph,
         }),
       });
       if (!res.ok) {
@@ -154,8 +178,7 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
         </FieldSelect>
         <p className="mt-3 text-xs text-[var(--ink-faint)]">
           The <strong>general default</strong> applies to every candidate unless
-          their project defines its own flow. Select a project to give it a
-          custom process.
+          their project defines its own flow.
         </p>
         {scope && inherited && (
           <p className="mt-3 rounded-lg bg-[var(--cyan-soft)] p-2 text-[11px] text-[var(--cyan-d)]">
@@ -173,6 +196,29 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
             Remove custom flow (use general default)
           </button>
         )}
+
+        <div className="mt-4 flex gap-1 rounded-lg border border-[var(--cream-2)] bg-[var(--cream)] p-1">
+          {(
+            [
+              ["designer", "Visual designer"],
+              ["list", "List view"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setView(id)}
+              className={cn(
+                "flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold transition-colors",
+                view === id
+                  ? "bg-white text-[var(--ink)] shadow-sm"
+                  : "text-[var(--ink-faint)] hover:text-[var(--ink-soft)]",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </aside>
 
       <section>
@@ -180,6 +226,22 @@ export function PipelineConfigClient({ projects }: { projects: Project[] }) {
           <CaseCard className="p-6 text-sm text-[var(--ink-faint)]">
             Loading…
           </CaseCard>
+        ) : view === "designer" ? (
+          <>
+            <WorkflowDesigner
+              key={scope || "general"}
+              graph={graph}
+              onChange={setGraph}
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button className="px-5 py-2 text-sm" onClick={save} disabled={saving}>
+                {saving ? "Saving…" : savedAt ? "Saved ✓" : "Save workflow"}
+              </Button>
+              {error && (
+                <span className="text-xs font-semibold text-red-600">{error}</span>
+              )}
+            </div>
+          </>
         ) : (
           <>
             <ol className="space-y-2">

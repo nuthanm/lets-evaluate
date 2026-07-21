@@ -1,0 +1,111 @@
+/* React Flow — brand-aligned overrides for workflow designer & swimlanes */
+
+.workflow-flow .react-flow__background {
+  background: color-mix(in srgb, var(--cream) 40%, var(--white));
+}
+
+.workflow-flow .react-flow__controls {
+  border: 1px solid var(--cream-2);
+  border-radius: 0.65rem;
+  overflow: hidden;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--navy) 8%, transparent);
+}
+
+.workflow-flow .react-flow__controls-button {
+  background: var(--white);
+  border-bottom: 1px solid var(--cream-2);
+  fill: var(--ink-soft);
+}
+
+.workflow-flow .react-flow__controls-button:hover {
+  background: var(--cyan-soft);
+}
+
+.workflow-flow .react-flow__edge-path {
+  stroke: var(--cyan-d);
+  stroke-width: 2;
+}
+
+.workflow-flow .react-flow__edge-text {
+  fill: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.workflow-flow .react-flow__minimap {
+  border: 1px solid var(--cream-2);
+  border-radius: 0.65rem;
+  overflow: hidden;
+}
+
+.workflow-flow-node {
+  min-width: 132px;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--navy) 6%, transparent);
+  font-size: 11px;
+}
+
+.workflow-flow-node-stage {
+  border-top: 3px solid var(--cyan);
+}
+
+.workflow-flow-node-decision {
+  border-top: 3px solid var(--orange);
+  transform: rotate(0deg);
+}
+
+.workflow-flow-node-end {
+  border-top: 3px solid var(--green);
+}
+
+.workflow-flow-node-label {
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.workflow-flow-node-meta {
+  margin-top: 0.2rem;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.workflow-flow-lane {
+  border-radius: 0.75rem;
+  border: 1px dashed color-mix(in srgb, var(--cream-2) 80%, var(--cyan) 20%);
+  background: color-mix(in srgb, var(--cream) 35%, transparent);
+}
+
+.workflow-flow-lane-label {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.55rem;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.workflow-flow-node-pending {
+  opacity: 0.55;
+}
+
+.workflow-flow-node-active {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cyan) 30%, transparent);
+}
+
+.workflow-flow-node-done {
+  border-color: var(--green);
+}
+
+.workflow-flow-node-failed {
+  border-color: var(--orange);
+}

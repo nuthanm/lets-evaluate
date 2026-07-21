@@ -12,7 +12,7 @@ export default async function PipelineSetupPage() {
   return (
     <CabinetPage
       title="Interview process"
-      subtitle="Configure the stages a candidate moves through — a general default and optional per-project flows"
+      subtitle="Configure stages visually or as a list — general default and per-project flows"
     >
       <PipelineConfigClient
         projects={projects.map((p) => ({ id: p.id, name: p.name }))}

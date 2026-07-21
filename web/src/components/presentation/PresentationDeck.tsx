@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/Button";
 import { useBrand } from "@/components/BrandContext";
 import type { BrandConfig } from "@/lib/brand";
 import { PageShowcaseCarousel } from "@/components/presentation/PageShowcaseCarousel";
+import { PlatformStackSlide } from "@/components/presentation/PlatformStackSlide";
 import { cn } from "@/lib/utils";
 
 type CompareRow = {
@@ -69,8 +70,9 @@ const COMPETITIVE_MATRIX: CompetitiveRow[] = [
   },
 ];
 
-const SLIDE_COUNT = 9;
-const SHOWCASE_SLIDE_INDEX = 8;
+const SLIDE_COUNT = 10;
+const STACK_SLIDE_INDEX = 8;
+const SHOWCASE_SLIDE_INDEX = 9;
 
 export function PresentationDeck() {
   const brand = useBrand();
@@ -79,7 +81,7 @@ export function PresentationDeck() {
   const [exiting, setExiting] = useState(false);
 
   const progress = ((slide + 1) / SLIDE_COUNT) * 100;
-  const isShowcase = slide === SHOWCASE_SLIDE_INDEX;
+  const isWide = slide === STACK_SLIDE_INDEX || slide === SHOWCASE_SLIDE_INDEX;
 
   const go = useCallback(
     (next: number) => {
@@ -129,12 +131,12 @@ export function PresentationDeck() {
           </div>
         </header>
 
-        <main className={cn("pres-stage", isShowcase && "pres-stage-wide")}>
+        <main className={cn("pres-stage", isWide && "pres-stage-wide")}>
           <div
             key={animKey}
             className={cn(
               "pres-slide",
-              isShowcase && "pres-slide-wide",
+              isWide && "pres-slide-wide",
               exiting && "pres-slide-out",
             )}
           >
@@ -146,7 +148,8 @@ export function PresentationDeck() {
             {slide === 5 && <SlideBuilt />}
             {slide === 6 && <SlideAsk />}
             {slide === 7 && <SlideCompetitiveMatrix />}
-            {slide === 8 && <PageShowcaseCarousel />}
+            {slide === 8 && <PlatformStackSlide />}
+            {slide === 9 && <PageShowcaseCarousel />}
           </div>
         </main>
       </div>
@@ -463,7 +466,7 @@ function SlideCompetitiveMatrix() {
       </div>
 
       <p className="mt-5 text-center text-[13px] text-[var(--ink-faint)]">
-        Next slide → product showcase with interactive screen previews
+        Next slide → platform stack with live version details
       </p>
     </div>
   );
@@ -507,7 +510,7 @@ function SlideAsk() {
         ))}
       </div>
       <p className="mt-6 text-[13px] text-[var(--ink-faint)]">
-        Next slide → competitive scorecard vs Zoho Recruit
+        Next slide → competitive scorecard, then platform stack
       </p>
     </div>
   );
