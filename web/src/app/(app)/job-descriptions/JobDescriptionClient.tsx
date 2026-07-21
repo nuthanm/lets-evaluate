@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Button, ButtonLink } from "@/components/Button";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect, FieldTextarea } from "@/components/FormField";
+import { cn } from "@/lib/utils";
 import {
   isAllowedResumeFilename,
   RESUME_UPLOAD_ACCEPT,
@@ -262,6 +263,7 @@ export function JobDescriptionClient({
 
   const [busy, setBusy] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [jdMode, setJdMode] = useState<"upload" | "generate">("upload");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [exportBusy, setExportBusy] = useState<"docx" | "pdf" | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -865,9 +867,36 @@ export function JobDescriptionClient({
     <div className="space-y-5">
       <div className="grid items-start gap-5 md:grid-cols-2">
         <CaseCard className="min-w-0 p-5">
-          <h2 className="font-serif text-xl font-bold">Generate with AI</h2>
-          <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-            Recruiter-grade {orgName} JD generation with consistent structure and downloadable DOCX/PDF.
+          <div className="flex gap-2 border-b border-[var(--cream-2)]">
+            {(
+              [
+                ["upload", "Upload JD"],
+                ["generate", "Generate JD"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setJdMode(mode);
+                  setError(null);
+                }}
+                className={cn(
+                  "-mb-px flex-1 border-b-[3px] pb-3 text-center text-[13px] font-bold transition-colors",
+                  jdMode === mode
+                    ? "border-[var(--cyan)] text-[var(--ink)]"
+                    : "border-transparent text-[var(--ink-faint)] hover:text-[var(--ink-soft)]",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <p className="mt-4 text-[13px] text-[var(--ink-faint)]">
+            {jdMode === "upload"
+              ? "Import an existing PDF or DOCX job description, then save it as a Job ID for candidate creation."
+              : `Recruiter-grade ${orgName} JD generation with consistent structure and downloadable DOCX/PDF.`}
           </p>
 
           <div className="mt-4 space-y-3">
@@ -973,6 +1002,23 @@ export function JobDescriptionClient({
               />
             </div>
 
+            {jdMode === "upload" ? (
+              <div className="space-y-3 border-t border-[var(--cream-2)] pt-4">
+                <div>
+                  <FieldLabel htmlFor="jd-upload">Job description file</FieldLabel>
+                  <FieldInput
+                    id="jd-upload"
+                    type="file"
+                    accept={RESUME_UPLOAD_ACCEPT}
+                    onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                  />
+                  <p className="mt-1 text-[11px] text-[var(--ink-faint)]">
+                    {uploadFile ? `Selected: ${uploadFile.name}` : "PDF or DOCX up to 10MB"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div>
               <FieldLabel htmlFor="skills">Must-have skills (optional)</FieldLabel>
               <FieldInput
@@ -1068,9 +1114,11 @@ export function JobDescriptionClient({
                 </ul>
               </div>
             </div>
+              </>
+            )}
           </div>
 
-          {usage && (
+          {usage && jdMode === "generate" && (
             <div className="mt-4 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-3 text-[12px] text-[var(--ink-soft)]">
               Model: <strong>{usage.model}</strong> · Prompt: <strong>{usage.promptTokens}</strong> · Output: <strong>{usage.completionTokens}</strong> · Total: <strong>{usage.totalTokens}</strong>
             </div>
@@ -1079,39 +1127,20 @@ export function JobDescriptionClient({
           {error && <p className="mt-3 text-[13px] font-semibold text-[var(--orange)]">{error}</p>}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={generate} disabled={busy || uploadBusy} className="px-5 py-2.5 text-[13px]">
-              {busy ? "Generating..." : "Generate job description"}
-            </Button>
-          </div>
-
-          <div className="mt-5 border-t border-[var(--cream-2)] pt-5">
-            <h3 className="font-serif text-lg font-bold">Upload external JD</h3>
-            <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-              Import an existing PDF or DOCX job description, then save it as a Job ID for candidate creation.
-            </p>
-            <div className="mt-3 space-y-3">
-              <div>
-                <FieldLabel htmlFor="jd-upload">Job description file</FieldLabel>
-                <FieldInput
-                  id="jd-upload"
-                  type="file"
-                  accept={RESUME_UPLOAD_ACCEPT}
-                  onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                />
-                <p className="mt-1 text-[11px] text-[var(--ink-faint)]">
-                  {uploadFile ? `Selected: ${uploadFile.name}` : "PDF or DOCX up to 10MB"}
-                </p>
-              </div>
+            {jdMode === "upload" ? (
               <Button
                 type="button"
-                variant="ghost"
                 onClick={() => void uploadExternalJobDescription()}
                 disabled={uploadBusy || busy || !uploadFile}
                 className="px-5 py-2.5 text-[13px]"
               >
                 {uploadBusy ? "Uploading..." : "Upload and preview"}
               </Button>
-            </div>
+            ) : (
+              <Button onClick={generate} disabled={busy || uploadBusy} className="px-5 py-2.5 text-[13px]">
+                {busy ? "Generating..." : "Generate job description"}
+              </Button>
+            )}
           </div>
         </CaseCard>
 
@@ -1300,7 +1329,7 @@ export function JobDescriptionClient({
               {!generated ? (
                 <div className="space-y-4 px-5 py-4">
                   <section className="rounded-xl border border-dashed border-[var(--cream-2)] bg-[var(--cream)] p-4 text-[13px] text-[var(--ink-soft)]">
-                    Generate a job description to review the full structured preview here.
+                    Upload or generate a job description to review the full structured preview here.
                   </section>
                   <section className="rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-4">
                     <h3 className="font-serif text-lg font-bold">Header</h3>

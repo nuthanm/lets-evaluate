@@ -46,7 +46,7 @@ export function BookingClient({
         </h2>
         {candidates.length === 0 ? (
           <CaseCard className="p-6 text-sm text-[var(--ink-faint)]">
-            No candidates are ready for booking yet. Candidates appear here once TA
+            No candidates are ready for scheduling yet. Candidates appear here once TA
             screening marks them as{" "}
             <span className="font-semibold">ready for interview</span>, or when
             rescheduling an assigned round.
@@ -104,7 +104,7 @@ export function BookingClient({
                     >
                       {c.status === "assigned"
                         ? "Reschedule slot →"
-                        : "Assign interviewer & book →"}
+                        : "Assign interviewer & schedule →"}
                     </ButtonLink>
                   </div>
                 </CaseCard>
@@ -120,7 +120,7 @@ export function BookingClient({
         </h2>
         {upcoming.length === 0 ? (
           <CaseCard className="p-6 text-sm text-[var(--ink-faint)]">
-            No booked interviews yet.
+            No scheduled interviews yet.
           </CaseCard>
         ) : (
           <ul className="space-y-3">

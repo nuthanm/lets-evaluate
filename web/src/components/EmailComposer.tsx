@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/Button";
+import { cn } from "@/lib/utils";
 import type { RenderedMail } from "@/lib/email";
 
 function toCrlf(value: string) {
@@ -51,6 +51,101 @@ function buildEmlDraft(mail: RenderedMail) {
   return toCrlf(lines.join("\n"));
 }
 
+function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={className} aria-hidden>
+      <rect x="5" y="5" width="7" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M5 4.5V3.8A1.8 1.8 0 0 0 3.2 2H2.8A1.2 1.2 0 0 0 1.6 3.2v6.6A1.2 1.2 0 0 0 2.8 11h1.4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={className} aria-hidden>
+      <path
+        d="M3 7l3 3 5-6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={className} aria-hidden>
+      <path
+        d="M7 2v7M4.5 6.5 7 9l2.5-2.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M3 11h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ToolbarButton({
+  title,
+  onClick,
+  active,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={cn(
+        "inline-flex size-8 items-center justify-center rounded-md transition-colors",
+        active
+          ? "bg-[var(--green-soft)] text-[var(--green)]"
+          : "text-[var(--ink-faint)] hover:bg-[var(--cream)] hover:text-[var(--ink)]",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function OpenMailLink({
+  href,
+  label,
+  external,
+}: {
+  href: string;
+  label: string;
+  external?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cream-2)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--ink)] no-underline transition-colors hover:border-[var(--cyan)] hover:text-[var(--cyan-d)]"
+    >
+      {label}
+      <span aria-hidden className="text-[var(--ink-faint)]">
+        ↗
+      </span>
+    </a>
+  );
+}
+
 export function EmailComposer({
   mails,
   title = "Prepared email",
@@ -61,16 +156,13 @@ export function EmailComposer({
   onClose?: () => void;
 }) {
   const [active, setActive] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"formatted" | "plain" | null>(null);
 
   if (!mails.length) return null;
   const mail = mails[active] ?? mails[0];
 
   const to = mail.to?.trim() ?? "";
   const enc = (s: string) => encodeURIComponent(s ?? "");
-  // Web compose deep-links so users without a configured desktop mail client
-  // (the common case where mailto: silently does nothing) can still open a
-  // ready-to-send draft in Outlook on the web or Gmail.
   const outlookUrl = to
     ? `https://outlook.office.com/mail/deeplink/compose?to=${enc(to)}&subject=${enc(
         mail.subject,
@@ -81,6 +173,11 @@ export function EmailComposer({
         mail.subject,
       )}&body=${enc(mail.body)}`
     : "";
+
+  function flashCopied(mode: "formatted" | "plain") {
+    setCopied(mode);
+    setTimeout(() => setCopied(null), 2000);
+  }
 
   function copyHtmlLegacy(html: string) {
     if (typeof document === "undefined") return false;
@@ -109,8 +206,8 @@ export function EmailComposer({
     const html = `<meta charset="utf-8" />${mail.bodyHtml}`;
     const plain = mail.body;
 
-    let copied = copyHtmlLegacy(html);
-    if (!copied) {
+    let copiedOk = copyHtmlLegacy(html);
+    if (!copiedOk) {
       if (
         typeof ClipboardItem !== "undefined" &&
         typeof navigator.clipboard.write === "function"
@@ -120,21 +217,19 @@ export function EmailComposer({
           "text/plain": new Blob([plain], { type: "text/plain" }),
         });
         await navigator.clipboard.write([item]);
-        copied = true;
+        copiedOk = true;
       } else {
         await navigator.clipboard.writeText(plain);
       }
     }
 
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied("formatted");
   }
 
-  async function copyAll() {
+  async function copyPlain() {
     const text = `To: ${mail.to}\nSubject: ${mail.subject}\n\n${mail.body}`;
     await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    flashCopied("plain");
   }
 
   function downloadEml() {
@@ -151,118 +246,125 @@ export function EmailComposer({
   }
 
   return (
-    <div className="case-card case-fade-in p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-xl font-bold">{title}</h2>
-          <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
-            Copy or open in your mail client — placeholders are already replaced.
-            No external email service is used.
-          </p>
-          <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
-            Outlook and Gmail links open a plain-text draft. Use Download .eml draft to preserve layout, images, and links.
-          </p>
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[12px] font-semibold text-[var(--ink-faint)] hover:text-[var(--ink)]"
-          >
-            Dismiss
-          </button>
-        )}
-      </div>
-
-      {mails.length > 1 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {mails.map((m, i) => (
+    <div className="case-card case-fade-in overflow-hidden p-0">
+      <div className="border-b border-[var(--cream-2)] px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-xl font-bold">{title}</h2>
+            <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
+              Review the draft, copy manually if needed, or open in your mail client.
+            </p>
+          </div>
+          {onClose && (
             <button
-              key={m.slug}
               type="button"
-              onClick={() => setActive(i)}
-              className={`rounded-full border px-3 py-1 text-[11px] font-bold ${
-                i === active
-                  ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
-                  : "border-[var(--cream-2)] text-[var(--ink-soft)]"
-              }`}
+              onClick={onClose}
+              className="shrink-0 rounded-md px-2 py-1 text-[12px] font-semibold text-[var(--ink-faint)] transition-colors hover:bg-[var(--cream)] hover:text-[var(--ink)]"
             >
-              {m.slug.replace(/_/g, " ")}
+              Dismiss
             </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-4 space-y-3">
-        <div className="rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-2 text-[13px]">
-          <span className="font-bold text-[var(--ink-faint)]">To: </span>
-          {mail.to || (
-            <span className="text-[var(--orange)]">No recipient email on file</span>
           )}
         </div>
-        <div className="rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-2 text-[13px]">
-          <span className="font-bold text-[var(--ink-faint)]">Subject: </span>
-          {mail.subject}
-        </div>
-        <div className="max-h-[32rem] overflow-auto rounded-xl border border-[var(--cream-2)] bg-white p-3">
-          <div dangerouslySetInnerHTML={{ __html: mail.bodyHtml }} />
-        </div>
-        {mail.attachments.length > 0 && (
-          <div className="rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] px-3 py-3 text-[13px] text-[var(--ink-soft)]">
-            <div className="font-bold text-[var(--ink-faint)]">Attachments / links</div>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              {mail.attachments.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+
+        {mails.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {mails.map((m, i) => (
+              <button
+                key={m.slug}
+                type="button"
+                onClick={() => setActive(i)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-bold capitalize transition-colors",
+                  i === active
+                    ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan-d)]"
+                    : "border-[var(--cream-2)] text-[var(--ink-soft)] hover:border-[var(--cyan)]/40",
+                )}
+              >
+                {m.slug.replace(/_/g, " ")}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button type="button" onClick={copyFormatted}>
-          {copied ? "Copied" : "Copy formatted"}
-        </Button>
-        <Button type="button" onClick={copyAll}>
-          Copy plain text
-        </Button>
-        <Button type="button" onClick={downloadEml}>
-          Download .eml draft
-        </Button>
-        {outlookUrl && (
-          <a
-            href={outlookUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center rounded-xl border border-[var(--cream-2)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ink)] no-underline transition-colors hover:border-[var(--cyan)]"
+      <div className="grid gap-px border-b border-[var(--cream-2)] bg-[var(--cream-2)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <div className="bg-[var(--cream)] px-4 py-3">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            To
+          </div>
+          <div className="mt-1 text-[13px] font-semibold text-[var(--ink)]">
+            {mail.to || (
+              <span className="font-medium text-[var(--orange)]">No recipient on file</span>
+            )}
+          </div>
+        </div>
+        <div className="bg-[var(--cream)] px-4 py-3">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            Subject
+          </div>
+          <div className="mt-1 text-[13px] font-semibold text-[var(--ink)]">{mail.subject}</div>
+        </div>
+      </div>
+
+      <div className="relative bg-white">
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-lg border border-[var(--cream-2)] bg-white/95 p-0.5 shadow-sm backdrop-blur-sm">
+          <ToolbarButton
+            title={copied === "formatted" ? "Copied formatted email" : "Copy formatted email"}
+            onClick={() => void copyFormatted()}
+            active={copied === "formatted"}
           >
-            Open in Outlook (web) →
-          </a>
-        )}
-        {gmailUrl && (
-          <a
-            href={gmailUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center rounded-xl border border-[var(--cream-2)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ink)] no-underline transition-colors hover:border-[var(--cyan)]"
+            {copied === "formatted" ? <CheckIcon /> : <CopyIcon />}
+          </ToolbarButton>
+          <ToolbarButton
+            title={copied === "plain" ? "Copied plain text" : "Copy plain text"}
+            onClick={() => void copyPlain()}
+            active={copied === "plain"}
           >
-            Open in Gmail →
-          </a>
-        )}
-        {mail.mailto && (
-          <a
-            href={mail.mailto}
-            className="inline-flex items-center rounded-xl border border-[var(--cream-2)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ink)] no-underline transition-colors hover:border-[var(--cyan)]"
-          >
-            Open in desktop app →
-          </a>
+            {copied === "plain" ? (
+              <CheckIcon />
+            ) : (
+              <span className="text-[10px] font-bold tracking-tight">Aa</span>
+            )}
+          </ToolbarButton>
+          <div className="mx-0.5 h-5 w-px bg-[var(--cream-2)]" aria-hidden />
+          <ToolbarButton title="Download .eml draft" onClick={downloadEml}>
+            <DownloadIcon />
+          </ToolbarButton>
+        </div>
+
+        <div className="max-h-[28rem] overflow-auto px-4 pb-4 pt-14">
+          <div dangerouslySetInnerHTML={{ __html: mail.bodyHtml }} />
+        </div>
+      </div>
+
+      {mail.attachments.length > 0 && (
+        <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] px-5 py-3 text-[13px] text-[var(--ink-soft)]">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+            Attachments / links
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {mail.attachments.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] px-5 py-4">
+        <p className="text-[11px] text-[var(--ink-faint)]">
+          Web compose opens plain text. Use the download icon above to keep HTML layout and images.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {outlookUrl && <OpenMailLink href={outlookUrl} label="Open in Outlook" external />}
+          {gmailUrl && <OpenMailLink href={gmailUrl} label="Open in Gmail" external />}
+          {mail.mailto && <OpenMailLink href={mail.mailto} label="Desktop mail app" />}
+        </div>
+        {!to && (
+          <p className="mt-3 text-xs text-[var(--orange)]">
+            No recipient email on file — copy the draft and send it manually.
+          </p>
         )}
       </div>
-      {!to && (
-        <p className="mt-2 text-xs text-[var(--orange)]">
-          No recipient email on file — copy the text and send it manually.
-        </p>
-      )}
     </div>
   );
 }

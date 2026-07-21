@@ -24,7 +24,7 @@ export const ROLE_WORKFLOWS: RoleWorkflow[] = [
       { label: "Import candidates", detail: "CSV bulk or single resume upload" },
       { label: "Run AI screening", detail: "Project + role aligned analysis" },
       { label: "Move pipeline", detail: "Kanban stages — screen to offer" },
-      { label: "Book & assign", detail: "Pick panel, slot, and handoff notes" },
+      { label: "Schedule & assign", detail: "Pick panel, slot, and handoff notes" },
       { label: "Track progress", detail: "See feedback status at every round" },
     ],
     outcome: "One place to screen, assign, and follow every candidate — no spreadsheet side-channels.",

@@ -95,9 +95,14 @@ export default async function AssignmentsPage() {
           </ol>
         </div>
       )}
-      <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-        Pending review ({pending.length})
-      </h2>
+      <div className="mb-4">
+        <h2 className="font-serif text-xl font-bold text-[var(--ink)]">Your queue</h2>
+        <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+          {pending.length === 0
+            ? "No interviews waiting right now"
+            : `${pending.length} interview${pending.length !== 1 ? "s" : ""} ready for your review`}
+        </p>
+      </div>
       <AssignmentCards
         now={now}
         rows={pending.map(({ stage, candidate, roleName, projectName }) => ({
@@ -115,7 +120,7 @@ export default async function AssignmentsPage() {
       />
       {done.length > 0 && (
         <>
-          <h2 className="mb-3 mt-7 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+          <h2 className="mb-3 mt-7 font-serif text-lg font-bold text-[var(--ink)]">
             Completed ({done.length})
           </h2>
           <div className="case-card overflow-hidden">

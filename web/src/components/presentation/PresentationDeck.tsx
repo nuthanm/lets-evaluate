@@ -233,7 +233,7 @@ function SlideSolution() {
   const steps = [
     ["01", "Configure", "Projects, roles, pipeline stages, question bank"],
     ["02", "Screen", "AI parses resume against your tech stack"],
-    ["03", "Assign", "Book panel with shared AI report and handoff notes"],
+    ["03", "Assign", "Schedule panel with shared AI report and handoff notes"],
     ["04", "Decide", "Structured interview, per-round feedback, PDF + audit"],
   ];
 
@@ -309,7 +309,7 @@ function SlideCost() {
 function SlideBuilt() {
   const built = [
     "AI resume screening (project + role aligned)",
-    "Pipeline, booking, interviewer assignment",
+    "Pipeline, schedule, interviewer assignment",
     "Structured interview workspace + PDF reports",
     "Mail templates, audit log, bulk CSV import",
     "Job descriptions with AI assist + PDF/DOCX export",

@@ -9,7 +9,7 @@ export function MockDashboardPage() {
     >
       <div className="pres-mock-grid-4">
         <MockStat label="Screening" value="12" tone="orange" />
-        <MockStat label="Ready to book" value="5" tone="cyan" />
+        <MockStat label="Ready to schedule" value="5" tone="cyan" />
         <MockStat label="In interview" value="8" tone="cyan" />
         <MockStat label="Est. AI cost" value="$4.20" tone="green" />
       </div>
@@ -161,7 +161,7 @@ export function MockBookingPage() {
   return (
     <MockAppChrome
       activeId="booking"
-      pageTitle="Booking"
+      pageTitle="Schedule"
       pageSubtitle="Assign screened candidates to interviewers"
     >
       <div className="pres-mock-panel">

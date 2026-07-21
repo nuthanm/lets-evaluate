@@ -171,4 +171,4 @@ See root workspace docs for detailed analysis:
 
 ## Mail templates
 
-All candidate and interviewer emails are **in-app templates** with `{{placeholders}}` — no Resend or third-party mail API. Admins edit templates under **Setup → Mail templates**. Recruiters copy or open prepared messages in their own mail client after screening or booking.
+All candidate and interviewer emails are **in-app templates** with `{{placeholders}}` — no Resend or third-party mail API. Admins edit templates under **Setup → Mail templates**. Recruiters copy or open prepared messages in their own mail client after screening or scheduling.

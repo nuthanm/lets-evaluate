@@ -83,8 +83,23 @@ describe("computeRecommendationFromComparison", () => {
       { technology: "AWS", status: "Matched" },
     ]);
     expect(result.recommendation).toBe("Hold");
+    expect(result.suitability.verdict).toBe("Partially suitable");
     expect(result.tech_match_score).toBe(80);
     expect(result.clarifications).toHaveLength(1);
+    expect(result.suitability.description).toContain("Solid match on");
+    expect(result.suitability.description).toContain("PostgreSQL");
+  });
+
+  it("Hold when every stack item is present but some need project-work proof", () => {
+    const result = computeRecommendationFromComparison([
+      { technology: "C#", status: "Matched" },
+      { technology: ".NET", status: "Matched" },
+      { technology: "LINQ", status: "Clarification" },
+    ]);
+    expect(result.recommendation).toBe("Hold");
+    expect(result.suitability.verdict).toBe("Partially suitable");
+    expect(result.suitability.description).toContain("LINQ");
+    expect(result.suitability.description).not.toContain("significant gaps");
   });
 });
 

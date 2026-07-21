@@ -218,7 +218,7 @@ export function ScheduleClient({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not book this slot.");
+        setError(data.error ?? "Could not schedule this slot.");
         return;
       }
       const data = await res.json();
@@ -267,7 +267,7 @@ export function ScheduleClient({
         <div className="space-y-3">
           <EmailComposer
             mails={preparedMails}
-            title="Booking emails ready"
+            title="Schedule emails ready"
             onClose={() => setPreparedMails(null)}
           />
           {icsUrl && (
@@ -437,7 +437,7 @@ export function ScheduleClient({
 
         {!selectedInterviewer && view !== "month" && (
           <div className="border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2 text-xs text-[var(--ink-soft)]">
-            Showing all interviewers. Select an interviewer to book a free slot.
+            Showing all interviewers. Select an interviewer to schedule a free slot.
           </div>
         )}
 
@@ -447,7 +447,7 @@ export function ScheduleClient({
               {activeInterviewer.name}
             </span>
             <span className="text-[var(--ink-soft)]">
-              — click a free (＋) slot to book
+              — click a free (＋) slot to schedule
             </span>
           </div>
         )}
@@ -490,7 +490,7 @@ export function ScheduleClient({
         </div>
       </section>
 
-      {/* Booking modal */}
+      {/* Schedule modal */}
       {pending && activeInterviewer && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
@@ -500,7 +500,7 @@ export function ScheduleClient({
             className="case-card w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-serif text-xl font-bold">Confirm booking</h3>
+            <h3 className="font-serif text-xl font-bold">Confirm schedule</h3>
             <div className="mt-3 space-y-2 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-3 text-sm">
               <Row label="Candidate" value={candidate.name} />
               <Row label="Interviewer" value={activeInterviewer.name} />
@@ -540,7 +540,7 @@ export function ScheduleClient({
                 onClick={confirmBooking}
                 disabled={booking}
               >
-                {booking ? "Booking…" : "Confirm booking"}
+                {booking ? "Scheduling…" : "Confirm schedule"}
               </Button>
             </div>
           </div>

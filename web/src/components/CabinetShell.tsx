@@ -58,7 +58,7 @@ function navForRole(role: MemberRole): NavSection[] {
         items: [
           { href: "/candidates", label: "Candidates", icon: CandidatesIcon },
           { href: "/interviewers", label: "Interviewers", icon: InterviewersIcon },
-          { href: "/booking", label: "Booking", icon: BookingIcon },
+          { href: "/booking", label: "Schedule", icon: BookingIcon },
         ],
       },
       {
@@ -96,7 +96,7 @@ function navForRole(role: MemberRole): NavSection[] {
       items: [
         { href: "/candidates", label: "Candidates", icon: CandidatesIcon },
         { href: "/interviewers", label: "Interviewers", icon: InterviewersIcon },
-        { href: "/booking", label: "Booking", icon: BookingIcon },
+        { href: "/booking", label: "Schedule", icon: BookingIcon },
       ],
     },
     {
@@ -126,7 +126,7 @@ function mobileNavForRole(role: MemberRole) {
     { href: "/candidates", label: "People" },
     { href: "/job-descriptions", label: "JD" },
     { href: "/evaluate/new", label: "+", accent: true as const },
-    { href: "/booking", label: "Booking" },
+    { href: "/booking", label: "Schedule" },
     { href: "/archive", label: "Archive" },
   ];
 }

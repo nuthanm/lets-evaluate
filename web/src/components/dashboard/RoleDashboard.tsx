@@ -11,6 +11,7 @@ import type { MemberRole } from "@/lib/auth/config";
 import type { RecruiterTask } from "@/lib/recruiter/tasks";
 import { groupTasksByUrgency } from "@/lib/recruiter/tasks";
 import { formatAuditAction } from "@/lib/audit/format-action";
+import { AssignmentCards } from "@/app/(app)/assignments/AssignmentCards";
 
 /* ── Professional SVG stat icons ───────────────────────────────────────────── */
 const base = { viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -243,11 +244,11 @@ export function TeamDashboard({
     {
       key: "book",
       count: readyToBook.length,
-      label: "Ready to book",
+      label: "Ready to schedule",
       hint: "Assign an interviewer & slot",
       href: "/booking",
       variant: "cyan" as const,
-      cta: "Book slot",
+      cta: "Schedule slot",
     },
     {
       key: "await",
@@ -533,30 +534,6 @@ function urgencyFor(dueAt: string | null): "overdue" | "soon" | "none" {
   return "none";
 }
 
-function UrgencyPill({ dueAt }: { dueAt: string | null }) {
-  const urgency = urgencyFor(dueAt);
-  if (urgency === "overdue") {
-    const days = Math.floor((getNow() - new Date(dueAt!).getTime()) / 86400000);
-    return (
-      <Pill
-        variant="orange"
-        style={{
-          color: "#d63b3b",
-          backgroundColor: "var(--orange-soft)",
-          borderColor: "rgba(232, 119, 34, 0.45)",
-        }}
-      >
-        Overdue{days > 0 ? ` · ${days}d ago` : ""}
-      </Pill>
-    );
-  }
-  if (urgency === "soon") {
-    const hrs = Math.max(1, Math.round((new Date(dueAt!).getTime() - getNow()) / 3600000));
-    return <Pill variant="cyan">Due in {hrs}h</Pill>;
-  }
-  return <Pill variant="neutral">Pending</Pill>;
-}
-
 export function InterviewerDashboard({
   assignments,
   counts,
@@ -593,10 +570,10 @@ export function InterviewerDashboard({
     : isHr
       ? "HR rounds"
       : "interviews";
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const period = counts ?? { today: 0, month: 0, quarter: 0, year: 0, total: 0 };
+  const dashboardNow = getNow();
   const pending = assignments.filter((a) => a.status === "active");
   const overdue = pending.filter((a) => urgencyFor(a.dueAt) === "overdue");
-  const period = counts ?? { today: 0, month: 0, quarter: 0, year: 0, total: 0 };
 
   const sortedPending = [...pending].sort((a, b) => {
     const ua = urgencyFor(a.dueAt);
@@ -711,12 +688,19 @@ export function InterviewerDashboard({
         </div>
       </section>
 
-      {/* ── Interview queue (card style, aligned with Assignments page) ── */}
+      {/* ── Interview queue ── */}
       <section className="mb-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            Pending {roundLabelPlural} ({sortedPending.length})
-          </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-xl font-bold text-[var(--ink)]">
+              {sortedPending.length === 1 ? "Up next" : "Your queue"}
+            </h2>
+            <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+              {sortedPending.length === 0
+                ? `No pending ${roundLabelPlural} right now`
+                : `${sortedPending.length} ${roundLabel}${sortedPending.length !== 1 ? "s" : ""} waiting for your evaluation`}
+            </p>
+          </div>
           {sortedPending.length > 5 && (
             <ButtonLink href="/assignments" variant="ghost" className="px-3 py-1 text-[11px]">
               View all →
@@ -724,151 +708,56 @@ export function InterviewerDashboard({
           )}
         </div>
 
-        {/* Today's progress bar */}
         {(period.today > 0 || sortedPending.length > 0) && (
-          <div className="mb-3 overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white px-4 py-3">
-            <div className="flex items-center justify-between text-[11px] font-bold">
-              <span className="uppercase tracking-wide text-[var(--ink-faint)]">Today&apos;s progress</span>
-              <span className="text-[var(--cyan-d)]">{period.today} done · {sortedPending.length} remaining</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--cream-2)]">
-              {(() => {
-                const total = period.today + sortedPending.length;
-                const pct = total > 0 ? Math.round((period.today / total) * 100) : 0;
-                return (
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-[var(--cyan-d)] transition-all duration-700"
-                    style={{ width: `${pct}%` }}
-                  />
-                );
-              })()}
-            </div>
+          <div className="mb-4 overflow-hidden rounded-2xl border border-[var(--cyan)]/20 bg-gradient-to-br from-[var(--cyan-soft)] to-white px-4 py-4">
+            {(() => {
+              const total = period.today + sortedPending.length;
+              const pct = total > 0 ? Math.round((period.today / total) * 100) : 0;
+              return (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-[var(--ink)]">Today&apos;s progress</p>
+                      <p className="mt-0.5 text-[13px] text-[var(--ink-soft)]">
+                        {period.today} completed · {sortedPending.length} remaining
+                      </p>
+                    </div>
+                    <div className="font-serif text-3xl font-bold text-[var(--cyan-d)]">{pct}%</div>
+                  </div>
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/80">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[var(--cyan)] to-[var(--cyan-d)] transition-all duration-700"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
-        {sortedPending.length === 0 ? (
-          <div className="case-card flex items-center gap-4 p-5">
-            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--green-soft)] text-lg">✓</div>
-            <p className="text-sm text-[var(--ink-faint)]">No active assignments. Check back soon.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sortedPending.slice(0, 6).map((a, idx) => {
-              const urgency = urgencyFor(a.dueAt);
-              const context = [a.roleName, a.projectName].filter(Boolean).join(" · ");
-              const isTopItem = idx === 0;
-              const isOpening = openingId === a.id;
-              return (
-                <Link
-                  key={a.id}
-                  href={`/evaluate/${a.candidate.id}`}
-                  className="block no-underline"
-                  onClick={() => setOpeningId(a.id)}
-                >
-                  <div className={cn(
-                    "case-card overflow-hidden transition-all hover:shadow-sm",
-                    urgency === "overdue"
-                      ? "border-[var(--orange)]/30 hover:border-[var(--orange)]"
-                      : "hover:border-[var(--cyan)]/40",
-                  )}>
-                    {urgency === "overdue" && (
-                      <div className="h-1 w-full bg-gradient-to-r from-[var(--orange)] to-[#f5b88a]" />
-                    )}
-                    {urgency === "soon" && (
-                      <div className="h-1 w-full bg-gradient-to-r from-[var(--cyan)] to-[#7dd8f5]" />
-                    )}
-                    <div className="flex items-center gap-3 p-4">
-                      <FaceAvatar name={a.candidate.name} size="md" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <strong className="text-[var(--ink)]">{a.candidate.name}</strong>
-                          {context && (
-                            <span className="text-[11px] text-[var(--ink-faint)]">{context}</span>
-                          )}
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-semibold text-[var(--cyan-d)]">{a.label}</span>
-                        </div>
-                        {a.dueAt && (
-                          <p className={cn(
-                            "mt-0.5 text-[11px] font-semibold",
-                            urgency === "overdue"
-                              ? "text-[var(--orange)]"
-                              : urgency === "soon"
-                                ? "text-[var(--cyan-d)]"
-                                : "text-[var(--ink-faint)]",
-                          )}>
-                            Due:{" "}
-                            {new Date(a.dueAt).toLocaleString("en-GB", {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        )}
-                        {a.handoffNote && (
-                          <p className="mt-1 truncate rounded bg-[var(--cream)] px-2 py-0.5 text-[11px] italic text-[var(--ink-soft)]">
-                            &ldquo;{a.handoffNote}&rdquo;
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1.5">
-                        <UrgencyPill dueAt={a.dueAt} />
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all",
-                          isOpening
-                            ? "border-[var(--cyan)] bg-[var(--cyan)] text-white shadow-[var(--cyan)]/20"
-                            : isTopItem
-                              ? "border-[var(--cyan)] bg-[var(--cyan)] text-white hover:bg-[var(--navy)] hover:border-[var(--navy)]"
-                              : urgency === "overdue"
-                                ? "border-[var(--orange)] bg-white text-[var(--orange)] hover:bg-[var(--orange)] hover:text-white"
-                                : "border-[var(--cyan)] bg-white text-[var(--cyan-d)] hover:bg-[var(--cyan)] hover:text-white",
-                        )}>
-                          {isOpening ? (
-                            <>
-                              <svg
-                                className="animate-spin size-3"
-                                viewBox="0 0 16 16"
-                                fill="none"
-                              >
-                                <circle
-                                  cx="8"
-                                  cy="8"
-                                  r="6"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeOpacity=".3"
-                                />
-                                <path
-                                  d="M8 2a6 6 0 0 1 6 6"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                />
-                              </svg>
-                              Opening…
-                            </>
-                          ) : (
-                            "Open →"
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        <AssignmentCards
+          now={dashboardNow}
+          rows={sortedPending.slice(0, 6).map((a) => ({
+            stage: {
+              id: a.id,
+              label: a.label,
+              status: a.status,
+              dueAt: a.dueAt,
+              handoffNote: a.handoffNote,
+            },
+            candidate: a.candidate,
+            roleName: a.roleName,
+            projectName: a.projectName,
+          }))}
+        />
       </section>
 
       {/* ── History & exports ──────────────────────────────────────── */}
       {history.length > 0 && (
         <section className="mb-5">
           <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-            Completed {roundLabelPlural} ({history.length})
+            Recently completed ({history.length})
           </h2>
           <div className="case-card overflow-hidden">
             {history.slice(0, 8).map((h, idx) => (

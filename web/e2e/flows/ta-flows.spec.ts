@@ -8,7 +8,7 @@ const taSections = [
   ["/people", "Dashboard"],
   ["/candidates", "Candidates"],
   ["/interviewers", "Interviewers"],
-  ["/booking", "Booking"],
+  ["/booking", "Schedule"],
   ["/pipeline", "Pipeline"],
   ["/library", "Question library"],
   ["/job-descriptions", "Job descriptions"],

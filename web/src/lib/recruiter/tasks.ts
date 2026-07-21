@@ -61,7 +61,7 @@ export function nextActionForCandidate(
     return { label: "Screen", href: `/evaluate/${candidateId}` };
   }
   if (status === "ready_for_interview" || status === "assigned") {
-    return { label: "Book", href: `/booking/${candidateId}` };
+    return { label: "Schedule", href: `/booking/${candidateId}` };
   }
   if (status === "interview_in_progress" || status === "interview_complete") {
     return { label: "Track", href: `/pipeline` };
@@ -135,7 +135,7 @@ export function buildRecruiterTasks(
         id: `book-${c.id}`,
         candidateId: c.id,
         candidateName: c.name,
-        action: "Book interviewer",
+        action: "Schedule interviewer",
         detail: "Assign panel member & time slot",
         href: `/booking/${c.id}`,
         priority: 20 + age,

@@ -58,7 +58,7 @@ export const WORKFLOW_MODULES: WorkflowModule[] = [
   },
   {
     id: "booking",
-    title: "Book & assign",
+    title: "Schedule & assign",
     tagline: "Match interviewers to slots with full handoff context.",
     icon: "◷",
     tone: "orange",

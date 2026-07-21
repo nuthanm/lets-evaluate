@@ -25,7 +25,7 @@ export const FEATURE_LABELS: Record<FeatureArea, string> = {
   candidates: "Candidate evaluate",
   screening: "AI screening portal",
   bulk: "Bulk import & jobs",
-  booking: "Interview booking",
+  booking: "Interview scheduling",
   setup: "Admin setup",
   library: "Question library",
   jobs: "Job descriptions",

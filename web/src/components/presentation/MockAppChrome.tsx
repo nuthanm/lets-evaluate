@@ -4,7 +4,7 @@ const NAV = [
   { id: "dashboard", label: "Home", icon: "⌂" },
   { id: "evaluate", label: "Cases", icon: "◈" },
   { id: "pipeline", label: "Flow", icon: "▤" },
-  { id: "booking", label: "Book", icon: "◷" },
+  { id: "booking", label: "Schedule", icon: "◷" },
   { id: "assignments", label: "Queue", icon: "☰" },
   { id: "audit", label: "Log", icon: "◎" },
 ];

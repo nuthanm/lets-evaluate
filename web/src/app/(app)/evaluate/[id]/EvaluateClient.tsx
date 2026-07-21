@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { DocxPreview } from "@/components/DocxPreview";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/resume/formats";
 import type { RenderedMail } from "@/lib/email";
 import type { ResumeMetrics } from "@/lib/ai";
+import { resolveScreeningVerdict } from "@/lib/ai/tech-matching";
 import {
   SCREENING_NOTES_MIN_LEN,
   validateScreeningDecision,
@@ -88,6 +89,10 @@ export function EvaluateClient({
     initialMetrics?.tech_match_score ? 2 : 1,
   );
   const [metrics, setMetrics] = useState<Metrics | undefined>(initialMetrics);
+  const screening = useMemo(
+    () => (metrics ? resolveScreeningVerdict(metrics) : null),
+    [metrics],
+  );
   const [comments, setComments] = useState("");
   const [analysisModel, setAnalysisModel] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
@@ -625,9 +630,9 @@ export function EvaluateClient({
             <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
               <span>🤖</span>
               <span className="text-xs font-bold uppercase tracking-wide text-[var(--ink-faint)]">AI Analysis</span>
-              {metrics?.recommendation && (
-                <Pill variant={recommendationVariant(metrics.recommendation)} className="ml-2 text-[10px]">
-                  {metrics.recommendation}
+              {screening?.recommendation && (
+                <Pill variant={recommendationVariant(screening.recommendation)} className="ml-2 text-[10px]">
+                  {screening.recommendation}
                 </Pill>
               )}
             </div>
@@ -687,9 +692,9 @@ export function EvaluateClient({
               <div className="text-lg font-extrabold">{candidateName}</div>
               <div className="text-[13px] text-[var(--ink-faint)]">{role}</div>
             </div>
-            {metrics?.recommendation && (
-              <Pill variant={recommendationVariant(metrics.recommendation)}>
-                AI: {metrics.recommendation}
+            {screening?.recommendation && (
+              <Pill variant={recommendationVariant(screening.recommendation)}>
+                AI: {screening.recommendation}
               </Pill>
             )}
           </div>
@@ -889,13 +894,13 @@ export function EvaluateClient({
                         : activeInterviewStage.kind === "hr"
                           ? "HR"
                           : "technical interviewer"}{" "}
-                      and book a slot.
+                      and schedule a slot.
                     </p>
                     <a
                       href={`/booking/${candidateId}`}
                       className="mt-2 inline-block text-sm font-semibold text-[var(--cyan-d)] hover:underline"
                     >
-                      Assign interviewer & book →
+                      Assign interviewer & schedule →
                     </a>
                   </>
                 )
@@ -916,7 +921,7 @@ export function EvaluateClient({
               />
               {preparedMails.some((m) => m.slug === "candidate_proceed") && (
                 <Button onClick={() => router.push(`/booking/${candidateId}`)}>
-                  Continue to booking →
+                  Continue to schedule →
                 </Button>
               )}
             </div>
@@ -1069,7 +1074,7 @@ export function EvaluateClient({
                     <div className="case-alert border-[var(--orange)] bg-[var(--orange-soft)]">
                       <p className="text-[13px] font-semibold text-[var(--orange)]">
                         This opening is closed. Reopen the role or change the
-                        candidate&apos;s role before proceeding or booking.
+                        candidate&apos;s role before proceeding or scheduling.
                       </p>
                     </div>
                   )}
@@ -1085,7 +1090,7 @@ export function EvaluateClient({
                       <strong>Final Confirmation</strong>, after all rounds are
                       complete.
                     </p>
-                    {metrics.recommendation === "Reject" && (
+                    {screening?.recommendation === "Reject" && (
                       <div className="case-alert mt-4 border-[var(--orange)] bg-[var(--orange-soft)]">
                         <p className="text-[13px] font-semibold text-[var(--orange)]">
                           AI recommended Reject — if you choose Proceed or Hold,
@@ -1101,7 +1106,7 @@ export function EvaluateClient({
                     </div>
                     <FieldTextarea
                       placeholder={
-                        metrics.recommendation === "Reject"
+                        screening?.recommendation === "Reject"
                           ? "Explain why you are overriding the AI Reject recommendation…"
                           : "Record your screening rationale before proceeding, holding, or rejecting…"
                       }
@@ -1611,6 +1616,7 @@ export function AnalysisReport({
   const router = useRouter();
   const [reassigning, setReassigning] = useState<string | null>(null);
   const clarifications = metrics.clarifications ?? [];
+  const screening = resolveScreeningVerdict(metrics);
   const roleLabel = projectName ? `${role} — ${projectName}` : role;
 
   return (
@@ -1619,7 +1625,7 @@ export function AnalysisReport({
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCell
           label="Match score"
-          value={`${metrics.tech_match_score ?? 0}%`}
+          value={`${screening.tech_match_score ?? 0}%`}
           accent
         />
         <MetricCell
@@ -1633,8 +1639,8 @@ export function AnalysisReport({
         />
         <MetricCell
           label="AI recommendation"
-          value={metrics.recommendation ?? "—"}
-          accent={recommendationVariant(metrics.recommendation) === "green"}
+          value={screening.recommendation ?? "—"}
+          accent={recommendationVariant(screening.recommendation) === "green"}
         />
       </div>
 
@@ -1833,17 +1839,17 @@ export function AnalysisReport({
       <div className="case-card border-[var(--cyan)] bg-[var(--cyan-soft)] p-5">
         <SectionTitle>Suitability for {roleLabel}</SectionTitle>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Pill variant={suitabilityVariant(metrics.suitability?.verdict)}>
-            {metrics.suitability?.verdict || "Review required"}
+          <Pill variant={suitabilityVariant(screening.suitability?.verdict)}>
+            {screening.suitability?.verdict || "Review required"}
           </Pill>
-          {metrics.recommendation && (
-            <Pill variant={recommendationVariant(metrics.recommendation)}>
-              AI: {metrics.recommendation}
+          {screening.recommendation && (
+            <Pill variant={recommendationVariant(screening.recommendation)}>
+              AI: {screening.recommendation}
             </Pill>
           )}
         </div>
         <p className="mt-3 text-sm leading-relaxed">
-          {metrics.suitability?.description || metrics.summary || "—"}
+          {screening.suitability?.description || metrics.summary || "—"}
         </p>
         <p className="mt-3 text-xs text-[var(--ink-faint)]">
           This is an AI advisory only. The recruiter makes the final Proceed /

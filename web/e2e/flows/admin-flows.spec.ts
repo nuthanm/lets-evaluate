@@ -16,7 +16,7 @@ const adminSections = [
   ["/openings", "Openings board"],
   ["/candidates", "Candidates"],
   ["/pipeline", "Pipeline"],
-  ["/booking", "Booking"],
+  ["/booking", "Schedule"],
   ["/interviewers", "Interviewers"],
   ["/candidates/import", "Bulk import"],
   ["/library", "Question library"],

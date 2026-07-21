@@ -394,7 +394,7 @@ ANALYSIS RULES (Follow EXACTLY):
 
 2. EXPERIENCE CALCULATION:
    - Employment dates, career timeline, per-technology experience, and relevant stack experience are computed separately in code
-   - Focus narrative fields on strengths, concerns, summary, and suitability description
+   - Focus narrative fields on strengths, concerns, and summary — suitability verdict and description are computed in code from tech_comparison
 
 3. RECOMMENDATION TREE (Deterministic):
    Calculate tech_match_score = (count Matched) / (required stack length) * 100

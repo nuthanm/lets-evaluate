@@ -16,7 +16,7 @@
 | AI screening | Upload resume → parse → tech match, strengths, gaps, and tailored questions |
 | Candidate pipeline | Track candidates from screening through interview to decision |
 | Interviewer assignment | Assign panel members and manage their workload |
-| Booking | Schedule and coordinate interview slots |
+| Schedule | Schedule and coordinate interview slots |
 | Mail templates | In-app placeholder emails — copy or open in your mail client (no third-party mail API) |
 | Bulk import | CSV import for candidates |
 | Audit log | Organization-wide activity history |
@@ -326,7 +326,7 @@ flowchart TD
             Setup["/setup\nProjects · Roles · Pipeline"]
             Evaluate["/evaluate\nAI screening wizard"]
             Pipeline["/pipeline · /archive\nHiring records"]
-            Booking["/booking · /assignments\nScheduling & panel"]
+            Schedule["/booking · /assignments\nScheduling & panel"]
         end
 
         subgraph Lib["Server libraries"]

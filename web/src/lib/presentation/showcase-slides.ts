@@ -38,7 +38,7 @@ export const SHOWCASE_SLIDES: ShowcaseSlide[] = [
   },
   {
     id: "booking",
-    title: "Booking & assignment",
+    title: "Schedule & assignment",
     caption: "Assign interviewers with handoff notes and calendar invites.",
     highlights: [
       "Interviewer workload view",

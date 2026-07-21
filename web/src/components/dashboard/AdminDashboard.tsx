@@ -377,7 +377,7 @@ export function AdminDashboard({
               color="#23b0e6"
             />
             <FunnelBar
-              label="Ready to book"
+              label="Ready to schedule"
               count={funnel.readyToBook}
               total={funnelTotal}
               color="#1c8db8"

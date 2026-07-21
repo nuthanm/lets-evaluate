@@ -26,7 +26,7 @@ export const KEY_FEATURES: KeyFeature[] = [
   },
   {
     id: "booking",
-    title: "Booking & assignment",
+    title: "Schedule & assignment",
     description: "Interviewer workload, handoff notes, and .ics calendar downloads.",
     badge: "Coordination",
     tone: "orange",

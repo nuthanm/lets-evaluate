@@ -44,7 +44,7 @@ export default async function BookingPage() {
 
   return (
     <CabinetPage
-      title="Booking"
+      title="Schedule"
       subtitle="Assign screened candidates to the right interviewer for their current round"
     >
       <BookingClient

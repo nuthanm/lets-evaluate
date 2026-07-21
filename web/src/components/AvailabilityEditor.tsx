@@ -60,7 +60,7 @@ export function AvailabilityEditor() {
     <CaseCard className="mt-5 p-5">
       <h2 className="font-serif text-lg font-bold">Interview availability</h2>
       <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
-        Weekly windows used when recruiters book your calendar slots.
+        Weekly windows used when recruiters schedule your calendar slots.
       </p>
       <div className="mt-4 space-y-2">
         {DAYS.map((label, dow) => {

@@ -4,7 +4,7 @@ const protectedPages = [
   ["/people", "Dashboard"],
   ["/candidates", "Candidates"],
   ["/pipeline", "Pipeline"],
-  ["/booking", "Booking"],
+  ["/booking", "Schedule"],
   ["/library", "Question library"],
   ["/job-descriptions", "Job descriptions"],
   ["/archive", "Archive"],

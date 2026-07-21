@@ -28,7 +28,7 @@ export default async function InterviewersPage() {
       subtitle="Panel members, their expertise, and current interview load"
       actions={
         <ButtonLink href="/booking" className="px-5 py-2 text-[13px]">
-          Book a slot →
+          Schedule a slot →
         </ButtonLink>
       }
     >
