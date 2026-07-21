@@ -1290,11 +1290,675 @@
   }
 }
 
+/* ── Workflow visualization slide ── */
+
+.pres-workflow {
+  width: 100%;
+}
+
+.pres-workflow-modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+}
+
+.pres-workflow-module-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.pres-workflow-module-tab:hover {
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+}
+
+.pres-workflow-module-tab-active {
+  border-color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan-soft) 55%, var(--white));
+  color: var(--cyan-d);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--cyan) 14%, transparent);
+}
+
+.pres-workflow-module-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pres-workflow-stage {
+  margin-top: 1rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: 1.1rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--navy) 6%, transparent);
+  animation: pres-workflow-stage-in 0.55s var(--pres-ease) both;
+}
+
+@keyframes pres-workflow-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pres-workflow-tone-cyan.pres-workflow-stage {
+  border-color: color-mix(in srgb, var(--cyan) 28%, var(--cream-2));
+}
+
+.pres-workflow-tone-green.pres-workflow-stage {
+  border-color: color-mix(in srgb, var(--green) 28%, var(--cream-2));
+}
+
+.pres-workflow-tone-orange.pres-workflow-stage {
+  border-color: color-mix(in srgb, var(--orange) 28%, var(--cream-2));
+}
+
+.pres-workflow-tone-navy.pres-workflow-stage {
+  border-color: color-mix(in srgb, var(--navy) 18%, var(--cream-2));
+}
+
+.pres-workflow-stage-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.pres-workflow-stage-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: var(--cyan-soft);
+  color: var(--cyan-d);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.pres-workflow-tone-green .pres-workflow-stage-icon {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.pres-workflow-tone-orange .pres-workflow-stage-icon {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.pres-workflow-tone-navy .pres-workflow-stage-icon {
+  background: color-mix(in srgb, var(--navy) 10%, var(--white));
+  color: var(--navy);
+}
+
+.pres-workflow-stage-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pres-workflow-stage-tagline {
+  margin-top: 0.2rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.pres-workflow-steps {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+}
+
+.pres-workflow-step-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.pres-workflow-connector {
+  position: relative;
+  width: 1.25rem;
+  height: 2px;
+  background: var(--cream-2);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.pres-workflow-connector-active {
+  background: color-mix(in srgb, var(--cyan) 25%, var(--cream-2));
+}
+
+.pres-workflow-connector-flow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  transform: translateX(-100%);
+  animation: pres-connector-flow 1.2s ease-in-out infinite;
+}
+
+.pres-workflow-connector-active .pres-workflow-connector-flow {
+  animation-play-state: running;
+}
+
+@keyframes pres-connector-flow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.pres-workflow-step {
+  position: relative;
+  flex: 1;
+  min-width: 7rem;
+  padding: 0.75rem 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--cream-2);
+  background: color-mix(in srgb, var(--cream) 40%, var(--white));
+  opacity: 0.45;
+  transform: scale(0.96);
+  transition: opacity 0.35s var(--pres-ease), transform 0.35s var(--pres-ease), border-color 0.35s, box-shadow 0.35s;
+}
+
+.pres-workflow-step-active {
+  opacity: 1;
+  transform: scale(1);
+  border-color: color-mix(in srgb, var(--cyan) 30%, var(--cream-2));
+  background: var(--white);
+}
+
+.pres-workflow-step-current {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 18%, transparent);
+}
+
+.pres-workflow-tone-green .pres-workflow-step-active {
+  border-color: color-mix(in srgb, var(--green) 30%, var(--cream-2));
+}
+
+.pres-workflow-tone-green .pres-workflow-step-current {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);
+}
+
+.pres-workflow-step-num {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.pres-workflow-step-label {
+  margin-top: 0.25rem;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pres-workflow-step-detail {
+  margin-top: 0.15rem;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.pres-workflow-step-pulse {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: pres-workflow-pulse 1.4s ease-in-out infinite;
+}
+
+.pres-workflow-tone-green .pres-workflow-step-pulse {
+  background: var(--green);
+}
+
+@keyframes pres-workflow-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.4); }
+}
+
+.pres-workflow-outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--cyan-soft) 35%, var(--white));
+  border: 1px solid color-mix(in srgb, var(--cyan) 22%, transparent);
+}
+
+.pres-workflow-tone-green .pres-workflow-outcome {
+  background: color-mix(in srgb, var(--green-soft) 35%, var(--white));
+  border-color: color-mix(in srgb, var(--green) 22%, transparent);
+}
+
+.pres-workflow-outcome-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan-d);
+}
+
+.pres-workflow-outcome p {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.pres-workflow-progress {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
+.pres-workflow-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cream-2);
+  transition: background 0.3s, transform 0.3s;
+}
+
+.pres-workflow-progress-dot-active {
+  background: var(--cyan);
+  transform: scale(1.35);
+}
+
+/* ── AI strengths slide ── */
+
+.pres-ai-slide {
+  width: 100%;
+}
+
+.pres-ai-hub {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 7rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.pres-ai-hub-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--cyan) 35%, transparent);
+  animation: pres-ai-ring-spin 18s linear infinite;
+}
+
+.pres-ai-hub-ring-1 {
+  width: 5.5rem;
+  height: 5.5rem;
+}
+
+.pres-ai-hub-ring-2 {
+  width: 7.5rem;
+  height: 7.5rem;
+  animation-direction: reverse;
+  animation-duration: 24s;
+}
+
+@keyframes pres-ai-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pres-ai-hub-core {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-d));
+  color: var(--white);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--cyan) 35%, transparent);
+  animation: pres-ai-hub-glow 3s ease-in-out infinite;
+}
+
+@keyframes pres-ai-hub-glow {
+  0%, 100% { box-shadow: 0 8px 28px color-mix(in srgb, var(--cyan) 35%, transparent); }
+  50% { box-shadow: 0 8px 36px color-mix(in srgb, var(--cyan) 55%, transparent); }
+}
+
+.pres-ai-hub-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.pres-ai-hub-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pres-ai-highlight-row {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .pres-ai-highlight-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.pres-ai-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .pres-ai-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.pres-ai-card {
+  position: relative;
+  padding: 1rem 1.05rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--cream-2);
+  background: var(--white);
+  animation: pres-fade-up 0.55s var(--pres-ease) both;
+  overflow: hidden;
+}
+
+.pres-ai-card-highlight {
+  border-color: color-mix(in srgb, var(--cyan) 35%, var(--cream-2));
+  background: color-mix(in srgb, var(--cyan-soft) 18%, var(--white));
+}
+
+.pres-ai-card-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--cyan) 40%, transparent),
+    transparent 50%,
+    color-mix(in srgb, var(--green) 30%, transparent)
+  );
+  opacity: 0.35;
+  animation: pres-shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.pres-ai-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  background: var(--cyan-soft);
+  color: var(--cyan-d);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pres-ai-card-title {
+  margin-top: 0.55rem;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pres-ai-card-desc {
+  margin-top: 0.3rem;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.pres-ai-card-contrast {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.pres-ai-footer {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cyan-d);
+  letter-spacing: 0.02em;
+}
+
+/* ── Key features bento slide ── */
+
+.pres-features {
+  width: 100%;
+}
+
+.pres-features-bento {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1.15rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 768px) {
+  .pres-features-bento {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: minmax(7rem, auto);
+  }
+}
+
+.pres-feature-card {
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+  animation: pres-fade-up 0.55s var(--pres-ease) both;
+}
+
+.pres-feature-wide {
+  grid-column: span 2;
+}
+
+.pres-feature-tall {
+  grid-row: span 2;
+}
+
+@media (max-width: 767px) {
+  .pres-feature-wide,
+  .pres-feature-tall {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+}
+
+.pres-feature-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--white) 60%, transparent) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: pres-feature-shimmer 5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes pres-feature-shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50% { background-position: -200% 0; }
+}
+
+.pres-feature-inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: 1rem 1.05rem;
+  border-radius: calc(1rem - 1px);
+  margin: 1px;
+  background: var(--white);
+  border: 1px solid var(--cream-2);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.pres-feature-card:hover .pres-feature-inner {
+  border-color: var(--cyan);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--cyan) 12%, transparent);
+}
+
+.pres-feature-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.pres-feature-badge {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pres-feature-badge-cyan {
+  background: var(--cyan-soft);
+  color: var(--cyan-d);
+}
+
+.pres-feature-badge-green {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.pres-feature-badge-orange {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.pres-feature-badge-navy {
+  background: color-mix(in srgb, var(--navy) 10%, var(--white));
+  color: var(--navy);
+}
+
+.pres-feature-accent {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: pres-workflow-pulse 2s ease-in-out infinite;
+}
+
+.pres-feature-tone-green .pres-feature-accent {
+  background: var(--green);
+}
+
+.pres-feature-tone-orange .pres-feature-accent {
+  background: var(--orange);
+}
+
+.pres-feature-tone-navy .pres-feature-accent {
+  background: var(--navy);
+}
+
+.pres-feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--cyan), var(--green));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.pres-feature-tone-green::before {
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+}
+
+.pres-feature-tone-orange::before {
+  background: linear-gradient(135deg, var(--orange), var(--cyan));
+}
+
+.pres-feature-tone-navy::before {
+  background: linear-gradient(135deg, var(--navy), var(--cyan));
+}
+
+.pres-feature-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.pres-feature-desc {
+  margin-top: 0.35rem;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.pres-feature-tall .pres-feature-desc {
+  font-size: 13px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pres-mock-shimmer,
   .pres-showcase-highlight,
-  .pres-stack-tile-inner {
+  .pres-stack-tile-inner,
+  .pres-workflow-connector-flow,
+  .pres-workflow-step-pulse,
+  .pres-ai-hub-ring,
+  .pres-ai-hub-core,
+  .pres-ai-card-glow,
+  .pres-feature-shimmer,
+  .pres-feature-accent {
     animation: none !important;
+  }
+
+  .pres-workflow-step {
+    opacity: 1;
+    transform: none;
   }
 }
 

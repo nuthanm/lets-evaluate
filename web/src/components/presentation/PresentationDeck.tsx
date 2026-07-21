@@ -6,8 +6,11 @@ import { Logo } from "@/components/Logo";
 import { ButtonLink } from "@/components/Button";
 import { useBrand } from "@/components/BrandContext";
 import type { BrandConfig } from "@/lib/brand";
+import { AIStrengthsSlide } from "@/components/presentation/AIStrengthsSlide";
+import { KeyFeaturesSlide } from "@/components/presentation/KeyFeaturesSlide";
 import { PageShowcaseCarousel } from "@/components/presentation/PageShowcaseCarousel";
 import { PlatformStackSlide } from "@/components/presentation/PlatformStackSlide";
+import { WorkflowVisualizationSlide } from "@/components/presentation/WorkflowVisualizationSlide";
 import { cn } from "@/lib/utils";
 
 type CompareRow = {
@@ -70,9 +73,12 @@ const COMPETITIVE_MATRIX: CompetitiveRow[] = [
   },
 ];
 
-const SLIDE_COUNT = 10;
-const STACK_SLIDE_INDEX = 8;
-const SHOWCASE_SLIDE_INDEX = 9;
+const SLIDE_COUNT = 13;
+const WORKFLOW_SLIDE_INDEX = 3;
+const AI_SLIDE_INDEX = 4;
+const FEATURES_SLIDE_INDEX = 5;
+const STACK_SLIDE_INDEX = 11;
+const SHOWCASE_SLIDE_INDEX = 12;
 
 export function PresentationDeck() {
   const brand = useBrand();
@@ -82,7 +88,12 @@ export function PresentationDeck() {
 
   const progress = ((slide + 1) / SLIDE_COUNT) * 100;
   const isStack = slide === STACK_SLIDE_INDEX;
-  const isWide = isStack || slide === SHOWCASE_SLIDE_INDEX;
+  const isWide =
+    isStack ||
+    slide === SHOWCASE_SLIDE_INDEX ||
+    slide === WORKFLOW_SLIDE_INDEX ||
+    slide === AI_SLIDE_INDEX ||
+    slide === FEATURES_SLIDE_INDEX;
 
   const go = useCallback(
     (next: number) => {
@@ -151,13 +162,16 @@ export function PresentationDeck() {
             {slide === 0 && <SlideTitle brand={brand} />}
             {slide === 1 && <SlideProblem />}
             {slide === 2 && <SlideSolution />}
-            {slide === 3 && <SlideCompare />}
-            {slide === 4 && <SlideCost />}
-            {slide === 5 && <SlideBuilt />}
-            {slide === 6 && <SlideAsk />}
-            {slide === 7 && <SlideCompetitiveMatrix />}
-            {slide === 8 && <PlatformStackSlide />}
-            {slide === 9 && <PageShowcaseCarousel />}
+            {slide === WORKFLOW_SLIDE_INDEX && <WorkflowVisualizationSlide />}
+            {slide === AI_SLIDE_INDEX && <AIStrengthsSlide />}
+            {slide === FEATURES_SLIDE_INDEX && <KeyFeaturesSlide />}
+            {slide === 6 && <SlideCompare />}
+            {slide === 7 && <SlideCost />}
+            {slide === 8 && <SlideBuilt />}
+            {slide === 9 && <SlideAsk />}
+            {slide === 10 && <SlideCompetitiveMatrix />}
+            {slide === STACK_SLIDE_INDEX && <PlatformStackSlide />}
+            {slide === SHOWCASE_SLIDE_INDEX && <PageShowcaseCarousel />}
           </div>
         </main>
       </div>
@@ -272,7 +286,8 @@ function SlideSolution() {
       <p className="pres-kicker">Our solution</p>
       <h2 className="pres-title mt-4">One portal. End-to-end evaluation.</h2>
       <p className="pres-subtitle">
-        Purpose-built for technical hiring — not a generic ATS module.
+        Purpose-built for technical hiring — not a generic ATS module. Next → animated
+        workflow for each module.
       </p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {steps.map(([num, title, desc]) => (
@@ -474,7 +489,7 @@ function SlideCompetitiveMatrix() {
       </div>
 
       <p className="mt-5 text-center text-[13px] text-[var(--ink-faint)]">
-        Next slide → platform stack with live version details
+        Next → platform stack, then live product showcase
       </p>
     </div>
   );
@@ -518,7 +533,7 @@ function SlideAsk() {
         ))}
       </div>
       <p className="mt-6 text-[13px] text-[var(--ink-faint)]">
-        Next slide → competitive scorecard, then platform stack
+        Next → competitive scorecard
       </p>
     </div>
   );
