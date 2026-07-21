@@ -81,7 +81,8 @@ export function PresentationDeck() {
   const [exiting, setExiting] = useState(false);
 
   const progress = ((slide + 1) / SLIDE_COUNT) * 100;
-  const isWide = slide === STACK_SLIDE_INDEX || slide === SHOWCASE_SLIDE_INDEX;
+  const isStack = slide === STACK_SLIDE_INDEX;
+  const isWide = isStack || slide === SHOWCASE_SLIDE_INDEX;
 
   const go = useCallback(
     (next: number) => {
@@ -131,12 +132,19 @@ export function PresentationDeck() {
           </div>
         </header>
 
-        <main className={cn("pres-stage", isWide && "pres-stage-wide")}>
+        <main
+          className={cn(
+            "pres-stage",
+            isWide && "pres-stage-wide",
+            isStack && "pres-stage-stack",
+          )}
+        >
           <div
             key={animKey}
             className={cn(
               "pres-slide",
               isWide && "pres-slide-wide",
+              isStack && "pres-slide-stack",
               exiting && "pres-slide-out",
             )}
           >

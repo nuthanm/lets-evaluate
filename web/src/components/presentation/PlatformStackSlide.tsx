@@ -50,10 +50,6 @@ export function PlatformStackSlide() {
           </div>
         ))}
       </div>
-
-      <p className="pres-stack-foot">
-        Let&apos;s Evaluate v0.1.0 · one org per deployment · MIT UI libraries
-      </p>
     </div>
   );
 }
