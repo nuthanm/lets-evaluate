@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 import { Button, ButtonLink } from "@/components/Button";
 import { CaseCard } from "@/components/CabinetPage";
 import { FieldInput, FieldLabel, FieldSelect, FieldTextarea } from "@/components/FormField";
+import {
+  isAllowedResumeFilename,
+  RESUME_UPLOAD_ACCEPT,
+  RESUME_UPLOAD_FRIENDLY_ERROR,
+} from "@/lib/resume/formats";
 
 type GeneratedJd = {
   roleTitle: string;
@@ -57,6 +62,10 @@ type SavedJobDescription = {
 type SavedJobDescriptionOption = {
   id: string;
   label: string;
+  roleId: string | null;
+  projectId: string | null;
+  location: string;
+  experience: string;
   updatedAt: string;
 };
 
@@ -108,6 +117,36 @@ const PREVIEW_LOGO_URL =
   process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "/assets/mail/Kanini-logo.png";
 
 const ORG_NAME = process.env.NEXT_PUBLIC_ORG_NAME ?? process.env.NEXT_PUBLIC_BRAND_ORG_NAME ?? "";
+
+const DEFAULT_PROMPT_ID = "org-official-format";
+
+function normalizeJdKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function findMatchingSavedJobDescription(
+  options: SavedJobDescriptionOption[],
+  input: {
+    roleId: string;
+    projectId?: string | null;
+    location: string;
+    experience: string;
+  },
+) {
+  const locationKey = normalizeJdKey(input.location);
+  const experienceKey = normalizeJdKey(input.experience);
+  const projectKey = input.projectId?.trim() || null;
+
+  return (
+    options.find(
+      (item) =>
+        item.roleId === input.roleId &&
+        normalizeJdKey(item.location) === locationKey &&
+        normalizeJdKey(item.experience) === experienceKey &&
+        (item.projectId?.trim() || null) === projectKey,
+    ) ?? null
+  );
+}
 
 function buildPromptPresets(orgName: string): PromptPreset[] {
   const org = orgName || "our company";
@@ -222,6 +261,8 @@ export function JobDescriptionClient({
   const [additionalContext, setAdditionalContext] = useState("");
 
   const [busy, setBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [exportBusy, setExportBusy] = useState<"docx" | "pdf" | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -310,6 +351,48 @@ export function JobDescriptionClient({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoleId]);
+
+  // Load the default standard prompt when a mapped role is selected
+  useEffect(() => {
+    if (!selectedRoleId || selectedRoleId === "__custom__") {
+      setAdditionalContext("");
+      setSelectedPromptId("");
+      return;
+    }
+
+    const defaultPreset = promptOptions_builtin.find((item) => item.id === DEFAULT_PROMPT_ID);
+    if (defaultPreset) {
+      setAdditionalContext(defaultPreset.template);
+      setSelectedPromptId(DEFAULT_PROMPT_ID);
+    }
+  }, [selectedRoleId, promptOptions_builtin]);
+
+  const resolvedProjectId =
+    selectedProjectId || selectedRoleOption?.projectId || selectedRoleOption?.projectIds?.[0] || null;
+
+  const matchingSavedJobDescription = useMemo(() => {
+    if (!selectedRoleId || selectedRoleId === "__custom__" || !resolvedLocation || !experience.trim()) {
+      return null;
+    }
+    if (roleProjectOptions.length > 1 && !selectedProjectId) {
+      return null;
+    }
+
+    return findMatchingSavedJobDescription(savedJdOptions, {
+      roleId: selectedRoleId,
+      projectId: resolvedProjectId,
+      location: resolvedLocation,
+      experience: experience.trim(),
+    });
+  }, [
+    selectedRoleId,
+    resolvedLocation,
+    experience,
+    savedJdOptions,
+    roleProjectOptions.length,
+    selectedProjectId,
+    resolvedProjectId,
+  ]);
 
   const promptOptions = useMemo(
     () => [
@@ -487,8 +570,27 @@ export function JobDescriptionClient({
   async function saveJobDescription() {
     if (!generated) return;
 
+    if (!selectedRoleId || selectedRoleId === "__custom__") {
+      setError("Select a role from the list before saving — saved job descriptions need a mapped role to appear as Job ID during candidate creation.");
+      return;
+    }
+
     if (roleProjectOptions.length > 1 && !selectedProjectId) {
       setError("This role belongs to multiple projects. Please select a project before saving.");
+      return;
+    }
+
+    const existing = findMatchingSavedJobDescription(savedJdOptions, {
+      roleId: selectedRoleId,
+      projectId: resolvedProjectId,
+      location: resolvedLocation,
+      experience: experience.trim(),
+    });
+    if (existing) {
+      setError(
+        `A job description already exists for this role, location, and experience (${existing.label}). Load it from Saved Job Descriptions instead of creating another one.`,
+      );
+      setSelectedSavedJdId(existing.id);
       return;
     }
 
@@ -496,7 +598,7 @@ export function JobDescriptionClient({
     setError(null);
     setJdMessage(null);
     try {
-      const projectId = selectedProjectId || selectedRoleOption?.projectId || selectedRoleOption?.projectIds?.[0] || undefined;
+      const projectId = resolvedProjectId || undefined;
       const res = await fetch("/api/job-descriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -609,6 +711,64 @@ export function JobDescriptionClient({
       setJdMessage(`Loaded saved job description: ${selected.title}.`);
     } catch (err) {
       setError("Failed to load job description. Please try again.");
+    }
+  }
+
+  async function uploadExternalJobDescription() {
+    if (!resolvedRoleTitle || !resolvedLocation || !experience.trim()) {
+      setError("Role title, location, and experience are required before uploading.");
+      return;
+    }
+
+    if (!selectedRoleId || selectedRoleId === "__custom__") {
+      setError("Select a role from the list before uploading — saved job descriptions need a mapped role to appear as Job ID during candidate creation.");
+      return;
+    }
+
+    if (!uploadFile) {
+      setError("Choose a PDF or DOCX job description file to upload.");
+      return;
+    }
+
+    if (!isAllowedResumeFilename(uploadFile.name)) {
+      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+      return;
+    }
+
+    setUploadBusy(true);
+    setError(null);
+    setJdMessage(null);
+    setSelectedSavedJdId("");
+
+    try {
+      const fd = new FormData();
+      fd.set("file", uploadFile);
+      fd.set("roleTitle", resolvedRoleTitle);
+      fd.set("location", resolvedLocation);
+      fd.set("experience", experience);
+      if (domain.trim()) fd.set("domain", domain.trim());
+
+      const res = await fetch("/api/job-descriptions/import", {
+        method: "POST",
+        body: fd,
+      });
+
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        jobDescription?: GeneratedJd;
+        usage?: Usage;
+      };
+
+      if (!res.ok || !payload.jobDescription) {
+        setError(payload.error ?? "Could not import the uploaded job description.");
+        return;
+      }
+
+      setGenerated(payload.jobDescription);
+      setUsage(payload.usage ?? null);
+      setJdMessage("External job description uploaded. Review the preview, then save it to make it available as a Job ID.");
+    } finally {
+      setUploadBusy(false);
     }
   }
 
@@ -834,17 +994,33 @@ export function JobDescriptionClient({
               <div className="mb-2 flex items-center gap-2">
                 <label htmlFor="context" className="case-label shrink-0">Additional context (optional)</label>
                 <FieldSelect
-                  value={selectedPromptId}
+                  value=""
                   onChange={(e) => {
-                    const chosen = promptOptions.find((p) => p.id === e.target.value);
+                    const value = e.target.value;
+                    if (!value) return;
+
+                    if (value === "__clear__") {
+                      setAdditionalContext("");
+                      setSelectedPromptId("");
+                      return;
+                    }
+
+                    if (additionalContext.trim()) {
+                      setError("Clear the additional context first, then choose a prompt from the dropdown.");
+                      return;
+                    }
+
+                    const chosen = promptOptions.find((p) => p.id === value);
                     if (chosen) {
                       setAdditionalContext(chosen.template);
-                      setSelectedPromptId(e.target.value);
+                      setSelectedPromptId(chosen.id);
+                      setError(null);
                     }
                   }}
                   className="ml-auto min-w-0 max-w-[220px] text-[12px]"
                 >
                   <option value="">Load a prompt…</option>
+                  <option value="__clear__">Clear context</option>
                   {promptOptions_builtin.length > 0 && (
                     <optgroup label="Built-in">
                       {promptOptions_builtin.map((p) => (
@@ -864,10 +1040,23 @@ export function JobDescriptionClient({
               <FieldTextarea
                 id="context"
                 value={additionalContext}
-                onChange={(e) => setAdditionalContext(e.target.value)}
+                onChange={(e) => {
+                  setAdditionalContext(e.target.value);
+                  if (selectedPromptId) {
+                    const activePreset = promptOptions.find((item) => item.id === selectedPromptId);
+                    if (activePreset && e.target.value !== activePreset.template) {
+                      setSelectedPromptId("");
+                    }
+                  }
+                }}
                 rows={5}
-                placeholder="Select a prompt above or type custom context..."
+                placeholder="The standard prompt loads when you select a role. Clear it first to choose a different prompt from the dropdown."
               />
+              {matchingSavedJobDescription && (
+                <p className="mt-2 text-[12px] font-semibold text-[var(--orange)]">
+                  A saved job description already matches this role, location, and experience ({matchingSavedJobDescription.label}). Load it from Saved Job Descriptions instead of creating a duplicate.
+                </p>
+              )}
               <div className="mt-2 rounded-xl border border-[var(--cream-2)] bg-[var(--cream)] p-3 text-[12px] text-[var(--ink-soft)]">
                 <p className="font-semibold text-[var(--ink)]">Reference for additional context</p>
                 <ul className="mt-1 list-disc space-y-1 pl-4">
@@ -890,9 +1079,39 @@ export function JobDescriptionClient({
           {error && <p className="mt-3 text-[13px] font-semibold text-[var(--orange)]">{error}</p>}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={generate} disabled={busy} className="px-5 py-2.5 text-[13px]">
+            <Button onClick={generate} disabled={busy || uploadBusy} className="px-5 py-2.5 text-[13px]">
               {busy ? "Generating..." : "Generate job description"}
             </Button>
+          </div>
+
+          <div className="mt-5 border-t border-[var(--cream-2)] pt-5">
+            <h3 className="font-serif text-lg font-bold">Upload external JD</h3>
+            <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
+              Import an existing PDF or DOCX job description, then save it as a Job ID for candidate creation.
+            </p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <FieldLabel htmlFor="jd-upload">Job description file</FieldLabel>
+                <FieldInput
+                  id="jd-upload"
+                  type="file"
+                  accept={RESUME_UPLOAD_ACCEPT}
+                  onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="mt-1 text-[11px] text-[var(--ink-faint)]">
+                  {uploadFile ? `Selected: ${uploadFile.name}` : "PDF or DOCX up to 10MB"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void uploadExternalJobDescription()}
+                disabled={uploadBusy || busy || !uploadFile}
+                className="px-5 py-2.5 text-[13px]"
+              >
+                {uploadBusy ? "Uploading..." : "Upload and preview"}
+              </Button>
+            </div>
           </div>
         </CaseCard>
 
@@ -1012,9 +1231,6 @@ export function JobDescriptionClient({
                   >
                     {deleteBusy ? "Reviewing delete impact..." : "Delete Job Description"}
                   </Button>
-                  <ButtonLink href="/candidates?quick=unmapped&source=jd" variant="ghost" className="px-3 py-2 text-[12px]">
-                    Map candidate and project
-                  </ButtonLink>
                   <ButtonLink href="/evaluate/new" variant="ghost" className="px-3 py-2 text-[12px]">
                     Add candidate
                   </ButtonLink>
@@ -1029,7 +1245,7 @@ export function JobDescriptionClient({
                   <Button
                     variant="ghost"
                     onClick={() => void saveJobDescription()}
-                    disabled={saveBusy}
+                    disabled={saveBusy || !!matchingSavedJobDescription}
                     className="px-3 py-2 text-[12px]"
                   >
                     {saveBusy ? "Saving JD..." : "Save job description"}
@@ -1050,16 +1266,18 @@ export function JobDescriptionClient({
                   >
                     {exportBusy === "pdf" ? "Preparing PDF..." : "Download PDF"}
                   </Button>
-                  <ButtonLink href="/candidates?quick=unmapped&source=jd" variant="ghost" className="px-3 py-2 text-[12px]">
-                    Map candidate and project
-                  </ButtonLink>
                   <ButtonLink href="/evaluate/new" variant="ghost" className="px-3 py-2 text-[12px]">
                     Add candidate
                   </ButtonLink>
                 </div>
                 <p className="text-[11px] text-[var(--ink-faint)]">
-                  If you generate again, the loaded preview is replaced with the latest job description.
+                  Save this job description to make it available as a Job ID, then add candidates from Evaluate.
                 </p>
+                {matchingSavedJobDescription && (
+                  <p className="text-[12px] font-semibold text-[var(--orange)]">
+                    This job description already exists ({matchingSavedJobDescription.label}). Load it from the list above instead of saving a duplicate.
+                  </p>
+                )}
               </div>
             ) : null}
           </CaseCard>
