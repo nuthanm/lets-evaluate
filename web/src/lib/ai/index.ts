@@ -1,6 +1,15 @@
 import OpenAI from "openai";
 import { isAiTestMode } from "@/lib/ai/test-mode";
 import { mockGeneratedQuestions, mockResumeMetrics } from "@/lib/ai/mock-fixtures";
+import { reconcileTechMatching } from "@/lib/ai/tech-matching";
+import {
+  formatDuration,
+  isPresent,
+  isUnknown,
+  looksLikeDuration,
+  monthsBetween,
+  parseMonthYear,
+} from "@/lib/ai/resume-dates";
 
 const MAX_RESUME = 3200;
 const MAX_ROLE = 2000;
@@ -107,60 +116,6 @@ function usageSummary(
     estimatedOutputCostUsd,
     estimatedTotalCostUsd: estimatedInputCostUsd + estimatedOutputCostUsd,
   };
-}
-
-const UNKNOWN = new Set(["unknown", "n/a", "-", "none", ""]);
-
-function isUnknown(v: string) {
-  return UNKNOWN.has((v || "").trim().toLowerCase());
-}
-
-const MONTHS: Record<string, number> = {
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8,
-  sept: 8, oct: 9, nov: 10, dec: 11,
-  january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7,
-  september: 8, october: 9, november: 10, december: 11,
-};
-
-/** True when a date string represents an ongoing role (no fixed end date). */
-function isPresent(s: string) {
-  return /present|till\s*date|current|ongoing|now|to\s*date/i.test(s || "");
-}
-
-/** True when a string already reads as a duration (e.g. "2 yrs 3 mos"). */
-function looksLikeDuration(s: string) {
-  return /\b(yr|yrs|year|years|mo|mos|month|months)\b/i.test(s || "");
-}
-
-/** Best-effort parse of a "Month Year" / "MM/YYYY" / "YYYY" style token. */
-function parseMonthYear(s: string): Date | null {
-  if (!s) return null;
-  const t = s.trim().toLowerCase();
-  if (isPresent(t)) return new Date();
-  let m = t.match(/([a-z]+)[\s./,-]*(\d{4})/);
-  if (m && MONTHS[m[1]] != null) return new Date(Number(m[2]), MONTHS[m[1]], 1);
-  m = t.match(/(\d{1,2})[\s./-]+(\d{4})/);
-  if (m) return new Date(Number(m[2]), Number(m[1]) - 1, 1);
-  m = t.match(/(\d{4})[\s./-]+(\d{1,2})/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, 1);
-  m = t.match(/\b(\d{4})\b/);
-  if (m) return new Date(Number(m[1]), 0, 1);
-  return null;
-}
-
-function monthsBetween(a: Date, b: Date): number {
-  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
-}
-
-/** Human-friendly duration from a whole number of months. */
-function formatDuration(totalMonths: number): string {
-  const months = Math.max(0, totalMonths);
-  const y = Math.floor(months / 12);
-  const mo = months % 12;
-  const parts: string[] = [];
-  if (y) parts.push(`${y} yr${y > 1 ? "s" : ""}`);
-  if (mo) parts.push(`${mo} mo${mo > 1 ? "s" : ""}`);
-  return parts.length ? parts.join(" ") : "< 1 mo";
 }
 
 /**
@@ -274,6 +229,7 @@ export type ResumeMetrics = {
   career_history: CareerEntry[];
   total_experience_mentioned: string;
   total_experience_calculated: string;
+  relevant_experience: string;
   is_currently_employed: boolean;
   current_employer: string;
   current_role: string;
@@ -314,6 +270,8 @@ CRITICAL RULES:
 3. For dates, use format "YYYY-MM" or "YYYY" or "Not specified"
 4. For current roles, set is_current: true if end_date is missing or says "Present"/"Till Date"/"Current"
 5. List technologies mentioned anywhere: skills, certifications, project descriptions
+6. Extract ALL employment date ranges (start/end) and project date ranges exactly as written
+7. Capture summary claims like "8 years Java" in experience_claims
 
 Return JSON object:
 {
@@ -323,8 +281,18 @@ Return JSON object:
       "title": "Job Title",
       "start_date": "YYYY-MM",
       "end_date": "YYYY-MM or empty string for current",
-      "description": "Excerpt from resume describing the role",
+      "description": "Excerpt from resume describing the role and technologies used",
       "is_current": boolean
+    }
+  ],
+  "projects": [
+    {
+      "name": "Project name",
+      "company": "Client or employer",
+      "start_date": "YYYY-MM or YYYY",
+      "end_date": "YYYY-MM or YYYY or empty for ongoing",
+      "description": "What was built and which technologies were used",
+      "technologies": ["Tech1", "Tech2"]
     }
   ],
   "education": [
@@ -418,16 +386,15 @@ ${otherProjectsBlock}
 ANALYSIS RULES (Follow EXACTLY):
 
 1. TECH MATCHING (For each tech in Required Stack):
+   - Technology status (Matched / Unmatched / Clarification) is computed separately with alias-aware rules — focus on narrative fields below.
+   - Treat equivalent names as the same technology (e.g. EFCore = Entity Framework Core, JS = JavaScript, K8s = Kubernetes).
    - "Matched": Technology explicitly mentioned in employment descriptions (not just skills)
-   - "Unmatched": Never mentioned
+   - "Unmatched": Never mentioned (including known aliases)
    - "Clarification": Mentioned in skills/certifications but NOT tied to dated project work
 
-2. EXPERIENCE CALCULATION (Do NOT estimate):
-   - Parse employment start_date and end_date
-   - If unparseable, leave as "Not specified"
-   - Calculate months between start and end for each role
-   - Sum all months for total
-   - Convert to "X years Y months" format
+2. EXPERIENCE CALCULATION:
+   - Employment dates, career timeline, per-technology experience, and relevant stack experience are computed separately in code
+   - Focus narrative fields on strengths, concerns, summary, and suitability description
 
 3. RECOMMENDATION TREE (Deterministic):
    Calculate tech_match_score = (count Matched) / (required stack length) * 100
@@ -456,10 +423,11 @@ Return ONLY valid JSON with exactly these keys:
   "missing_technologies": <array>,
   "tech_comparison": [{ "technology": "...", "status": "Matched"|"Unmatched"|"Clarification" }],
   "clarifications": [{ "technology": "...", "reason": "..." }],
-  "tech_experience": [{ "technology": "...", "first_year": "...", "last_year": "...", "total_years": "..." }],
-  "career_history": [{ "company": "...", "title": "...", "start": "...", "end": "...", "duration": "...", "is_current": boolean }],
+  "tech_experience": [],
+  "career_history": [],
   "total_experience_mentioned": "...",
   "total_experience_calculated": "...",
+  "relevant_experience": "...",
   "is_currently_employed": boolean,
   "current_employer": "...",
   "current_role": "...",
@@ -492,9 +460,14 @@ Return ONLY valid JSON with exactly these keys:
     });
 
     const raw = res.choices[0]?.message?.content ?? "{}";
-    const result = withDefaults(parseJson<Partial<ResumeMetrics>>(raw));
+    const parsed = withDefaults(parseJson<Partial<ResumeMetrics>>(raw));
+    const reconciled = reconcileTechMatching(
+      extractedData,
+      projectTechStack,
+      parsed,
+    );
     return {
-      metrics: computeExperience(result),
+      metrics: computeExperience(withDefaults(reconciled as Partial<ResumeMetrics>)),
       usage: usageSummary(
         res.usage as OpenAIUsage | undefined,
         analysisModel(),
@@ -603,6 +576,7 @@ function withDefaults(r: Partial<ResumeMetrics>): ResumeMetrics {
     career_history: r.career_history ?? [],
     total_experience_mentioned: r.total_experience_mentioned ?? "",
     total_experience_calculated: r.total_experience_calculated ?? "",
+    relevant_experience: r.relevant_experience ?? "",
     is_currently_employed: r.is_currently_employed ?? false,
     current_employer: r.current_employer ?? "",
     current_role: r.current_role ?? "",
@@ -903,4 +877,4 @@ export async function refineEvaluationNotes(notes: string) {
   return res.choices[0]?.message?.content?.trim() ?? notes;
 }
 
-export { isUnknown };
+export { isUnknown } from "@/lib/ai/resume-dates";

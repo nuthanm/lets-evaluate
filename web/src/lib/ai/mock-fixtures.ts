@@ -21,6 +21,7 @@ export function mockResumeMetrics(techStack: string[] = ["TypeScript", "Node.js"
     career_history: [],
     total_experience_mentioned: "5 years",
     total_experience_calculated: "5 years",
+    relevant_experience: "4 yrs",
     is_currently_employed: true,
     current_employer: "Mock Corp",
     current_role: "Engineer",

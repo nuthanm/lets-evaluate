@@ -27,6 +27,10 @@ import {
   RESUME_UPLOAD_FRIENDLY_ERROR,
 } from "@/lib/resume/formats";
 import {
+  isOverridingAiReject,
+  validateScreeningDecision,
+} from "@/lib/candidates/screening-decision";
+import {
   validateCandidateEmail,
   validateCandidateName,
   validateResumeTextLength,
@@ -74,7 +78,6 @@ const screenSchema = z.object({
   decision: z.enum(["proceed", "hold", "reject"]).optional(),
   finalDecision: z.enum(["selected", "rejected", "hold"]).optional(),
   resumeText: z.string().optional(),
-  ratings: z.record(z.string(), z.unknown()).optional(),
   outcome: z.enum(["selected", "rejected", "hold"]).optional(),
   projectId: z.string().optional(),
   roleId: z.string().optional(),
@@ -405,6 +408,16 @@ export async function POST(req: Request, { params }: Params) {
     const metrics = existingScreening?.metrics as
       | Record<string, unknown>
       | undefined;
+    const modelRecommendation =
+      typeof metrics?.recommendation === "string"
+        ? metrics.recommendation
+        : undefined;
+    const commentError = validateScreeningDecision(
+      body.comments,
+      body.decision,
+      modelRecommendation,
+    );
+    if (commentError) return apiError(commentError, 400);
     const clarifications =
       (metrics?.clarifications as Array<{ technology?: string; reason?: string }>) ??
       [];
@@ -445,7 +458,6 @@ export async function POST(req: Request, { params }: Params) {
         clarificationRequestNote: clarificationNeeded
           ? clarificationText
           : "",
-        qSatisfaction: body.ratings ?? {},
         screenedAt: new Date(),
         screenedById: session.user.id,
       })
@@ -555,16 +567,13 @@ export async function POST(req: Request, { params }: Params) {
       .from(screeningFeedback)
       .where(eq(screeningFeedback.candidateId, id))
       .limit(1);
-    const modelRecommendation =
-      typeof metrics?.recommendation === "string"
-        ? metrics.recommendation
-        : "";
+    const modelRecommendationStored = modelRecommendation ?? "";
     if (existingFeedback) {
       await db
         .update(screeningFeedback)
         .set({
           screeningId: existingScreening?.id ?? existingFeedback.screeningId,
-          modelRecommendation,
+          modelRecommendation: modelRecommendationStored,
           recruiterDecision: body.decision,
           recruiterNotes: screeningComment,
           updatedAt: new Date(),
@@ -576,7 +585,7 @@ export async function POST(req: Request, { params }: Params) {
         organizationId: session.user.organizationId,
         candidateId: id,
         screeningId: existingScreening?.id ?? null,
-        modelRecommendation,
+        modelRecommendation: modelRecommendationStored,
         recruiterDecision: body.decision,
         recruiterNotes: screeningComment,
       });
@@ -588,7 +597,15 @@ export async function POST(req: Request, { params }: Params) {
       entityType: "candidate",
       entityId: id,
       action: "screening.decided",
-      payload: { decision: body.decision },
+      payload: {
+        decision: body.decision,
+        aiRecommendation: modelRecommendationStored,
+        overrideAiReject: isOverridingAiReject(
+          modelRecommendationStored,
+          body.decision,
+        ),
+        notesLength: screeningComment.trim().length,
+      },
     });
 
     await logEvent({

@@ -500,7 +500,6 @@ export const screenings = pgTable(
     standardQuestions: jsonb("standard_questions").$type<unknown[]>().default([]),
     resumeQuestions: jsonb("resume_questions").$type<unknown[]>().default([]),
     roleQuestions: jsonb("role_questions").$type<unknown[]>().default([]),
-    qSatisfaction: jsonb("q_satisfaction").$type<Record<string, unknown>>().default({}),
     decision: screeningDecisionEnum("decision"),
     comments: text("comments").default(""),
     clarificationRequestedAt: timestamp("clarification_requested_at", {

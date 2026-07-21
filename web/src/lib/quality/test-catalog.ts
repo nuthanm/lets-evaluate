@@ -177,7 +177,7 @@ export const PAID_SERVICE_EXCLUSIONS: PaidServiceExclusion[] = [
     id: "resume-analysis",
     module: "Candidate evaluate · AI analysis",
     externalService: "OpenAI (GPT-4o / GPT-4o-mini)",
-    scenario: "Resume extract + tech match scoring + recommendation",
+    scenario: "Resume extract + alias-aware tech match + recommendation",
     reason: "Each analysis bills per token; not run in automated CI.",
     ciBehavior: "AI_TEST_MODE returns deterministic mock metrics ($0).",
   },

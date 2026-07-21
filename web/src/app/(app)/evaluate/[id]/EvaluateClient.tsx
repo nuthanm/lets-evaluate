@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { DocxPreview } from "@/components/DocxPreview";
 import { Pill } from "@/components/Pill";
-import { FieldTextarea } from "@/components/FormField";
+import { FieldLabel, FieldTextarea } from "@/components/FormField";
 import { EmailComposer } from "@/components/EmailComposer";
 import type { MemberRole } from "@/lib/auth/config";
 import { cn } from "@/lib/utils";
@@ -16,11 +16,13 @@ import {
 } from "@/lib/resume/formats";
 import type { RenderedMail } from "@/lib/email";
 import type { ResumeMetrics } from "@/lib/ai";
+import {
+  SCREENING_NOTES_MIN_LEN,
+  validateScreeningDecision,
+} from "@/lib/candidates/screening-decision";
 import { InterviewWorkspace } from "./InterviewWorkspace";
 
 type Metrics = Partial<ResumeMetrics>;
-
-type Ratings = Record<string, { recruiter?: string; interviewer?: string }>;
 
 export type StageView = {
   id: string;
@@ -88,7 +90,6 @@ export function EvaluateClient({
   const [analysisModel, setAnalysisModel] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ratings, setRatings] = useState<Ratings>({});
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [resumeReady, setResumeReady] = useState(initialHasResume);
   const [resumeStored, setResumeStored] = useState(initialHasStoredResume);
@@ -120,7 +121,6 @@ export function EvaluateClient({
         .then((d) => {
           if (d?.step) setStep(Math.min(2, d.step as number) as 1 | 2);
           if (d?.data?.comments) setComments(d.data.comments as string);
-          if (d?.data?.ratings) setRatings(d.data.ratings as Ratings);
         })
         .catch(() => {});
     }
@@ -133,7 +133,7 @@ export function EvaluateClient({
       body: JSON.stringify({
         candidateId,
         step: nextStep,
-        data: { comments, ratings, ...extra },
+        data: { comments, ...extra },
       }),
     });
     setSavedAt(Date.now());
@@ -187,12 +187,21 @@ export function EvaluateClient({
   }
 
   async function decide(decision: "proceed" | "hold" | "reject") {
+    const validationError = validateScreeningDecision(
+      comments,
+      decision,
+      metrics?.recommendation,
+    );
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch(`/api/candidates/${candidateId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "decide", decision, comments, ratings }),
+      body: JSON.stringify({ action: "decide", decision, comments }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -335,12 +344,16 @@ export function EvaluateClient({
   // side users keep the full stage map so they can see every section.
   const viewerIsPanel =
     viewerRole === "interviewer" || viewerRole === "manager" || viewerRole === "hr";
+  const viewerIsRecruiter = viewerRole === "admin" || viewerRole === "ta";
   const downstreamStages = stages.filter(
     (s) =>
       s.kind !== "screening" &&
       (!viewerIsPanel || (s.kind !== "hr" && s.kind !== "final")),
   );
-  const showStepBar = showWizard || stages.length > 0;
+  const showStepBar =
+    viewerIsRecruiter || showWizard || stages.length > 0;
+  const screeningNotesReady =
+    comments.trim().length >= SCREENING_NOTES_MIN_LEN;
 
   type StepItem = {
     key: string;
@@ -622,8 +635,6 @@ export function EvaluateClient({
                   candidateName={candidateName}
                   role={role}
                   projectName={projectName}
-                  ratings={ratings}
-                  onRatingsChange={setRatings}
                 />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -653,7 +664,8 @@ export function EvaluateClient({
       {!splitView && (
       <div className={cn("grid flex-1", showSidebar ? "md:grid-cols-[1fr_200px]" : "")}>
         <main className="overflow-auto p-5 md:p-7">
-          {screeningComments && (
+          {screeningComments &&
+            !(viewerIsRecruiter && !myActiveStage && !showWizard && stages.length > 0) && (
             <div className="case-card mb-4 border-[var(--cyan)] bg-[var(--cyan-soft)] p-4 text-sm">
               <strong>TA screening notes:</strong> {screeningComments}
             </div>
@@ -681,6 +693,15 @@ export function EvaluateClient({
 
           {/* Terminal / hold outcome — always front-and-centre with the reason. */}
           {outcome && <OutcomeBanner outcome={outcome} />}
+
+          {/* Full pipeline history for recruiters — shows what happened at each round. */}
+          {viewerIsRecruiter && !myActiveStage && !showWizard && stages.length > 0 && (
+            <WorkflowHistoryPanel
+              stages={stages}
+              screeningComments={screeningComments}
+              aiRecommendation={metrics?.recommendation}
+            />
+          )}
 
           {/* Recruiter's handoff note for the panelist's own active round — was
               previously only visible on the Assignments list, so it disappeared
@@ -979,13 +1000,8 @@ export function EvaluateClient({
                     candidateName={candidateName}
                     role={role}
                     projectName={projectName}
-                    ratings={ratings}
                     candidateId={candidateId}
                     canReassign={canScreen}
-                    onRatingsChange={(next) => {
-                      setRatings(next);
-                      saveDraft(2, { ratings: next });
-                    }}
                   />
                   <div className="case-card p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1043,30 +1059,78 @@ export function EvaluateClient({
                       <strong>Final Confirmation</strong>, after all rounds are
                       complete.
                     </p>
+                    {metrics.recommendation === "Reject" && (
+                      <div className="case-alert mt-4 border-[var(--orange)] bg-[var(--orange-soft)]">
+                        <p className="text-[13px] font-semibold text-[var(--orange)]">
+                          AI recommended Reject — if you choose Proceed or Hold,
+                          you must justify why this candidate should continue in
+                          the notes below.
+                        </p>
+                      </div>
+                    )}
+                    <div className="mt-4">
+                      <FieldLabel>
+                        Screening notes <span className="text-[var(--orange)]">*</span>
+                      </FieldLabel>
+                    </div>
                     <FieldTextarea
-                      className="mt-4"
-                      placeholder="Screening notes…"
+                      placeholder={
+                        metrics.recommendation === "Reject"
+                          ? "Explain why you are overriding the AI Reject recommendation…"
+                          : "Record your screening rationale before proceeding, holding, or rejecting…"
+                      }
                       value={comments}
                       onChange={(e) => setComments(e.target.value)}
+                      aria-required
                     />
+                    <p
+                      className={cn(
+                        "mt-1.5 text-[11px] font-semibold",
+                        screeningNotesReady
+                          ? "text-[var(--green)]"
+                          : "text-[var(--ink-faint)]",
+                      )}
+                    >
+                      {screeningNotesReady
+                        ? "Notes recorded — you may submit your decision."
+                        : `${Math.max(0, SCREENING_NOTES_MIN_LEN - comments.trim().length)} more characters required`}
+                    </p>
+                    {error && (
+                      <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>
+                    )}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button
                         onClick={() => decide("proceed")}
-                        disabled={loading || !roleOpen}
+                        disabled={loading || !roleOpen || !screeningNotesReady}
+                        title={
+                          !screeningNotesReady
+                            ? `Add at least ${SCREENING_NOTES_MIN_LEN} characters of screening notes`
+                            : undefined
+                        }
                       >
                         {loading ? "Saving…" : "Proceed to scheduling →"}
                       </Button>
                       <Button
                         variant="ghost"
                         onClick={() => decide("hold")}
-                        disabled={loading}
+                        disabled={loading || !screeningNotesReady}
+                        title={
+                          !screeningNotesReady
+                            ? `Add at least ${SCREENING_NOTES_MIN_LEN} characters of screening notes`
+                            : undefined
+                        }
                       >
                         Hold
                       </Button>
                       <Button
                         variant="ghost"
                         onClick={() => decide("reject")}
-                        disabled={loading}
+                        disabled={loading || !screeningNotesReady}
+                        title={
+                          !screeningNotesReady
+                            ? `Add at least ${SCREENING_NOTES_MIN_LEN} characters of screening notes`
+                            : undefined
+                        }
                       >
                         Reject
                       </Button>
@@ -1142,6 +1206,139 @@ export function EvaluateClient({
         </footer>
       )}
     </div>
+  );
+}
+
+/* ─────────────────────────── Workflow history ─────────────────────────── */
+
+function stageDecisionLabel(stage: StageView): string | null {
+  if (stage.kind === "screening") {
+    if (stage.decision === "yes") return "Proceeded to interviews";
+    if (stage.decision === "no") return "Rejected at screening";
+    if (stage.status === "failed") return "Rejected at screening";
+    return null;
+  }
+  if (stage.decision === "yes") return "Recommended to proceed";
+  if (stage.decision === "no") return "Did not recommend";
+  if (stage.status === "passed") return "Passed";
+  if (stage.status === "failed") return "Not cleared";
+  return null;
+}
+
+function WorkflowHistoryPanel({
+  stages,
+  screeningComments,
+  aiRecommendation,
+}: {
+  stages: StageView[];
+  screeningComments?: string;
+  aiRecommendation?: string;
+}) {
+  const ordered = [...stages].sort((a, b) => a.position - b.position);
+
+  return (
+    <section className="case-card mb-4 overflow-hidden p-0">
+      <div className="border-b border-[var(--cream-2)] bg-[var(--cream)] px-4 py-3">
+        <h2 className="font-serif text-lg font-bold">Workflow history</h2>
+        <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
+          Outcomes and notes from each stage in the evaluation pipeline.
+        </p>
+      </div>
+      <div className="divide-y divide-[var(--cream-2)]">
+        {ordered.map((stage) => {
+          const meta = stageStatusMeta(stage.status);
+          const decisionLabel = stageDecisionLabel(stage);
+          const notes =
+            stage.kind === "screening"
+              ? screeningComments ?? stage.comments
+              : stage.comments;
+          const isPending = stage.status === "pending";
+          const isSkipped = stage.status === "skipped";
+
+          return (
+            <div
+              key={stage.id}
+              className={cn(
+                "px-4 py-3",
+                isPending && "bg-white/60",
+                isSkipped && "opacity-60",
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "text-sm font-semibold text-[var(--ink)]",
+                    isSkipped && "line-through",
+                  )}
+                >
+                  {stage.label}
+                </span>
+                {!isPending && (
+                  <Pill variant={meta.variant} className="px-2 py-0.5 text-[9px]">
+                    {meta.label}
+                  </Pill>
+                )}
+                {isPending && (
+                  <Pill variant="neutral" className="px-2 py-0.5 text-[9px]">
+                    Pending
+                  </Pill>
+                )}
+                {decisionLabel && (
+                  <span className="text-[11px] font-semibold text-[var(--ink-soft)]">
+                    · {decisionLabel}
+                  </span>
+                )}
+                {stage.assigneeName && (
+                  <span className="text-[11px] text-[var(--ink-faint)]">
+                    · {stage.status === "active" ? "Assigned to" : "By"}{" "}
+                    <strong>{stage.assigneeName}</strong>
+                  </span>
+                )}
+                {stage.hasReport && (
+                  <a
+                    href={`/api/stages/${stage.id}/report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto text-[11px] font-semibold text-[var(--cyan-d)] hover:underline"
+                  >
+                    View report →
+                  </a>
+                )}
+              </div>
+              {stage.kind === "screening" && aiRecommendation && (
+                <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">
+                  <span className="font-semibold">AI recommendation:</span>{" "}
+                  {aiRecommendation}
+                </p>
+              )}
+              {stage.handoffNote && (
+                <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">
+                  <span className="font-semibold">Handoff note:</span>{" "}
+                  {stage.handoffNote}
+                </p>
+              )}
+              {notes && (
+                <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">
+                  <span className="font-semibold">Notes:</span> {notes}
+                </p>
+              )}
+              {stage.dueAt && stage.status === "active" && (
+                <p className="mt-1 text-[11px] text-[var(--ink-faint)]">
+                  Scheduled:{" "}
+                  {new Date(stage.dueAt).toLocaleString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1336,8 +1533,6 @@ export function AnalysisReport({
   candidateName,
   role,
   projectName,
-  ratings,
-  onRatingsChange,
   candidateId,
   canReassign,
 }: {
@@ -1345,14 +1540,11 @@ export function AnalysisReport({
   candidateName: string;
   role: string;
   projectName?: string;
-  ratings: Ratings;
-  onRatingsChange: (next: Ratings) => void;
   candidateId?: string;
   canReassign?: boolean;
 }) {
   const router = useRouter();
   const [reassigning, setReassigning] = useState<string | null>(null);
-  const techList = (metrics.tech_comparison ?? []).map((t) => t.technology);
   const clarifications = metrics.clarifications ?? [];
   const roleLabel = projectName ? `${role} — ${projectName}` : role;
 
@@ -1368,6 +1560,7 @@ export function AnalysisReport({
         <MetricCell
           label="Relevant experience"
           value={
+            metrics.relevant_experience ||
             metrics.total_experience_calculated ||
             metrics.total_experience_mentioned ||
             "Not specified"
@@ -1458,11 +1651,14 @@ export function AnalysisReport({
       )}
 
       {/* Tech experience years */}
-      {metrics.tech_experience && metrics.tech_experience.length > 0 && (
+      {(metrics.tech_experience ?? []).some(
+        (t) => t.total_years || t.first_year,
+      ) && (
         <div className="case-card p-5">
           <SectionTitle>Technology experience</SectionTitle>
           <p className="mt-1 text-xs text-[var(--ink-faint)]">
-            Where the candidate has spent the most time.
+            Calculated from employment and project date ranges (alias-aware — e.g.
+            Entity Framework counts toward EFCore).
           </p>
           <div className="mt-3 overflow-hidden rounded-xl border border-[var(--cream-2)]">
             <table className="w-full text-sm">
@@ -1475,7 +1671,9 @@ export function AnalysisReport({
                 </tr>
               </thead>
               <tbody>
-                {metrics.tech_experience.map((t) => (
+                {(metrics.tech_experience ?? [])
+                  .filter((t) => t.total_years || t.first_year)
+                  .map((t) => (
                   <tr key={t.technology} className="border-t border-[var(--cream-2)]">
                     <Td>{t.technology}</Td>
                     <Td>{t.first_year || "—"}</Td>
@@ -1529,57 +1727,6 @@ export function AnalysisReport({
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {/* Rate yourself grid */}
-      {techList.length > 0 && (
-        <div className="case-card p-5">
-          <SectionTitle>Self / panel rating</SectionTitle>
-          <p className="mt-1 text-xs text-[var(--ink-faint)]">
-            Optional. Capture a 1–5 rating per technology from the recruiter and
-            the interviewer.
-          </p>
-          <div className="mt-3 overflow-hidden rounded-xl border border-[var(--cream-2)]">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[var(--cream)] text-left">
-                  <Th>Technology</Th>
-                  <Th>Recruiter</Th>
-                  <Th>Interviewer</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {techList.map((tech) => (
-                  <tr key={tech} className="border-t border-[var(--cream-2)]">
-                    <Td>{tech}</Td>
-                    <Td>
-                      <RatingSelect
-                        value={ratings[tech]?.recruiter ?? ""}
-                        onChange={(v) =>
-                          onRatingsChange({
-                            ...ratings,
-                            [tech]: { ...ratings[tech], recruiter: v },
-                          })
-                        }
-                      />
-                    </Td>
-                    <Td>
-                      <RatingSelect
-                        value={ratings[tech]?.interviewer ?? ""}
-                        onChange={(v) =>
-                          onRatingsChange({
-                            ...ratings,
-                            [tech]: { ...ratings[tech], interviewer: v },
-                          })
-                        }
-                      />
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
 
@@ -1768,29 +1915,6 @@ function ClarificationBlock({
         {copied ? "Copied ✓" : "Copy message for recruiter"}
       </button>
     </div>
-  );
-}
-
-function RatingSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="case-input px-2 py-1 text-sm"
-    >
-      <option value="">—</option>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <option key={n} value={String(n)}>
-          {n}
-        </option>
-      ))}
-    </select>
   );
 }
 

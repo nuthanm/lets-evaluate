@@ -130,7 +130,10 @@ function aiInsightFor(categoryId: string, metrics?: Metrics): AiInsight | null {
     case "People Management": {
       // Total experience is the best proxy — managing people well requires
       // enough years to have had direct reports or mentoring experience.
-      const exp = metrics.total_experience_calculated || metrics.total_experience_mentioned;
+      const exp =
+        metrics.relevant_experience ||
+        metrics.total_experience_calculated ||
+        metrics.total_experience_mentioned;
       if (exp && !/(not specified|unknown)/i.test(exp))
         return {
           text: `${exp} total experience`,
@@ -293,9 +296,6 @@ export function InterviewWorkspace({
   const CATEGORIES = categoriesForStageKind(stageKind);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [items, setItems] = useState<WorkItem[]>([]);
-  const [ratings, setRatings] = useState<
-    Record<string, { recruiter?: string; interviewer?: string }>
-  >({});
   const [genCategory, setGenCategory] = useState<string>(CATEGORIES[0].id);
   const [viewCategory, setViewCategory] = useState<string>("All");
   const [genCount, setGenCount] = useState(5);
@@ -590,8 +590,6 @@ export function InterviewWorkspace({
               candidateName={candidateName}
               role={role}
               projectName={projectName}
-              ratings={ratings}
-              onRatingsChange={setRatings}
             />
           ) : (
             <div className="case-card border-[var(--cyan)] bg-[var(--cyan-soft)] p-5">
