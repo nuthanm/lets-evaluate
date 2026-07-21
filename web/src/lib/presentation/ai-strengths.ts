@@ -13,7 +13,7 @@ export const AI_STRENGTHS: AIStrength[] = [
     title: "Project-aligned screening",
     description:
       "Resume scored against your actual tech stack and delivery context — not generic keyword matching.",
-    contrast: "Zoho: opaque enterprise AI tier",
+    contrast: "Generic ATS: opaque enterprise AI tier",
     icon: "◈",
     highlight: true,
   },
@@ -22,7 +22,7 @@ export const AI_STRENGTHS: AIStrength[] = [
     title: "Every rupee visible",
     description:
       "Token usage and USD cost per candidate on the leadership dashboard — budget with confidence.",
-    contrast: "Zoho: bundled, unauditable AI",
+    contrast: "Typical ATS: bundled, unauditable AI",
     icon: "₹",
     highlight: true,
   },

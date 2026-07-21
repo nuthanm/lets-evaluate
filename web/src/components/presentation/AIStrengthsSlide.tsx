@@ -9,7 +9,7 @@ export function AIStrengthsSlide() {
   return (
     <div className="pres-ai-slide">
       <div className="pres-stagger text-center">
-        <p className="pres-kicker mx-auto">AI advantage</p>
+        <p className="pres-kicker mx-auto">AI advance</p>
         <h2 className="pres-title mt-3 text-[clamp(1.6rem,3.5vw,2.35rem)]">
           What makes our AI different
         </h2>

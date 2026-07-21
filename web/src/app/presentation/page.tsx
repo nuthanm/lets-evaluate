@@ -7,7 +7,7 @@ const brand = getBrand();
 
 export const metadata: Metadata = {
   title: `The Brief — ${brand.appTitle}`,
-  description: "Let's Evaluate vs Zoho Recruit — product brief and pitch deck",
+  description: "Kanini Hiring — product brief and pitch deck",
 };
 
 export default function PresentationPage() {
