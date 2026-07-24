@@ -352,7 +352,8 @@ export function EvaluateClient({
   // side users keep the full stage map so they can see every section.
   const viewerIsPanel =
     viewerRole === "interviewer" || viewerRole === "manager" || viewerRole === "hr";
-  const viewerIsRecruiter = viewerRole === "admin" || viewerRole === "ta";
+  const viewerIsRecruiter =
+    viewerRole === "admin" || viewerRole === "ta" || viewerRole === "ta_lead";
   const downstreamStages = stages.filter(
     (s) =>
       s.kind !== "screening" &&

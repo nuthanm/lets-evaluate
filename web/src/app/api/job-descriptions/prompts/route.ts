@@ -44,7 +44,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const body = promptSchema.parse(await req.json());
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const body = updateSchema.parse(await req.json());
@@ -126,7 +126,7 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const body = deleteSchema.parse(await req.json());

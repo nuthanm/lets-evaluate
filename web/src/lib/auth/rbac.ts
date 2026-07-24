@@ -4,9 +4,13 @@ import type { MemberRole } from "@/lib/auth/config";
 
 export {
   canViewAllCandidates,
+  canViewRecruiterPerformance,
   canAssignInterviewers,
   canManageSetup,
+  canMutateCandidate,
+  isRecruiterRole,
   isTeamLead,
+  isPanelRole,
 } from "@/lib/auth/capabilities";
 
 export async function requireSession() {

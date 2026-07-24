@@ -37,7 +37,12 @@ export async function getCachedNavBadges(
   role: MemberRole
 ) {
   const candidates = await getCachedCandidates(organizationId, userId, role);
-  return getNavPendingCounts(candidates);
+  // Badge counts stay personal for recruiters even when the org-wide list is visible.
+  const scoped =
+    role === "ta" || role === "ta_lead"
+      ? candidates.filter((c) => c.createdById === userId)
+      : candidates;
+  return getNavPendingCounts(scoped);
 }
 
 /**

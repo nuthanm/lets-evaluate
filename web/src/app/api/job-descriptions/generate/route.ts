@@ -67,7 +67,7 @@ function resolvePromptPlaceholders(
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   let body: ReturnType<typeof generateJobDescriptionInputSchema.parse>;

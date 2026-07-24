@@ -1,5 +1,8 @@
 import { requireSession } from "@/lib/auth/rbac";
-import { isPanelRole } from "@/lib/auth/capabilities";
+import {
+  canViewRecruiterPerformance,
+  isPanelRole,
+} from "@/lib/auth/capabilities";
 import {
   getActivityFeed,
   getAiUsageStats,
@@ -12,6 +15,7 @@ import {
   getOrgProjects,
   getOrgRoles,
   getOrgTeamCounts,
+  getRecruiterPerformance,
   getRoleCandidateStats,
   getStageAssignmentsForUser,
 } from "@/lib/db/queries";
@@ -22,6 +26,7 @@ import {
   TeamDashboard,
 } from "@/components/dashboard/RoleDashboard";
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
+import { TaLeadDashboard } from "@/components/dashboard/TaLeadDashboard";
 import { buildRecruiterTasks } from "@/lib/recruiter/tasks";
 
 function buildPipelineFunnel(candidates: { status: string }[]) {
@@ -166,6 +171,7 @@ export default async function PeoplePage() {
         teamCounts={{
           admin: teamCountsRaw.admin ?? 0,
           ta: teamCountsRaw.ta ?? 0,
+          ta_lead: teamCountsRaw.ta_lead ?? 0,
           interviewer: teamCountsRaw.interviewer ?? 0,
           manager: teamCountsRaw.manager ?? 0,
           hr: teamCountsRaw.hr ?? 0,
@@ -186,6 +192,7 @@ export default async function PeoplePage() {
           entityName: entityName ?? null,
           createdAt: event.createdAt.toISOString(),
         }))}
+        aiStats={aiStats}
         bulkJobs={bulkJobsRaw.map((j) => ({
           id: j.id,
           status: j.status,
@@ -194,9 +201,26 @@ export default async function PeoplePage() {
           failedCount: j.failedCount,
           createdAt: j.createdAt.toISOString(),
         }))}
-        aiStats={aiStats}
         setupRequired={setupRequired}
         projectCount={orgProjects.length}
+      />
+    );
+  }
+
+  if (canViewRecruiterPerformance(session.user.role)) {
+    const orgId = session.user.organizationId;
+    const [candidates, recruiters, teamCounts] = await Promise.all([
+      getCandidatesForUser(orgId, session.user.id, session.user.role),
+      getRecruiterPerformance(orgId),
+      getOrgTeamCounts(orgId),
+    ]);
+
+    return (
+      <TaLeadDashboard
+        today={today}
+        funnel={buildPipelineFunnel(candidates)}
+        recruiters={recruiters}
+        recruiterCount={(teamCounts.ta ?? 0) + (teamCounts.ta_lead ?? 0)}
       />
     );
   }
@@ -215,11 +239,7 @@ export default async function PeoplePage() {
         session.user.id,
         session.user.role,
       ),
-      getActivityFeed(
-        session.user.organizationId,
-        session.user.id,
-        8,
-      ),
+      getActivityFeed(session.user.organizationId, session.user.id, 8),
       getCachedStageBookings(session.user.organizationId),
       getOrgProjects(session.user.organizationId),
       getOrgRoles(session.user.organizationId),
@@ -227,7 +247,9 @@ export default async function PeoplePage() {
 
   const setupRequired = orgProjects.length === 0 || orgRoles.length === 0;
 
-  const ownedIds = new Set(candidates.map((c) => c.id));
+  // Personal work queue stays on owned candidates even though the org list is shared.
+  const owned = candidates.filter((c) => c.createdById === session.user.id);
+  const ownedIds = new Set(owned.map((c) => c.id));
   const scheduled = bookings
     .filter(
       (b) =>
@@ -250,7 +272,7 @@ export default async function PeoplePage() {
     .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
 
   const todayTasks = buildRecruiterTasks(
-    candidates.map((c) => ({
+    owned.map((c) => ({
       id: c.id,
       name: c.name,
       status: c.status,
@@ -270,7 +292,7 @@ export default async function PeoplePage() {
   return (
     <TeamDashboard
       role={session.user.role}
-      candidates={candidates}
+      candidates={owned}
       stats={stats}
       feed={feed}
       today={today}

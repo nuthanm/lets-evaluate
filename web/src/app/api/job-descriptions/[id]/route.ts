@@ -75,7 +75,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function DELETE(req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const { id } = await params;

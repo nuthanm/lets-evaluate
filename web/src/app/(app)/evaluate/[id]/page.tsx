@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth/rbac";
+import { canMutateCandidate, isRecruiterRole } from "@/lib/auth/capabilities";
 import { getCandidateDetail, ensureCandidateStages, getCandidateStages } from "@/lib/db/queries";
 import { notFound } from "next/navigation";
 import { EvaluateClient } from "./EvaluateClient";
@@ -54,8 +55,15 @@ export default async function EvaluatePage({ params }: Params) {
       ? detail.stages
       : await getCandidateStages(id, session.user.organizationId);
 
+  const ownsCandidate = canMutateCandidate(
+    session.user.role,
+    session.user.id,
+    detail.candidate.createdById,
+  );
+
   const canScreen =
-    (session.user.role === "admin" || session.user.role === "ta") &&
+    (session.user.role === "admin" ||
+      (isRecruiterRole(session.user.role) && ownsCandidate)) &&
     !["selected", "rejected", "interview_complete"].includes(
       detail.candidate.status,
     );
@@ -96,7 +104,8 @@ export default async function EvaluatePage({ params }: Params) {
   const roleOpen = !detail.candidate.roleId || !roleRow || roleRow.status === "open";
 
   const canFinalize =
-    (session.user.role === "admin" || session.user.role === "ta") &&
+    (session.user.role === "admin" ||
+      (isRecruiterRole(session.user.role) && ownsCandidate)) &&
     detail.candidate.status === "interview_complete";
 
   return (

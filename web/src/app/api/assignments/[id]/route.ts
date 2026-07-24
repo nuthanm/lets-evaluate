@@ -12,6 +12,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
+import { canMutateCandidate } from "@/lib/auth/capabilities";
 import { logEvent } from "@/lib/events";
 import {
   ensureCandidateStages,
@@ -60,7 +61,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const { id: candidateId } = await params;
@@ -77,6 +78,18 @@ export async function POST(req: Request, { params }: Params) {
     )
     .limit(1);
   if (!candidate) return apiError("Not found", 404);
+  if (
+    !canMutateCandidate(
+      session.user.role,
+      session.user.id,
+      candidate.createdById,
+    )
+  ) {
+    return apiError(
+      "You can view this candidate but only the owning recruiter (or an admin) can schedule interviews.",
+      403,
+    );
+  }
   const openingErr = await assertRoleOpen(candidate.roleId);
   if (openingErr) return apiError(openingErr, 400);
   if (!["ready_for_interview", "assigned"].includes(candidate.status)) {

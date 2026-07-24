@@ -32,6 +32,9 @@ export type GridCandidate = {
   hasResume: boolean;
   techScore: number | null;
   screeningDecision: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
+  isOwner?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -119,6 +122,7 @@ const TONE_PILL: Record<Tone, string> = {
 
 type ToneFilter = "all" | Tone | "action";
 type QuickFilter = "all" | "unmapped";
+type OwnershipFilter = "all" | "mine" | string;
 
 const LEGEND: { tone: Tone; label: string }[] = [
   { tone: "active", label: "In progress" },
@@ -148,10 +152,12 @@ export function CandidatesGrid({
   candidates,
   projects,
   roles,
+  currentUserId,
 }: {
   candidates: GridCandidate[];
   projects: GridProject[];
   roles: GridRole[];
+  currentUserId?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -160,6 +166,7 @@ export function CandidatesGrid({
   const [query, setQuery] = useState("");
   const [toneFilter, setToneFilter] = useState<ToneFilter>("action");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
+  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>("all");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "updated",
     dir: "desc",
@@ -174,23 +181,45 @@ export function CandidatesGrid({
   const [preparedDeleteMails, setPreparedDeleteMails] = useState<RenderedMail[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const recruiters = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of candidates) {
+      if (c.createdById) {
+        map.set(c.createdById, c.createdByName ?? "Unknown recruiter");
+      }
+    }
+    return [...map.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [candidates]);
+
+  const ownershipScoped = useMemo(() => {
+    if (ownershipFilter === "all") return candidates;
+    if (ownershipFilter === "mine") {
+      return candidates.filter(
+        (c) => c.isOwner || (currentUserId && c.createdById === currentUserId),
+      );
+    }
+    return candidates.filter((c) => c.createdById === ownershipFilter);
+  }, [candidates, ownershipFilter, currentUserId]);
+
   const toneCounts = useMemo(() => {
     const counts: Record<ToneFilter, number> = {
-      all: candidates.length,
-      action: candidates.filter((c) => candidateNeedsAction(c.status)).length,
+      all: ownershipScoped.length,
+      action: ownershipScoped.filter((c) => candidateNeedsAction(c.status)).length,
       active: 0,
       selected: 0,
       hold: 0,
       rejected: 0,
       draft: 0,
     };
-    for (const c of candidates) counts[stageMeta(c.status).tone] += 1;
+    for (const c of ownershipScoped) counts[stageMeta(c.status).tone] += 1;
     return counts;
-  }, [candidates]);
+  }, [ownershipScoped]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = candidates.filter((c) => {
+    const filtered = ownershipScoped.filter((c) => {
       if (quickFilter === "unmapped" && c.projectId && c.roleId) return false;
       if (toneFilter === "action") {
         if (!candidateNeedsAction(c.status)) return false;
@@ -227,7 +256,11 @@ export function CandidatesGrid({
       }
     };
     return [...filtered].sort(cmp);
-  }, [candidates, query, toneFilter, quickFilter, sort]);
+  }, [ownershipScoped, query, toneFilter, quickFilter, sort]);
+
+  function canEditRow(c: GridCandidate) {
+    return c.isOwner !== false;
+  }
 
   const selectedVisibleCount = useMemo(
     () => visible.filter((c) => selectedIds.has(c.id)).length,
@@ -352,10 +385,13 @@ export function CandidatesGrid({
   function toggleVisibleSelection() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (allVisibleSelected) {
-        visible.forEach((c) => next.delete(c.id));
+      const editable = visible.filter((c) => canEditRow(c));
+      const allEditableSelected =
+        editable.length > 0 && editable.every((c) => next.has(c.id));
+      if (allEditableSelected) {
+        editable.forEach((c) => next.delete(c.id));
       } else {
-        visible.forEach((c) => next.add(c.id));
+        editable.forEach((c) => next.add(c.id));
       }
       return next;
     });
@@ -402,6 +438,23 @@ export function CandidatesGrid({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <label className="sr-only" htmlFor="ownership-filter">
+            Filter by recruiter
+          </label>
+          <select
+            id="ownership-filter"
+            value={ownershipFilter}
+            onChange={(e) => setOwnershipFilter(e.target.value as OwnershipFilter)}
+            className="case-input !w-auto !py-1.5 text-xs font-bold"
+          >
+            <option value="all">All recruiters</option>
+            <option value="mine">Mine only</option>
+            {recruiters.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => setQuickFilter((prev) => (prev === "unmapped" ? "all" : "unmapped"))}
@@ -419,7 +472,7 @@ export function CandidatesGrid({
                 quickFilter === "unmapped" ? "text-[var(--green)]/70" : "text-[var(--ink-faint)]",
               )}
             >
-              {candidates.filter((c) => !c.projectId || !c.roleId).length}
+              {ownershipScoped.filter((c) => !c.projectId || !c.roleId).length}
             </span>
           </button>
           {(["action", "all", "active", "selected", "hold", "rejected", "draft"] as const).map(
@@ -559,6 +612,9 @@ export function CandidatesGrid({
                   onClick={() => toggleSort("updated")}
                 />
                 <th className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
+                  Owner
+                </th>
+                <th className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
                   Next action
                 </th>
                 <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
@@ -570,7 +626,7 @@ export function CandidatesGrid({
               {visible.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={11}
                     className="px-4 py-10 text-center text-sm text-[var(--ink-faint)]"
                   >
                     No candidates match your search.
@@ -591,9 +647,13 @@ export function CandidatesGrid({
                           type="checkbox"
                           aria-label={`Select ${c.name}`}
                           checked={checked}
-                          onChange={() => toggleRowSelection(c.id)}
+                          disabled={!canEditRow(c)}
+                          onChange={() => {
+                            if (!canEditRow(c)) return;
+                            toggleRowSelection(c.id);
+                          }}
                           onClick={(e) => e.stopPropagation()}
-                          className="h-4 w-4 cursor-pointer rounded border-[var(--cream-2)] text-[var(--cyan-d)] focus:ring-[var(--cyan)]"
+                          className="h-4 w-4 cursor-pointer rounded border-[var(--cream-2)] text-[var(--cyan-d)] focus:ring-[var(--cyan)] disabled:cursor-not-allowed disabled:opacity-40"
                         />
                       </td>
                       <td className="py-3 pl-4 pr-3">
@@ -705,6 +765,18 @@ export function CandidatesGrid({
                         {formatDate(c.updatedAt)}
                       </td>
                       <td className="px-3 py-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[12px] font-semibold text-[var(--ink-soft)]">
+                            {c.createdByName ?? "—"}
+                          </span>
+                          {!canEditRow(c) && (
+                            <span className="text-[10px] font-bold uppercase tracking-[0.05em] text-[var(--ink-faint)]">
+                              View only
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
                         {(() => {
                           const next = nextActionForCandidate(c.id, c.status);
                           return (
@@ -716,7 +788,7 @@ export function CandidatesGrid({
                               }}
                               className="text-[11px] font-semibold text-[var(--cyan-d)] hover:underline"
                             >
-                              {next.label} →
+                              {canEditRow(c) ? `${next.label} →` : "Open →"}
                             </button>
                           );
                         })()}
@@ -727,10 +799,16 @@ export function CandidatesGrid({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (!canEditRow(c)) return;
                               setEditing(c);
                             }}
-                            title="Edit candidate"
-                            className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--cream-2)] bg-white text-[var(--ink-soft)] transition-colors hover:border-[var(--cyan)] hover:text-[var(--cyan-d)]"
+                            disabled={!canEditRow(c)}
+                            title={
+                              canEditRow(c)
+                                ? "Edit candidate"
+                                : "Only the owning recruiter can edit"
+                            }
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--cream-2)] bg-white text-[var(--ink-soft)] transition-colors hover:border-[var(--cyan)] hover:text-[var(--cyan-d)] disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <svg
                               width="15"
@@ -751,11 +829,16 @@ export function CandidatesGrid({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (!canEditRow(c)) return;
                               openDeleteModal(c);
                             }}
-                            disabled={busyId === c.id}
-                            title="Delete candidate"
-                            className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--cream-2)] bg-white text-[#c0392b] transition-colors hover:border-[#c0392b] hover:bg-[#c0392b]/5 disabled:opacity-50"
+                            disabled={busyId === c.id || !canEditRow(c)}
+                            title={
+                              canEditRow(c)
+                                ? "Delete candidate"
+                                : "Only the owning recruiter can delete"
+                            }
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--cream-2)] bg-white text-[#c0392b] transition-colors hover:border-[#c0392b] hover:bg-[#c0392b]/5 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <svg
                               width="15"

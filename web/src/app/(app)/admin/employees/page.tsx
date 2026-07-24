@@ -45,7 +45,7 @@ export default async function AdminEmployeesPage() {
         <StatBlock label="All employees" value={employees.length} icon={<IcTeam />} />
         <StatBlock
           label="Recruiters"
-          value={teamCounts.ta ?? 0}
+          value={(teamCounts.ta ?? 0) + (teamCounts.ta_lead ?? 0)}
           icon={<IcTeam />}
           variant="cyan"
         />

@@ -15,6 +15,7 @@ import { organizations, organizationMembers, users } from "../src/lib/db/schema"
 const E2E_USERS: Array<{ username: string; role: MemberRole; name: string }> = [
   { username: "e2e.admin", role: "admin", name: "E2E Admin User" },
   { username: "e2e.ta", role: "ta", name: "E2E TA User" },
+  { username: "e2e.ta_lead", role: "ta_lead", name: "E2E TA Lead User" },
   { username: "e2e.interviewer", role: "interviewer", name: "E2E Interviewer User" },
   { username: "e2e.manager", role: "manager", name: "E2E Manager User" },
   { username: "e2e.hr", role: "hr", name: "E2E HR User" },

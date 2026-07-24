@@ -12,7 +12,13 @@ import Credentials from "next-auth/providers/credentials";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { normalizeLoginCredentials } from "@/lib/auth/validation";
 
-export type MemberRole = "admin" | "ta" | "interviewer" | "manager" | "hr";
+export type MemberRole =
+  | "admin"
+  | "ta"
+  | "ta_lead"
+  | "interviewer"
+  | "manager"
+  | "hr";
 
 function parseGroupEnv(name: string): string[] {
   return (process.env[name] ?? "")
@@ -24,11 +30,13 @@ function parseGroupEnv(name: string): string[] {
 export function roleFromEntraGroups(groups?: string[]): MemberRole {
   if (!groups?.length) return "interviewer";
   const admin = parseGroupEnv("AZURE_AD_ADMIN_GROUPS");
+  const taLead = parseGroupEnv("AZURE_AD_TA_LEAD_GROUPS");
   const ta = parseGroupEnv("AZURE_AD_TA_GROUPS");
   const interviewer = parseGroupEnv("AZURE_AD_INTERVIEWER_GROUPS");
   const manager = parseGroupEnv("AZURE_AD_MANAGER_GROUPS");
   const hr = parseGroupEnv("AZURE_AD_HR_GROUPS");
   if (groups.some((g) => admin.includes(g))) return "admin";
+  if (groups.some((g) => taLead.includes(g))) return "ta_lead";
   if (groups.some((g) => ta.includes(g))) return "ta";
   if (groups.some((g) => manager.includes(g))) return "manager";
   if (groups.some((g) => hr.includes(g))) return "hr";

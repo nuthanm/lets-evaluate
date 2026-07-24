@@ -21,6 +21,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import type { MemberRole } from "@/lib/auth/config";
+import { canViewAllCandidates } from "@/lib/auth/capabilities";
 import type { WorkflowGraph } from "@/lib/domain/workflow-graph";
 import {
   stagesToWorkflowGraph,
@@ -161,8 +162,9 @@ export async function getCandidatesForUser(
   organizationId: string,
   userId: string,
   role: MemberRole,
+  options?: { mineOnly?: boolean },
 ) {
-  if (role === "admin") {
+  if (canViewAllCandidates(role) && !options?.mineOnly) {
     return db
       .select()
       .from(candidates)
@@ -170,7 +172,7 @@ export async function getCandidatesForUser(
       .orderBy(desc(candidates.updatedAt));
   }
 
-  if (role === "ta") {
+  if (role === "ta" || role === "ta_lead" || options?.mineOnly) {
     return db
       .select()
       .from(candidates)
@@ -222,14 +224,17 @@ export type CandidateGridRow = {
   hasResume: boolean;
   techScore: number | null;
   screeningDecision: string | null;
+  createdById: string | null;
+  createdByName: string | null;
+  isOwner: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
 /**
  * Candidate rows enriched with project / role names and screening score for the
- * recruiter grid. Applies the same RBAC scoping as getCandidatesForUser:
- * admins see the whole org, TAs see their own candidates, interviewers see assigned.
+ * recruiter grid. Admins, TAs, and TA leads see the whole org; panel roles see
+ * assigned candidates. Ownership is exposed so the UI can disable edits.
  */
 export async function getCandidatesGridForUser(
   organizationId: string,
@@ -250,15 +255,15 @@ export async function getCandidatesGridForUser(
     resumeStorageKey: candidates.resumeStorageKey,
     metrics: screenings.metrics,
     screeningDecision: screenings.decision,
+    createdById: candidates.createdById,
+    createdByName: users.name,
     createdAt: candidates.createdAt,
     updatedAt: candidates.updatedAt,
   };
 
   let condition = eq(candidates.organizationId, organizationId);
 
-  if (role === "ta") {
-    condition = and(condition, eq(candidates.createdById, userId))!;
-  } else if (role !== "admin") {
+  if (!canViewAllCandidates(role)) {
     const assignedIds = await db
       .select({ candidateId: candidateStages.candidateId })
       .from(candidateStages)
@@ -279,6 +284,7 @@ export async function getCandidatesGridForUser(
     .leftJoin(projects, eq(candidates.projectId, projects.id))
     .leftJoin(roles, eq(candidates.roleId, roles.id))
     .leftJoin(screenings, eq(screenings.candidateId, candidates.id))
+    .leftJoin(users, eq(candidates.createdById, users.id))
     .where(condition)
     .orderBy(desc(candidates.updatedAt));
 
@@ -303,6 +309,9 @@ export async function getCandidatesGridForUser(
       hasResume: Boolean(r.resumeStorageKey),
       techScore,
       screeningDecision: r.screeningDecision ?? null,
+      createdById: r.createdById ?? null,
+      createdByName: r.createdByName ?? null,
+      isOwner: r.createdById === userId || role === "admin",
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     };
@@ -347,24 +356,12 @@ export async function getArchivedCandidatesWithStages(
   ];
 
   // Determine the candidate IDs visible to this user.
-  // • admin  → all candidates in the org (candidateIds = null)
-  // • ta     → candidates they created
+  // • admin / ta / ta_lead → all candidates in the org (candidateIds = null)
   // • others → candidates where they appear in candidateStages
   //            (assignedToId OR decidedById — more reliable than interviewAssignments)
   let candidateIds: string[] | null = null;
 
-  if (role === "ta") {
-    const rows = await db
-      .select({ id: candidates.id })
-      .from(candidates)
-      .where(
-        and(
-          eq(candidates.organizationId, organizationId),
-          eq(candidates.createdById, userId),
-        ),
-      );
-    candidateIds = rows.map((r) => r.id);
-  } else if (role !== "admin") {
+  if (!canViewAllCandidates(role)) {
     const stageRows = await db
       .select({ candidateId: candidateStages.candidateId })
       .from(candidateStages)
@@ -403,6 +400,7 @@ export async function getArchivedCandidatesWithStages(
       resumeStorageKey: candidates.resumeStorageKey,
       metrics: screenings.metrics,
       screeningDecision: screenings.decision,
+      createdById: candidates.createdById,
       createdAt: candidates.createdAt,
       updatedAt: candidates.updatedAt,
     })
@@ -472,6 +470,9 @@ export async function getArchivedCandidatesWithStages(
       hasResume: Boolean(r.resumeStorageKey),
       techScore,
       screeningDecision: r.screeningDecision ?? null,
+      createdById: r.createdById ?? null,
+      createdByName: null,
+      isOwner: r.createdById === userId || role === "admin",
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       stages: (byCandidate.get(r.id) ?? []).map((s) => ({
@@ -678,7 +679,9 @@ export async function getUserStats(
   const all = await db.select().from(candidates).where(base);
 
   const mine = all.filter((c) => c.createdById === userId);
-  const scoped = role === "admin" ? all : mine;
+  // Personal dashboards for TAs stay on owned work; admin + TA lead see org-wide.
+  const scoped =
+    role === "admin" || role === "ta_lead" ? all : mine;
   const terminal = (list: typeof all, status: string) =>
     list.filter((c) => c.status === status).length;
 
@@ -693,6 +696,113 @@ export async function getUserStats(
       ),
     ).length,
   };
+}
+
+export type RecruiterPerformanceRow = {
+  userId: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+  total: number;
+  inProgress: number;
+  selected: number;
+  rejected: number;
+  hold: number;
+  screenedRejected: number;
+};
+
+/** Per-recruiter pipeline KPIs for TA Lead / Admin hike & coverage reviews. */
+export async function getRecruiterPerformance(
+  organizationId: string,
+): Promise<RecruiterPerformanceRow[]> {
+  const [memberRows, candidateRows] = await Promise.all([
+    db
+      .select({
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        role: organizationMembers.role,
+      })
+      .from(organizationMembers)
+      .innerJoin(users, eq(organizationMembers.userId, users.id))
+      .where(
+        and(
+          eq(organizationMembers.organizationId, organizationId),
+          isNull(organizationMembers.deletedAt),
+          inArray(organizationMembers.role, ["ta", "ta_lead"]),
+        ),
+      ),
+    db
+      .select({
+        createdById: candidates.createdById,
+        status: candidates.status,
+      })
+      .from(candidates)
+      .where(eq(candidates.organizationId, organizationId)),
+  ]);
+
+  const byOwner = new Map<
+    string,
+    {
+      total: number;
+      inProgress: number;
+      selected: number;
+      rejected: number;
+      hold: number;
+      screenedRejected: number;
+    }
+  >();
+
+  for (const c of candidateRows) {
+    const ownerId = c.createdById;
+    if (!ownerId) continue;
+    const bucket = byOwner.get(ownerId) ?? {
+      total: 0,
+      inProgress: 0,
+      selected: 0,
+      rejected: 0,
+      hold: 0,
+      screenedRejected: 0,
+    };
+    bucket.total += 1;
+    if (c.status === "selected") bucket.selected += 1;
+    else if (c.status === "rejected") bucket.rejected += 1;
+    else if (c.status === "hold" || c.status === "screened_hold") bucket.hold += 1;
+    else if (c.status === "screened_rejected") bucket.screenedRejected += 1;
+    else if (
+      [
+        "draft",
+        "screening",
+        "ready_for_interview",
+        "assigned",
+        "interview_in_progress",
+        "interview_complete",
+      ].includes(c.status)
+    ) {
+      bucket.inProgress += 1;
+    }
+    byOwner.set(ownerId, bucket);
+  }
+
+  return memberRows
+    .map((m) => {
+      const stats = byOwner.get(m.userId) ?? {
+        total: 0,
+        inProgress: 0,
+        selected: 0,
+        rejected: 0,
+        hold: 0,
+        screenedRejected: 0,
+      };
+      return {
+        userId: m.userId,
+        name: m.name,
+        email: m.email,
+        role: m.role as MemberRole,
+        ...stats,
+      };
+    })
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
 export async function getAssignmentsForUser(

@@ -71,6 +71,7 @@ export function validatePassword(password: string): string | null {
 export const memberRoleSchema = z.enum([
   "admin",
   "ta",
+  "ta_lead",
   "interviewer",
   "manager",
   "hr",
@@ -146,6 +147,8 @@ export function formatZodError(error: z.ZodError): string {
 export const ROLE_LABELS: Record<MemberRole, string> = {
   admin: "Admin — full workspace control",
   ta: "Talent Acquisition — screen & assign candidates",
+  ta_lead:
+    "TA Lead — view all recruiters’ pipelines & performance (edit own only)",
   interviewer: "Interviewer — conduct assigned technical interviews",
   manager: "Manager — conduct assigned manager rounds",
   hr: "HR — conduct assigned HR rounds",

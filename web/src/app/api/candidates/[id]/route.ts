@@ -43,6 +43,7 @@ import {
 } from "@/lib/ai";
 import { logEvent } from "@/lib/events";
 import { apiError, rateLimit, requireApiRole } from "@/lib/api/helpers";
+import { canMutateCandidate } from "@/lib/auth/capabilities";
 import {
   ensureCandidateStages,
   getCandidateDetail,
@@ -53,6 +54,20 @@ import { MAIL_SLUG_FOR_DECISION, prepareMail, prepareMails } from "@/lib/email";
 import { buildMailVars } from "@/lib/email/vars";
 
 type Params = { params: Promise<{ id: string }> };
+
+function forbidUnlessOwner(
+  role: Parameters<typeof canMutateCandidate>[0],
+  userId: string,
+  createdById: string | null | undefined,
+) {
+  if (!canMutateCandidate(role, userId, createdById)) {
+    return apiError(
+      "You can view this candidate but only the owning recruiter (or an admin) can modify it.",
+      403,
+    );
+  }
+  return null;
+}
 
 export async function GET(_req: Request, { params }: Params) {
   const session = await auth();
@@ -117,7 +132,7 @@ async function resolveResumeText(
 export async function POST(req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   if (!rateLimit(`ai:${session.user.id}`, 30)) {
@@ -138,6 +153,16 @@ export async function POST(req: Request, { params }: Params) {
     )
     .limit(1);
   if (!candidate) return apiError("Not found", 404);
+
+  // Handoff is admin-only and reassigns ownership — skip owner check.
+  if (body.action !== "handoff") {
+    const ownerBlock = forbidUnlessOwner(
+      session.user.role,
+      session.user.id,
+      candidate.createdById,
+    );
+    if (ownerBlock) return ownerBlock;
+  }
 
   const [project] = candidate.projectId
     ? await db
@@ -773,7 +798,7 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   if (body.action === "reassign") {
-    const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+    const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
     if (forbidden) return forbidden;
     if (!body.projectId && !body.roleId) {
       return apiError("projectId or roleId required", 400);
@@ -904,7 +929,7 @@ export async function POST(req: Request, { params }: Params) {
 export async function PUT(req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const { id } = await params;
@@ -957,6 +982,13 @@ export async function PUT(req: Request, { params }: Params) {
     .limit(1);
 
   if (existing) {
+    const ownerBlock = forbidUnlessOwner(
+      session.user.role,
+      session.user.id,
+      existing.createdById,
+    );
+    if (ownerBlock) return ownerBlock;
+
     const nextName = name || existing.name || "";
     const nextEmail = email || existing.email || "";
     const nameError = validateCandidateName(nextName);
@@ -1010,7 +1042,7 @@ export async function PUT(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const { id } = await params;
@@ -1031,6 +1063,13 @@ export async function DELETE(_req: Request, { params }: Params) {
     .limit(1);
 
   if (!existing) return apiError("Not found", 404);
+
+  const ownerBlock = forbidUnlessOwner(
+    session.user.role,
+    session.user.id,
+    existing.createdById,
+  );
+  if (ownerBlock) return ownerBlock;
 
   const [screening] = await db
     .select({

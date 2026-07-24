@@ -10,7 +10,13 @@ export default async function BookingPage() {
     getCachedStageBookings(session.user.organizationId),
   ]);
 
-  const candidates = bookable.map((row) => {
+  const candidates = bookable
+    .filter(
+      (row) =>
+        session.user.role === "admin" ||
+        row.candidate.createdById === session.user.id,
+    )
+    .map((row) => {
     const metrics = (row.metrics ?? {}) as Record<string, unknown>;
     const score = metrics.tech_match_score;
     return {

@@ -18,7 +18,7 @@ type EmployeeRow = {
 
 function roleVariant(role: MemberRole): "cyan" | "green" | "orange" | "neutral" {
   if (role === "admin") return "orange";
-  if (role === "ta") return "cyan";
+  if (role === "ta" || role === "ta_lead") return "cyan";
   if (role === "hr") return "green";
   return "neutral";
 }

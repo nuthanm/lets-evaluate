@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
+import { canMutateCandidate } from "@/lib/auth/capabilities";
 import { db } from "@/lib/db";
 import { candidateStages, candidates } from "@/lib/db/schema";
 import { and, asc, eq } from "drizzle-orm";
@@ -19,7 +20,7 @@ export async function PATCH(
 ) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
-  const forbidden = requireApiRole(session.user.role, ["admin", "ta"]);
+  const forbidden = requireApiRole(session.user.role, ["admin", "ta", "ta_lead"]);
   if (forbidden) return forbidden;
 
   const { id: candidateId } = await params;
@@ -37,6 +38,18 @@ export async function PATCH(
     .limit(1);
 
   if (!candidate) return apiError("Candidate not found", 404);
+  if (
+    !canMutateCandidate(
+      session.user.role,
+      session.user.id,
+      candidate.createdById,
+    )
+  ) {
+    return apiError(
+      "You can view this candidate but only the owning recruiter (or an admin) can move stages.",
+      403,
+    );
+  }
   if (DECIDED.has(candidate.status)) {
     return apiError("Cannot move a decided candidate", 400);
   }

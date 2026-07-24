@@ -51,6 +51,7 @@ type PipelineFunnel = {
 type TeamCounts = {
   admin: number;
   ta: number;
+  ta_lead?: number;
   interviewer: number;
   manager: number;
   hr: number;
@@ -231,6 +232,7 @@ export function AdminDashboard({
   const teamTotal =
     teamCounts.admin +
     teamCounts.ta +
+    (teamCounts.ta_lead ?? 0) +
     panelCount;
   const activeBulkJobs = bulkJobs.filter((j) =>
     ["pending", "running", "processing"].includes(j.status),
