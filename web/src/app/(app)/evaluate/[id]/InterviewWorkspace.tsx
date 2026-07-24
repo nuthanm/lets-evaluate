@@ -272,6 +272,574 @@ type RoleOption = { id: string; name: string };
 let seq = 0;
 const nextId = () => `q_${Date.now()}_${seq++}`;
 
+// ─── Justification Preview ────────────────────────────────────────────────────
+
+function parseJustificationSections(text: string): { label: string; content: string }[] {
+  const pattern = /(Overall Assessment|Question Performance|Strengths|Concerns \/ Gaps|Recommendation):\s*/gi;
+  const parts: { label: string; content: string }[] = [];
+  let lastIndex = 0;
+  let lastLabel = "";
+  for (const m of text.matchAll(pattern)) {
+    if (lastLabel && m.index !== undefined) {
+      parts.push({ label: lastLabel, content: text.slice(lastIndex, m.index).trim() });
+    }
+    lastLabel = m[1];
+    lastIndex = (m.index ?? 0) + m[0].length;
+  }
+  if (lastLabel) parts.push({ label: lastLabel, content: text.slice(lastIndex).trim() });
+  return parts.length > 0 ? parts : [{ label: "", content: text }];
+}
+
+const REQUIRED_JUSTIFICATION_LABELS = [
+  "Overall Assessment",
+  "Question Performance",
+  "Strengths",
+  "Concerns / Gaps",
+  "Recommendation",
+] as const;
+
+function hasStructuredJustification(text: string) {
+  const found = new Set(parseJustificationSections(text).map((s) => s.label));
+  return REQUIRED_JUSTIFICATION_LABELS.every((label) => found.has(label));
+}
+
+function toOutcomeLabel(value: string) {
+  if (value === "Satisfied") return "Satisfied";
+  if (value === "Not satisfied") return "Not satisfied";
+  return "Not assessed";
+}
+
+function buildStructuredJustificationFromRound(
+  rawText: string,
+  items: WorkItem[],
+  decision: "yes" | "no" | "",
+) {
+  const assessedGood = items.filter((i) => i.satisfaction === "Satisfied");
+  const assessedBad = items.filter((i) => i.satisfaction === "Not satisfied");
+  const notAssessed = items.filter((i) => !i.satisfaction || i.satisfaction === "");
+
+  const questionLines = items.map((it, idx) => {
+    const difficulty = it.difficulty?.trim() || "Medium";
+    const notesPart = it.notes?.trim() ? ` Notes: ${it.notes.trim()}` : "";
+    return `${idx + 1}. ${it.question.trim()} (${difficulty}) - Outcome: ${toOutcomeLabel(it.satisfaction)}.${notesPart}`;
+  });
+
+  const strengths = [
+    ...assessedGood
+      .filter((q) => q.notes.trim())
+      .slice(0, 2)
+      .map((q) => `- ${q.notes.trim()}`),
+    ...(assessedGood.length > 0
+      ? [`- ${assessedGood.length} question${assessedGood.length !== 1 ? "s" : ""} were assessed as satisfied.`]
+      : []),
+  ];
+
+  const concerns = [
+    ...assessedBad
+      .filter((q) => q.notes.trim())
+      .slice(0, 2)
+      .map((q) => `- ${q.notes.trim()}`),
+    ...(notAssessed.length > 0
+      ? [`- ${notAssessed.length} question${notAssessed.length !== 1 ? "s" : ""} were not assessed and need follow-up.`]
+      : []),
+  ];
+
+  const recommendationLine = decision === "yes"
+    ? "Proceed to next round"
+    : decision === "no"
+      ? "Do not proceed"
+      : "Pending recommendation";
+
+  const overall = rawText.trim() || "Evaluation recorded for this round.";
+  const strengthText = strengths.length > 0 ? strengths.join("\n") : "- No explicit strengths were recorded.";
+  const concernText = concerns.length > 0 ? concerns.join("\n") : "- No major concerns were recorded.";
+
+  return [
+    `Overall Assessment: ${overall}`,
+    "",
+    "Question Performance:",
+    ...questionLines,
+    "",
+    "Strengths:",
+    strengthText,
+    "",
+    "Concerns / Gaps:",
+    concernText,
+    "",
+    `Recommendation: ${recommendationLine}`,
+  ].join("\n");
+}
+
+type SectionCfg = { color: string; bg: string; border: string; icon: string };
+const SECTION_CFG: Record<string, SectionCfg> = {
+  "Overall Assessment":   { color: "text-[var(--navy)]",    bg: "bg-[var(--navy)]/5",        border: "border-[var(--navy)]/15",    icon: "📋" },
+  "Question Performance": { color: "text-[var(--cyan-d)]", bg: "bg-[var(--cyan-soft)]",     border: "border-[var(--cyan)]/20",   icon: "📊" },
+  "Strengths":            { color: "text-[var(--green)]",  bg: "bg-[var(--green-soft)]",    border: "border-[var(--green)]/20",  icon: "✅" },
+  "Concerns / Gaps":      { color: "text-[var(--orange)]", bg: "bg-[var(--orange-soft)]",   border: "border-[var(--orange)]/20", icon: "⚠️" },
+  "Recommendation":       { color: "text-purple-700",      bg: "bg-purple-50",              border: "border-purple-200",         icon: "🎯" },
+};
+
+function QPerformanceSection({ content, cfg }: { content: string; cfg: SectionCfg }) {
+  type QEntry = { category: string; difficulty: string; question: string; outcome: string; notes: string };
+  const entries: QEntry[] = [];
+
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^[-•]?\s*\*\*[^*]+\*\*:?\s*$/.test(line)) continue;
+
+    const mA = line.match(
+      /^[-•\d.]*\s*\*\*([^*(]+?)(?:\s*\(([^)]+)\))?\*\*:\s*(.+?)\s+Outcome:\s*(Satisfied|Not satisfied|Not assessed)[,.]?\s*(?:Notes?:\s*(.+))?$/i,
+    );
+    if (mA) {
+      entries.push({ category: mA[1]?.trim() ?? "", difficulty: mA[2]?.trim() ?? "", question: mA[3]?.trim() ?? "", outcome: mA[4]?.trim() ?? "", notes: mA[5]?.trim() ?? "" });
+      continue;
+    }
+    const mB = line.match(
+      /^(?:\d+\.|[-•])\s*\[([^\]]+)\]\s*\(([^)]+)\)\s*(.+?)\s*[-–]\s*Outcome:\s*([^.N]+?)\.?\s*(?:Notes?:\s*(.+))?$/i,
+    );
+    if (mB) {
+      entries.push({ category: mB[1]?.trim() ?? "", difficulty: mB[2]?.trim() ?? "", question: mB[3]?.trim() ?? "", outcome: mB[4]?.trim() ?? "", notes: mB[5]?.trim() ?? "" });
+      continue;
+    }
+    const mC = line.match(
+      /^(?:\d+\.|[-•])\s*(.+?)\s*\(([^)]+)\)\s*[-–]\s*Outcome:\s*([^.N]+?)\.?\s*(?:Notes?:\s*(.+))?$/i,
+    );
+    if (mC) {
+      entries.push({ category: "", difficulty: mC[2]?.trim() ?? "", question: mC[1]?.trim() ?? "", outcome: mC[3]?.trim() ?? "", notes: mC[4]?.trim() ?? "" });
+    }
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className={cn("rounded-xl border p-4", cfg.bg, cfg.border)}>
+        <p className={cn("mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest", cfg.color)}>
+          <span>{cfg.icon}</span> Question Performance
+        </p>
+        <p className="text-sm leading-relaxed text-[var(--ink)]">{content}</p>
+      </div>
+    );
+  }
+
+  const isOk  = (o: string) => /^satisfied$/i.test(o.trim()) || (o.toLowerCase().includes("satisfied") && !o.toLowerCase().includes("not"));
+  const isBad = (o: string) => /not satisfied/i.test(o);
+
+  // Group by category (preserve insertion order)
+  const grouped = new Map<string, (QEntry & { gIdx: number })[]>();
+  let gIdx = 0;
+  for (const e of entries) {
+    const key = e.category || "General";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push({ ...e, gIdx: ++gIdx });
+  }
+
+  return (
+    <div className={cn("rounded-xl border p-4", cfg.bg, cfg.border)}>
+      {/* Section header */}
+      <div className="mb-3 flex items-center gap-1.5">
+        <span className="text-sm">{cfg.icon}</span>
+        <span className={cn("text-[10px] font-black uppercase tracking-widest", cfg.color)}>Question Performance</span>
+        <span className="ml-auto rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-[var(--ink-faint)]">
+          {entries.length} question{entries.length !== 1 ? "s" : ""} · {grouped.size} categor{grouped.size !== 1 ? "ies" : "y"}
+        </span>
+      </div>
+
+      {/* Category tiles */}
+      <div className="space-y-3">
+        {Array.from(grouped.entries()).map(([cat, catEntries]) => {
+          const satCount  = catEntries.filter(e => isOk(e.outcome)).length;
+          const badCount  = catEntries.filter(e => isBad(e.outcome)).length;
+          const naCount   = catEntries.length - satCount - badCount;
+          const allGood   = satCount === catEntries.length;
+          const anyBad    = badCount > 0;
+
+          return (
+            <div key={cat} className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white shadow-sm">
+
+              {/* ── Category tile header ── */}
+              <div className={cn(
+                "flex flex-wrap items-center gap-2 px-4 py-3",
+                allGood ? "bg-[var(--green-soft)]" : anyBad ? "bg-[var(--orange-soft)]" : "bg-[var(--cream)]",
+              )}>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "grid size-6 place-items-center rounded-full text-[11px] font-black",
+                    allGood ? "bg-[var(--green)] text-white" : anyBad ? "bg-[var(--orange)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
+                  )}>
+                    {allGood ? "✓" : anyBad ? "!" : "–"}
+                  </span>
+                  <span className="font-serif text-[13px] font-bold text-[var(--ink)]">{cat}</span>
+                  <span className="text-[11px] text-[var(--ink-faint)]">{catEntries.length} Q</span>
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  {satCount > 0 && (
+                    <span className="rounded-full bg-[var(--green)] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      ✓ {satCount} satisfied
+                    </span>
+                  )}
+                  {badCount > 0 && (
+                    <span className="rounded-full bg-[var(--orange)] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      ✗ {badCount} not satisfied
+                    </span>
+                  )}
+                  {naCount > 0 && (
+                    <span className="rounded-full bg-[var(--cream-2)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--ink-faint)]">
+                      – {naCount} not assessed
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Individual questions ── */}
+              <div className="divide-y divide-[var(--cream-2)]/60">
+                {catEntries.map((e, j) => {
+                  const ok  = isOk(e.outcome);
+                  const bad = isBad(e.outcome);
+                  return (
+                    <div key={j} className="px-4 py-3">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[var(--cream-2)] text-[10px] font-black text-[var(--ink-soft)]">
+                          {e.gIdx}
+                        </span>
+                        {e.difficulty && (
+                          <span className={cn(
+                            "rounded-md px-2 py-0.5 text-[10px] font-bold",
+                            /hard/i.test(e.difficulty)   ? "bg-red-50 text-red-600"
+                              : /medium/i.test(e.difficulty) ? "bg-amber-50 text-amber-600"
+                              : "bg-emerald-50 text-emerald-600",
+                          )}>
+                            {e.difficulty}
+                          </span>
+                        )}
+                        <span className={cn(
+                          "ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                          ok  ? "bg-[var(--green)] text-white"
+                            : bad ? "bg-[var(--orange)] text-white"
+                            : "bg-[var(--cream-2)] text-[var(--ink-faint)]",
+                        )}>
+                          {ok ? "✓ Satisfied" : bad ? "✗ Not satisfied" : "— Not assessed"}
+                        </span>
+                      </div>
+                      <p className="text-[12px] leading-relaxed text-[var(--ink)]">{e.question}</p>
+                      {e.notes && (
+                        <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-[var(--ink-soft)]">
+                          <span className="mt-px shrink-0">💬</span>
+                          <span className="italic">{e.notes}</span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function JustificationPreviewCard({
+  text,
+  candidateName,
+  role,
+  decision,
+  items,
+}: {
+  text: string;
+  candidateName: string;
+  role: string;
+  decision: "yes" | "no" | "";
+  items: WorkItem[];
+}) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+  const sections = parseJustificationSections(text);
+
+  function toPoints(content: string): string[] {
+    const lines = content.split("\n").map((l) => l.replace(/\*\*/g, "").trim()).filter(Boolean);
+    const bullets = lines.map((l) => l.match(/^[-•*]\s+(.+)$/)?.[1] ?? null).filter(Boolean) as string[];
+    if (bullets.length > 1) return bullets;
+    return content.replace(/\*\*/g, "").split(/\.\s+/).map((s) => s.trim().replace(/\.$/, "")).filter((s) => s.length > 15);
+  }
+
+  const overall       = sections.find((s) => s.label === "Overall Assessment")?.content ?? "";
+  const strengthPts   = toPoints(sections.find((s) => s.label === "Strengths")?.content ?? "");
+  const concernPts    = toPoints(sections.find((s) => s.label === "Concerns / Gaps")?.content ?? "");
+  const recommendation = sections.find((s) => s.label === "Recommendation")?.content ?? "";
+
+  const totalQ      = items.length;
+  const satisfied   = items.filter((i) => i.satisfaction === "Satisfied").length;
+  const notSat      = items.filter((i) => i.satisfaction === "Not satisfied").length;
+  const notAssessed = totalQ - satisfied - notSat;
+  const rawScore    = totalQ > 0 ? (satisfied * 10 + notAssessed * 5) / totalQ : 0;
+  const score       = rawScore.toFixed(1);
+  const confidence  = totalQ > 0 ? Math.round((satisfied + notAssessed * 0.5) / totalQ * 100) : 0;
+  const initials    = candidateName.split(" ").filter(Boolean).map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  return (
+    <div className="space-y-3">
+
+      {/* ── Header ── */}
+      <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white">
+
+        {/* Row 1: tight single line */}
+        <div className="flex items-center gap-2 p-2">
+
+          {/* Identity */}
+          <div className="flex min-w-[255px] shrink-0 items-center gap-3 rounded-xl bg-gradient-to-br from-[var(--cyan-soft)] to-[#eaf8ff] px-5 py-3.5 shadow-sm">
+            <div className="grid size-10 shrink-0 place-items-center rounded-full border border-white/80 bg-white/75 font-serif text-xs font-black text-[var(--cyan-d)] shadow-sm">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-serif text-[13px] font-bold leading-tight text-[var(--ink)]">{candidateName}</p>
+              <p className="text-[10px] font-semibold tracking-wide text-[var(--ink-soft)]">{role}</p>
+              <p className="mt-1 inline-flex items-center rounded-md bg-white/70 px-2 py-0.5 text-[9px] text-[var(--ink-faint)]">
+                📅 {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </p>
+            </div>
+          </div>
+
+          {/* Score */}
+          <div className={cn(
+            "flex min-w-[170px] shrink-0 flex-col gap-1 rounded-lg px-4 py-3 shadow-sm",
+            rawScore >= 8 ? "bg-emerald-50"
+              : rawScore >= 5 ? "bg-amber-50"
+              : "bg-rose-50",
+          )}>
+            <p className="text-[8px] font-black uppercase tracking-wider text-[var(--ink-soft)]">Overall Score</p>
+            <div className="flex items-end gap-1 leading-none">
+              <span className={cn(
+                "font-serif text-[20px] font-black",
+                rawScore >= 8 ? "text-emerald-700" : rawScore >= 5 ? "text-amber-700" : "text-rose-700",
+              )}>{score}</span>
+              <span className="pb-0.5 text-[10px] font-bold text-[var(--ink-faint)]">/10</span>
+            </div>
+            <div className="h-1.5 w-[76px] overflow-hidden rounded-full bg-white/80">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  rawScore >= 8 ? "bg-emerald-500" : rawScore >= 5 ? "bg-amber-500" : "bg-rose-500",
+                )}
+                style={{ width: `${Math.max(0, Math.min(100, rawScore * 10))}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Recommendation + Confidence side by side */}
+          <div className="flex min-w-[300px] shrink-0 items-center gap-3 rounded-lg bg-[var(--green-soft)] px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-1.5">
+              <p className="font-serif text-[9px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">Recommendation</p>
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold",
+                decision === "yes" ? "bg-[var(--green-soft)] text-[var(--green)]"
+                  : decision === "no" ? "bg-[var(--orange-soft)] text-[var(--orange)]"
+                  : "bg-[var(--cream-2)] text-[var(--ink-faint)]",
+              )}>
+                {decision === "yes" ? "✓ Proceed" : decision === "no" ? "✗ Do not proceed" : "— Pending"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-serif text-[9px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">Confidence</p>
+              <div className="flex items-center gap-1">
+                <span className={cn(
+                  "font-mono text-[13px] font-black leading-none",
+                  confidence >= 70 ? "text-[var(--green)]" : confidence >= 40 ? "text-amber-600" : "text-[var(--orange)]",
+                )}>{confidence}%</span>
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold",
+                  confidence >= 70 ? "bg-[var(--green-soft)] text-[var(--green)]"
+                    : confidence >= 40 ? "bg-amber-50 text-amber-600"
+                    : "bg-[var(--orange-soft)] text-[var(--orange)]",
+                )}>
+                  {confidence >= 70 ? "High" : confidence >= 40 ? "Medium" : "Low"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Row 2: AI Summary */}
+        {overall && (
+          <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] px-4 py-2.5">
+            <p className="mb-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[var(--cyan-d)]">
+              ✨ AI Summary
+            </p>
+            <p className="line-clamp-2 text-[11px] leading-relaxed text-[var(--ink-soft)]">{overall}</p>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Stats row ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {([
+          { value: strengthPts.length, label: "Strengths",       sub: "Key positive areas",         color: "text-[var(--green)]",  bg: "bg-[var(--green-soft)]",  border: "border-[var(--green)]/20",  iconBg: "bg-[var(--green)]/15",    iconColor: "text-[var(--green)]",  icon: "🛡" },
+          { value: concernPts.length,  label: "Concerns / Gaps", sub: "Areas that need exploration", color: "text-[var(--orange)]", bg: "bg-[var(--orange-soft)]", border: "border-[var(--orange)]/20", iconBg: "bg-[var(--orange)]/15",   iconColor: "text-[var(--orange)]", icon: "⚠" },
+          { value: totalQ,             label: "Questions",        sub: "Total questions asked",        color: "text-[var(--cyan-d)]", bg: "bg-[var(--cyan-soft)]",   border: "border-[var(--cyan)]/20",   iconBg: "bg-[var(--cyan)]/20",     iconColor: "text-[var(--cyan-d)]", icon: "📋" },
+          { value: `${confidence}%`,   label: "Confidence",       sub: "AI confidence in evaluation", color: "text-purple-600",      bg: "bg-purple-50",            border: "border-purple-200",         iconBg: "bg-purple-100",           iconColor: "text-purple-500",      icon: "🎯" },
+        ] as const).map((m) => (
+          <div key={m.label} className={cn("flex items-center gap-3 rounded-xl border p-4", m.bg, m.border)}>
+            <div className={cn("grid size-10 shrink-0 place-items-center rounded-xl text-lg", m.iconBg, m.iconColor)}>
+              {m.icon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className={cn("font-serif text-[26px] font-black leading-none", m.color)}>{m.value}</div>
+              <div className="mt-1 text-[11px] font-bold text-[var(--ink)]">{m.label}</div>
+              <div className="text-[10px] leading-tight text-[var(--ink-faint)]">{m.sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Main: questions + sidebar ── */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+
+        {/* Question Performance */}
+        <div className="overflow-hidden rounded-xl border border-[var(--cream-2)] bg-white lg:col-span-2">
+          <div className="flex items-center gap-2 border-b border-[var(--cream-2)] px-4 py-3">
+            <span className="text-sm">📋</span>
+            <span className="font-serif text-sm font-bold text-[var(--ink)]">Question Performance</span>
+            <span className="ml-auto rounded-full bg-[var(--cream)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--ink-soft)]">
+              {totalQ} question{totalQ !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="divide-y divide-[var(--cream-2)]">
+            {items.length === 0 && (
+              <p className="px-4 py-6 text-center text-sm text-[var(--ink-faint)]">No questions recorded.</p>
+            )}
+            {items.map((it, idx) => {
+              const isExpanded = expandedIdx === idx;
+              const ok  = it.satisfaction === "Satisfied";
+              const bad = it.satisfaction === "Not satisfied";
+              return (
+                <div key={it.id}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--cream)]"
+                  >
+                    <span className={cn(
+                      "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-black",
+                      ok ? "bg-[var(--green)] text-white" : bad ? "bg-[var(--orange)] text-white" : "bg-[var(--cream-2)] text-[var(--ink-soft)]",
+                    )}>
+                      Q{idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{it.question}</p>
+                      {it.category && <p className="text-[10px] text-[var(--ink-faint)]">{it.category}</p>}
+                    </div>
+                    <span className={cn(
+                      "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                      ok ? "bg-[var(--green-soft)] text-[var(--green)]"
+                        : bad ? "bg-[var(--orange-soft)] text-[var(--orange)]"
+                        : "bg-[var(--cream-2)] text-[var(--ink-faint)]",
+                    )}>
+                      {ok ? "✓ Satisfied" : bad ? "✗ Not satisfied" : "— Not evaluated"}
+                    </span>
+                    <span className="ml-1 shrink-0 text-[10px] text-[var(--ink-faint)]">{isExpanded ? "▲" : "▼"}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-[var(--cream-2)] bg-[var(--cream)] px-4 py-3">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-[var(--ink-soft)]">👤 Candidate Response</p>
+                          <p className="text-[11px] leading-relaxed text-[var(--ink-soft)]">
+                            {it.notes?.trim() || "No response notes recorded."}
+                          </p>
+                        </div>
+                        {it.expected_answer_hints?.trim() && (
+                          <div>
+                            <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-[var(--green)]">✓ Expected Answer Hints</p>
+                            <p className="text-[11px] leading-relaxed text-[var(--ink-soft)]">{it.expected_answer_hints}</p>
+                          </div>
+                        )}
+                      </div>
+                      {it.difficulty && (
+                        <div className="mt-2.5 flex gap-1.5">
+                          <span className={cn(
+                            "rounded-md px-2 py-0.5 text-[10px] font-bold",
+                            /hard/i.test(it.difficulty) ? "bg-red-50 text-red-600"
+                              : /medium/i.test(it.difficulty) ? "bg-amber-50 text-amber-600"
+                              : "bg-emerald-50 text-emerald-600",
+                          )}>{it.difficulty}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Strengths + Concerns sidebar */}
+        <div className="space-y-3">
+          <div className="rounded-xl border border-[var(--green)]/20 bg-[var(--green-soft)] p-4">
+            <p className="mb-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--green)]">
+              🛡 Strengths
+            </p>
+            <div className="space-y-1.5">
+              {strengthPts.length > 0 ? strengthPts.map((pt, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[var(--green)]" />
+                  <span className="text-[11px] leading-snug text-[var(--ink)]">{pt}.</span>
+                </div>
+              )) : <p className="text-[11px] italic text-[var(--ink-faint)]">No strengths noted.</p>}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--orange)]/20 bg-[var(--orange-soft)] p-4">
+            <p className="mb-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--orange)]">
+              ⚠ Concerns / Gaps
+            </p>
+            <div className="space-y-1.5">
+              {concernPts.length > 0 ? concernPts.map((pt, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[var(--orange)]" />
+                  <span className="text-[11px] leading-snug text-[var(--ink)]">{pt}.</span>
+                </div>
+              )) : <p className="text-[11px] italic text-[var(--ink-faint)]">No concerns noted.</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Recommendation footer ── */}
+      {recommendation && (
+        <div className="flex flex-wrap items-start gap-4 rounded-xl border border-purple-200 bg-purple-50 p-4">
+          <div className="flex flex-1 items-start gap-3">
+            <span className="mt-0.5 text-xl">🎯</span>
+            <div>
+              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-purple-700">Recommendation</p>
+              <p className="text-[13px] font-semibold leading-relaxed text-[var(--ink)]">{recommendation}</p>
+            </div>
+          </div>
+          <div className={cn(
+            "shrink-0 rounded-xl border px-5 py-3 text-center",
+            decision === "yes" ? "border-[var(--green)]/20 bg-[var(--green-soft)]"
+              : decision === "no" ? "border-[var(--orange)]/20 bg-[var(--orange-soft)]"
+              : "border-[var(--cream-2)] bg-white",
+          )}>
+            <span className={cn(
+              "block text-sm font-bold",
+              decision === "yes" ? "text-[var(--green)]" : decision === "no" ? "text-[var(--orange)]" : "text-[var(--ink-soft)]",
+            )}>
+              {decision === "yes" ? "✓ Proceed to Next Round" : decision === "no" ? "✗ Close Process" : "— Decision Pending"}
+            </span>
+            <span className="mt-0.5 block text-[10px] text-[var(--ink-faint)]">
+              {decision === "yes" ? "Strong potential. Continue evaluation." : decision === "no" ? "Does not meet requirements." : "Select a recommendation above."}
+            </span>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export function InterviewWorkspace({
   stageId,
   stageLabel,
@@ -315,20 +883,32 @@ export function InterviewWorkspace({
   const [manualError, setManualError] = useState<string | null>(null);
   const [enhancingQuestion, setEnhancingQuestion] = useState(false);
   const [enhancingJustification, setEnhancingJustification] = useState(false);
+  const [justificationPreview, setJustificationPreview] = useState(false);
 
   async function enhanceText(
     text: string,
     type: "question" | "justification",
     setText: (v: string) => void,
+    questions?: WorkItem[],
   ) {
     if (!text.trim()) return;
     const setEnhancing = type === "question" ? setEnhancingQuestion : setEnhancingJustification;
     setEnhancing(true);
     try {
+      const payload: Record<string, unknown> = { text: text.trim(), type };
+      if (type === "justification" && questions && questions.length > 0) {
+        payload.questions = questions.map((q) => ({
+          category: q.category,
+          question: q.question,
+          difficulty: q.difficulty,
+          satisfaction: q.satisfaction,
+          notes: q.notes,
+        }));
+      }
       const res = await fetch("/api/ai/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim(), type }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.enhanced) {
@@ -490,12 +1070,15 @@ export function InterviewWorkspace({
     }
     setBusy(true);
     setError(null);
+    const normalizedJustification = isManagerRound && !hasStructuredJustification(justification)
+      ? buildStructuredJustificationFromRound(justification, items, decision)
+      : justification;
     const res = await fetch(`/api/stages/${stageId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         decision,
-        comments: justification,
+        comments: normalizedJustification,
         questions: items.map((it) => ({
           category: it.category,
           question: it.question,
@@ -980,34 +1563,67 @@ export function InterviewWorkspace({
 
           {/* Justification */}
           <div className="case-card p-5">
-            <label className="font-serif text-base font-bold block">
-              {isManagerRound ? "Manager's assessment" : "Interviewer justification"}
-            </label>
-            <p className="mt-1 mb-3 text-[13px] text-[var(--ink-faint)]">
-              {isManagerRound
-                ? "Summarise the candidate's leadership presence, people skills, decision-making, and cultural fit. Your notes will appear in the PDF report sent to the recruiter."
-                : "Summarise performance: technical depth, strengths, concerns, and your reasoning. Your notes will appear in the PDF report sent to the recruiter."}
-            </p>
-            <textarea
-              rows={7}
-              placeholder={isManagerRound
-                ? "Describe the candidate's performance across the manager round — cover leadership qualities, ownership mindset, how they handle conflict or ambiguity, communication style, and cultural fit. Explain why you are recommending to proceed or not proceed…"
-                : "Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"}
-              value={justification}
-              onChange={(e) => setJustification(e.target.value)}
-              className={cn(
-                "case-input w-full resize-y px-4 py-3 text-sm leading-relaxed",
-                justification.length > 0 && justification.trim().length < JUSTIFICATION_MIN_LEN
-                  ? "border-[var(--orange)] focus:border-[var(--orange)]"
-                  : "",
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <label className="font-serif text-base font-bold block">
+                  {isManagerRound ? "Manager's assessment" : "Interviewer justification"}
+                </label>
+                <p className="mt-1 text-[13px] text-[var(--ink-faint)]">
+                  {isManagerRound
+                    ? "Summarise the candidate's leadership presence, people skills, decision-making, and cultural fit."
+                    : "Summarise performance: technical depth, strengths, concerns, and your reasoning."}
+                </p>
+              </div>
+              {justification.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setJustificationPreview((v) => !v)}
+                  className="shrink-0 rounded-lg border border-[var(--cream-2)] bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--ink-soft)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)]"
+                >
+                  {justificationPreview ? "✏️ Edit" : "👁 Preview"}
+                </button>
               )}
-            />
+            </div>
+
+            {justificationPreview && justification.trim() ? (
+              <JustificationPreviewCard text={justification} candidateName={candidateName} role={role} decision={decision} items={items} />
+            ) : (
+              <textarea
+                rows={7}
+                placeholder={isManagerRound
+                  ? "Describe the candidate's performance across the manager round — cover leadership qualities, ownership mindset, how they handle conflict or ambiguity, communication style, and cultural fit. Explain why you are recommending to proceed or not proceed…"
+                  : "Describe the candidate's performance across the questions asked — highlight areas of strength, gaps identified, and overall technical competency. Explain why you are recommending to proceed or not proceed…"}
+                value={justification}
+                onChange={(e) => { setJustification(e.target.value); setJustificationPreview(false); }}
+                className={cn(
+                  "case-input w-full resize-y px-4 py-3 text-sm leading-relaxed",
+                  justification.length > 0 && justification.trim().length < JUSTIFICATION_MIN_LEN
+                    ? "border-[var(--orange)] focus:border-[var(--orange)]"
+                    : "",
+                )}
+              />
+            )}
+
             {/* AI Enhancer for justification */}
-            <div className="mt-2 flex items-center justify-end">
+            <div className="mt-2 flex items-center justify-between">
+              <span className={cn(
+                "text-[11px] font-bold",
+                justification.trim().length === 0
+                  ? "text-[var(--ink-faint)]"
+                  : justification.trim().length < JUSTIFICATION_MIN_LEN
+                    ? "text-[var(--orange)]"
+                    : "text-[var(--green)]",
+              )}>
+                {justification.trim().length === 0
+                  ? "Be specific — generic notes reduce report quality"
+                  : justification.trim().length < JUSTIFICATION_MIN_LEN
+                    ? `${JUSTIFICATION_MIN_LEN - justification.trim().length} more chars needed`
+                    : "✓ Length OK"}
+              </span>
               <button
                 type="button"
                 disabled={!justification.trim() || enhancingJustification}
-                onClick={() => enhanceText(justification, "justification", setJustification)}
+                onClick={() => enhanceText(justification, "justification", (v) => { setJustification(v); setJustificationPreview(true); }, items)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)] px-3 py-1.5 text-[11px] font-bold text-[var(--cyan-d)] transition-colors hover:border-[var(--cyan)] hover:bg-[var(--cyan)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {enhancingJustification ? (
@@ -1022,23 +1638,6 @@ export function InterviewWorkspace({
                   <>✨ Enhance with AI</>
                 )}
               </button>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-[11px] text-[var(--ink-faint)]">
-                Be specific — generic notes reduce report quality
-              </span>
-              <span className={cn(
-                "text-[11px] font-bold",
-                justification.trim().length === 0
-                  ? "text-[var(--ink-faint)]"
-                  : justification.trim().length < JUSTIFICATION_MIN_LEN
-                    ? "text-[var(--orange)]"
-                    : "text-[var(--green)]",
-              )}>
-                {justification.trim().length < JUSTIFICATION_MIN_LEN
-                  ? `${JUSTIFICATION_MIN_LEN - justification.trim().length} more chars needed`
-                  : "✓ Length OK"}
-              </span>
             </div>
           </div>
 
