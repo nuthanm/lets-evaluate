@@ -48,6 +48,8 @@ export async function GET(_req: Request, { params }: Params) {
     }
   }
 
+  const roundLabel = stage.label?.trim() || "Interview round";
+
   // --- Regenerate the PDF from the stage data ---
   try {
     const [candidate] = await db
@@ -81,7 +83,8 @@ export async function GET(_req: Request, { params }: Params) {
       candidateName: candidate.name,
       role: role?.name ?? "Role",
       projectName: project?.name ?? undefined,
-      round: stage.label,
+      round: roundLabel,
+      assessorRole: stage.kind,
       interviewerName: interviewer?.name ?? "Interviewer",
       decision: stage.decision ?? "no",
       justification: stage.comments ?? "",
@@ -104,7 +107,7 @@ export async function GET(_req: Request, { params }: Params) {
 
     // Persist so subsequent downloads don't regenerate.
     const safeName = candidate.name.replace(/[^a-z0-9]+/gi, "-");
-    const filename = `${safeName}-${stage.label.replace(/[^a-z0-9]+/gi, "-")}-report-v${PDF_REPORT_VERSION}.pdf`;
+    const filename = `${safeName}-${roundLabel.replace(/[^a-z0-9]+/gi, "-")}-report-v${PDF_REPORT_VERSION}.pdf`;
     try {
       const newKey = await storeReport(pdf, filename);
       await db
@@ -125,6 +128,23 @@ export async function GET(_req: Request, { params }: Params) {
     });
   } catch (err) {
     console.error("Report regeneration failed", err);
+    // Fallback: if an older stored report exists, serve it instead of returning 500.
+    if (stage.reportKey) {
+      try {
+        const buf = await readReport(stage.reportKey);
+        const filename = stage.reportFilename ?? "evaluation-report.pdf";
+        return new Response(new Uint8Array(buf), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${filename}"`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      } catch {
+        // If fallback read also fails, return the existing 500 below.
+      }
+    }
     return apiError("Report unavailable", 500);
   }
 }

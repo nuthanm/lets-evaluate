@@ -103,6 +103,7 @@ export async function PATCH(req: Request, { params }: Params) {
       role: role?.name ?? "Role",
       projectName: project?.name ?? undefined,
       round: stage.label,
+      assessorRole: stage.kind,
       interviewerName: interviewer?.name ?? session.user.name ?? "Interviewer",
       decision: body.decision,
       justification: body.comments ?? "",
