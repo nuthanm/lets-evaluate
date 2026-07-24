@@ -10,6 +10,7 @@ import {
   questionCategoriesForStageKind,
   type QuestionCategory,
 } from "@/lib/ai";
+import { getOrgQuestions } from "@/lib/db/queries";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,6 +18,10 @@ const schema = z.object({
   category: z.string(),
   count: z.number().int().min(1).max(10).optional(),
 });
+
+function normalizeCategory(value: string) {
+  return value.trim().toLowerCase();
+}
 
 /** The assigned panel member generates questions for a given category. */
 export async function POST(req: Request, { params }: Params) {
@@ -110,9 +115,47 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
-  let questions: Awaited<ReturnType<typeof generateCategoryQuestions>>;
+  const requestedCount = body.count ?? 5;
+
+  // Reuse library questions first so interviewer/manager/hr can benefit from
+  // previously saved custom questions for the same category.
+  let libraryQuestions: {
+    question: string;
+    category: string;
+    code?: string;
+    difficulty?: string;
+    expected_answer_hints?: string;
+  }[] = [];
+
   try {
-    questions = await generateCategoryQuestions(
+    const rows = await getOrgQuestions(
+      session.user.organizationId,
+      candidate.roleId ?? undefined,
+      session.user.id,
+    );
+    const categoryKey = normalizeCategory(body.category);
+    libraryQuestions = rows
+      .filter((q) => normalizeCategory(q.category ?? "") === categoryKey)
+      .slice(0, requestedCount)
+      .map((q) => ({
+        question: q.questionText,
+        category: q.category ?? body.category,
+        code: q.code ?? "",
+        difficulty: q.difficulty ?? "Medium",
+        expected_answer_hints: "",
+      }));
+  } catch {
+    libraryQuestions = [];
+  }
+
+  const remaining = requestedCount - libraryQuestions.length;
+  if (remaining <= 0) {
+    return NextResponse.json({ questions: libraryQuestions });
+  }
+
+  let aiQuestions: Awaited<ReturnType<typeof generateCategoryQuestions>>;
+  try {
+    aiQuestions = await generateCategoryQuestions(
       body.category as QuestionCategory,
       {
         roleName: role?.name,
@@ -120,12 +163,15 @@ export async function POST(req: Request, { params }: Params) {
         resumeText: candidate.resumeText ?? "",
         roleRequirements: role?.requirements ?? "",
       },
-      body.count ?? 5,
+      remaining,
     );
   } catch (err) {
+    if (libraryQuestions.length > 0) {
+      return NextResponse.json({ questions: libraryQuestions });
+    }
     const msg = err instanceof Error ? err.message : "Question generation failed.";
     return apiError(msg, 500);
   }
 
-  return NextResponse.json({ questions });
+  return NextResponse.json({ questions: [...libraryQuestions, ...aiQuestions] });
 }
