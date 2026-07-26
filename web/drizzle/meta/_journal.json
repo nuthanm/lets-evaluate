@@ -64,6 +64,13 @@
       "when": 1785300000000,
       "tag": "0018_ta_lead_role",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0019_coding_exercises",
+      "breakpoints": true
     }
   ]
 }

@@ -1108,6 +1108,121 @@ export const qualityLoadScenariosRelations = relations(qualityLoadScenarios, ({ 
   }),
 }));
 
+/** Reusable coding exercise templates (org library). */
+export const codingExercises = pgTable(
+  "coding_exercises",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    language: text("language").notNull().default("TypeScript"),
+    timeLimitMin: integer("time_limit_min").notNull().default(40),
+    scenario: text("scenario").notNull().default(""),
+    starterCode: text("starter_code").notNull().default(""),
+    tags: jsonb("tags").$type<string[]>().default([]),
+    /** "org" = shared library; "private" = creator only. */
+    visibility: text("visibility").notNull().default("org"),
+    roleId: text("role_id").references(() => roles.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("coding_exercises_org_idx").on(t.organizationId),
+    index("coding_exercises_creator_idx").on(t.createdById),
+  ],
+);
+
+export const codingSessionStatusEnum = pgEnum("coding_session_status", [
+  "pending",
+  "in_progress",
+  "submitted",
+  "expired",
+]);
+
+export const codingEventTypeEnum = pgEnum("coding_event_type", [
+  "opened",
+  "focused",
+  "blurred",
+  "typing",
+  "pasted",
+  "code_sync",
+  "submitted",
+  "expired",
+  "link_created",
+]);
+
+/** Tokenized coding exercise session for a candidate stage (no candidate login). */
+export const codingSessions = pgTable(
+  "coding_sessions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id")
+      .notNull()
+      .references(() => candidates.id, { onDelete: "cascade" }),
+    stageId: text("stage_id")
+      .notNull()
+      .references(() => candidateStages.id, { onDelete: "cascade" }),
+    interviewerId: text("interviewer_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    exerciseId: text("exercise_id").references(() => codingExercises.id, {
+      onDelete: "set null",
+    }),
+    token: text("token").notNull().unique(),
+    title: text("title").notNull(),
+    language: text("language").notNull().default("TypeScript"),
+    timeLimitMin: integer("time_limit_min").notNull().default(40),
+    scenario: text("scenario").notNull().default(""),
+    starterCode: text("starter_code").notNull().default(""),
+    candidateCode: text("candidate_code").notNull().default(""),
+    candidateNotes: text("candidate_notes").notNull().default(""),
+    status: codingSessionStatusEnum("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("coding_sessions_stage_idx").on(t.stageId),
+    index("coding_sessions_candidate_idx").on(t.candidateId),
+    index("coding_sessions_token_idx").on(t.token),
+  ],
+);
+
+export const codingSessionEvents = pgTable(
+  "coding_session_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => codingSessions.id, { onDelete: "cascade" }),
+    type: codingEventTypeEnum("type").notNull(),
+    meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("coding_session_events_session_idx").on(t.sessionId)],
+);
+
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(organizationMembers),
   mailAssets: many(organizationMailAssets),

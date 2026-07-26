@@ -7,6 +7,11 @@ const publicPaths = [
   "/login",
   "/register",
   "/presentation",
+  "/prototype",
+  "/coding",
+  "/api/coding",
+  "/screening",
+  "/api/screening",
   "/api/auth",
   "/api/register",
 ];

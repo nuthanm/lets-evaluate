@@ -813,6 +813,7 @@ export function EvaluateClient({
               stageId={myActiveStage.id}
               stageLabel={myActiveStage.label}
               stageKind={myActiveStage.kind}
+              candidateId={candidateId}
               candidateName={candidateName}
               role={role}
               projectName={projectName}

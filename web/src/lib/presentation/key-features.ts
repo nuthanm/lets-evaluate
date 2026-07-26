@@ -41,6 +41,15 @@ export const KEY_FEATURES: KeyFeature[] = [
     size: "tall",
   },
   {
+    id: "coding",
+    title: "Live coding exercise",
+    description:
+      "Token link for candidates — in-browser editor, live sync, activity log, and submission in the PDF report. No candidate login.",
+    badge: "New",
+    tone: "orange",
+    size: "wide",
+  },
+  {
     id: "bulk",
     title: "Bulk CSV import",
     description: "Import hundreds of candidates with background job progress tracking.",

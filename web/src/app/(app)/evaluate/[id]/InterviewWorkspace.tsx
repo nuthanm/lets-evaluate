@@ -6,6 +6,7 @@ import { Pill } from "@/components/Pill";
 import { cn } from "@/lib/utils";
 import type { ResumeMetrics } from "@/lib/ai";
 import { AnalysisReport } from "./EvaluateClient";
+import { CodingExercisePanel } from "./CodingExercisePanel";
 
 type Metrics = Partial<ResumeMetrics>;
 type StageKind = "screening" | "technical" | "manager" | "hr" | "final" | "custom";
@@ -854,6 +855,7 @@ export function InterviewWorkspace({
   stageId: string;
   stageLabel: string;
   stageKind?: StageKind;
+  candidateId?: string;
   candidateName: string;
   role: string;
   projectName?: string;
@@ -1193,6 +1195,14 @@ export function InterviewWorkspace({
       {/* Questions step — step 1 for manager rounds, step 2 for all others */}
       {((step === 2 && !isManagerRound) || (step === 1 && isManagerRound)) && (
         <section className="space-y-4">
+
+          {(stageKind === "technical" || stageKind === "custom") && (
+            <CodingExercisePanel
+              stageId={stageId}
+              roleName={role}
+              projectName={projectName}
+            />
+          )}
 
           {/* ── Category cards grid ── */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

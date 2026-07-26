@@ -9,7 +9,7 @@ import { getBrand } from "@/lib/brand";
 
 /** Bump this whenever the report layout changes. Old reports whose stored
  * filename lacks this suffix will be automatically regenerated on next access. */
-export const PDF_REPORT_VERSION = "6";
+export const PDF_REPORT_VERSION = "7";
 
 export type ReportQuestion = {
   category: string;
@@ -18,6 +18,19 @@ export type ReportQuestion = {
   difficulty?: string;
   satisfaction?: string;
   notes?: string;
+};
+
+export type ReportCodingExercise = {
+  title: string;
+  language: string;
+  scenario: string;
+  candidateCode: string;
+  candidateNotes?: string;
+  status: string;
+  submittedAt?: string | null;
+  pasteEvents?: number;
+  blurEvents?: number;
+  syncEvents?: number;
 };
 
 export type InterviewReportData = {
@@ -36,6 +49,7 @@ export type InterviewReportData = {
   strengths?: string[];
   concerns?: string[];
   questions: ReportQuestion[];
+  codingExercise?: ReportCodingExercise | null;
 };
 
 const PAGE = { w: 595.28, h: 841.89 }; // A4 portrait
@@ -1295,6 +1309,38 @@ export async function buildInterviewReportPdf(
       w.y -= 8;
     }
   });
+
+  // ── Coding exercise submission ────────────────────────────────
+  if (data.codingExercise) {
+    const ce = data.codingExercise;
+    w.heading("Coding exercise");
+    w.keyVal("Title", ce.title || "-");
+    w.keyVal("Language", ce.language || "-");
+    w.keyVal("Status", ce.status || "-");
+    if (ce.submittedAt) w.keyVal("Submitted", ce.submittedAt);
+    if (ce.scenario?.trim()) {
+      w.text(ce.scenario.trim(), { size: 9.5, color: FAINT, gap: 4 });
+    }
+    if (ce.candidateCode?.trim()) {
+      w.y -= 2;
+      w.codeBlock(ce.candidateCode);
+    }
+    if (ce.candidateNotes?.trim()) {
+      w.text(`Candidate notes: ${ce.candidateNotes.trim()}`, {
+        size: 9.5,
+        color: FAINT,
+        gap: 4,
+      });
+    }
+    const activityBits = [
+      typeof ce.pasteEvents === "number" ? `Pastes: ${ce.pasteEvents}` : null,
+      typeof ce.blurEvents === "number" ? `Tab blurs: ${ce.blurEvents}` : null,
+      typeof ce.syncEvents === "number" ? `Sync heartbeats: ${ce.syncEvents}` : null,
+    ].filter(Boolean);
+    if (activityBits.length) {
+      w.text(activityBits.join("  ·  "), { size: 8.5, color: FAINT, gap: 4 });
+    }
+  }
 
   // ── Role-specific assessment justification ─────────────────────
   w.heading(assessmentSectionTitle);

@@ -5,6 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { apiError } from "@/lib/api/helpers";
 import { readReport, storeReport } from "@/lib/storage/reports";
 import { buildInterviewReportPdf, PDF_REPORT_VERSION } from "@/lib/report/pdf";
+import {
+  getLatestCodingSessionForStage,
+  listCodingSessionEvents,
+} from "@/lib/application/coding/coding-queries";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -79,6 +83,33 @@ export async function GET(_req: Request, { params }: Params) {
       difficulty?: string; satisfaction?: string; notes?: string;
     }[]) ?? [];
 
+    const codingSession = await getLatestCodingSessionForStage(
+      stageId,
+      session.user.organizationId,
+    );
+    const codingEvents = codingSession
+      ? await listCodingSessionEvents(codingSession.id, 200)
+      : [];
+    const codingExercise =
+      codingSession &&
+      (codingSession.status === "submitted" ||
+        codingSession.candidateCode.trim().length > 0)
+        ? {
+            title: codingSession.title,
+            language: codingSession.language,
+            scenario: codingSession.scenario,
+            candidateCode: codingSession.candidateCode || codingSession.starterCode,
+            candidateNotes: codingSession.candidateNotes || undefined,
+            status: codingSession.status,
+            submittedAt: codingSession.submittedAt?.toISOString() ?? null,
+            pasteEvents: codingEvents.filter((e) => e.type === "pasted").length,
+            blurEvents: codingEvents.filter((e) => e.type === "blurred").length,
+            syncEvents: codingEvents.filter(
+              (e) => e.type === "code_sync" || e.type === "typing",
+            ).length,
+          }
+        : null;
+
     const pdf = await buildInterviewReportPdf({
       candidateName: candidate.name,
       role: role?.name ?? "Role",
@@ -103,6 +134,7 @@ export async function GET(_req: Request, { params }: Params) {
         satisfaction: q.satisfaction ?? "",
         notes: q.notes ?? "",
       })),
+      codingExercise,
     });
 
     // Persist so subsequent downloads don't regenerate.

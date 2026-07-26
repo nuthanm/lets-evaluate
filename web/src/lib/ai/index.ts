@@ -877,4 +877,111 @@ export async function refineEvaluationNotes(notes: string) {
   return res.choices[0]?.message?.content?.trim() ?? notes;
 }
 
+export type CodingExerciseDraft = {
+  title: string;
+  language: string;
+  timeLimitMin: number;
+  scenario: string;
+  starterCode: string;
+};
+
+/** Generate a timed coding exercise (scenario + starter code) for a live panel round. */
+export async function generateCodingExercise(input: {
+  prompt: string;
+  roleName?: string;
+  projectName?: string;
+  language?: string;
+  timeLimitMin?: number;
+}): Promise<CodingExerciseDraft> {
+  const language = input.language?.trim() || "TypeScript";
+  const timeLimitMin = input.timeLimitMin && input.timeLimitMin > 0 ? input.timeLimitMin : 40;
+  const role = input.roleName?.trim() || "the role";
+  const project = input.projectName?.trim() || "the project";
+
+  const fallback: CodingExerciseDraft = {
+    title: "Fix the race condition",
+    language,
+    timeLimitMin,
+    scenario: `You are given an in-memory cache used by a checkout service on ${project}.
+Under concurrent requests, some keys occasionally return stale values.
+
+1. Identify the bug in the snippet below.
+2. Rewrite get/set so concurrent reads/writes are safe.
+3. Briefly note the trade-off you chose (complexity vs latency).
+
+Interviewer prompt: ${input.prompt.trim() || "concurrency"}`,
+    starterCode: `type Entry = { value: string; expiresAt: number };
+
+class Cache {
+  private store = new Map<string, Entry>();
+
+  get(key: string): string | null {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  set(key: string, value: string, ttlMs: number) {
+    this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+}
+
+export { Cache };
+`,
+  };
+
+  const openai = client();
+  if (!openai) {
+    if (isAiTestMode()) return fallback;
+    throw new Error("OpenAI API key is not configured. Add OPENAI_API_KEY to your .env.local file.");
+  }
+
+  const res = await openai.chat.completions.create({
+    model: defaultModel(),
+    temperature: 0.55,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          'You design practical timed coding exercises for live technical interviews. Return strict JSON with keys: title, language, timeLimitMin, scenario, starterCode.',
+      },
+      {
+        role: "user",
+        content: `Create one coding exercise for a ${role} interview on ${project}.
+Preferred language: ${language}. Target duration: about ${timeLimitMin} minutes.
+Interviewer guidance: ${input.prompt.trim().slice(0, 1200)}
+
+Rules:
+- scenario: clear problem statement with 2–4 numbered tasks; no solution spoilers.
+- starterCode: realistic incomplete or buggy starter the candidate edits (use \\n for newlines).
+- timeLimitMin: integer minutes (25–60).
+- Keep it solvable in one file; no multi-repo setup.
+
+Return ONLY JSON.`,
+      },
+    ],
+  });
+
+  const raw = res.choices[0]?.message?.content ?? "{}";
+  const parsed = parseJson<Record<string, unknown>>(raw);
+  const title = String(parsed.title ?? "").trim();
+  const scenario = String(parsed.scenario ?? "").trim();
+  const starterCode = String(parsed.starterCode ?? parsed.starter_code ?? "").trim();
+  if (!title || !scenario || !starterCode) return fallback;
+
+  const mins = Number(parsed.timeLimitMin ?? parsed.time_limit_min ?? timeLimitMin);
+  return {
+    title,
+    language: String(parsed.language ?? language).trim() || language,
+    timeLimitMin: Number.isFinite(mins) && mins > 0 ? Math.min(90, Math.round(mins)) : timeLimitMin,
+    scenario,
+    starterCode,
+  };
+}
+
 export { isUnknown } from "@/lib/ai/resume-dates";

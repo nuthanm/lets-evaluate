@@ -57,6 +57,16 @@ export const SHOWCASE_SLIDES: ShowcaseSlide[] = [
     ],
   },
   {
+    id: "coding",
+    title: "Live coding exercise",
+    caption: "Share a token link — candidate codes in-browser; panel sees live activity.",
+    highlights: [
+      "No candidate login — secure token URL",
+      "AI or library scenarios · save & reuse",
+      "Live editor mirror + paste/blur tracking",
+    ],
+  },
+  {
     id: "audit",
     title: "Audit trail",
     caption: "Every action logged for compliance and leadership review.",

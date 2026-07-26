@@ -246,6 +246,49 @@ export function MockAssignmentsPage() {
   );
 }
 
+export function MockCodingPage() {
+  return (
+    <MockAppChrome
+      activeId="assignments"
+      pageTitle="Coding exercise"
+      pageSubtitle="Live panel round · no candidate login"
+    >
+      <div className="pres-mock-assignment">
+        <div className="pres-mock-handoff">
+          <strong>Token link shared:</strong> evaluate.app/coding/ex_8f3a2c · tagged to
+          Priya Sharma + Rajesh Kumar · First technical
+        </div>
+        <div className="pres-mock-panel pres-mock-mt-sm">
+          <div className="pres-mock-panel-head">
+            Live editor mirror · TypeScript · Fix the race condition
+            <MockPill tone="green">Live</MockPill>
+          </div>
+          <div className="pres-mock-questions">
+            <div className="pres-mock-q-row">
+              <span className="font-mono text-[11px]">
+                class Cache {"{"} … get/set with lock …
+              </span>
+              <MockPill tone="cyan">sync 2s ago</MockPill>
+            </div>
+            <div className="pres-mock-q-row">
+              <span>Activity: opened → typing → paste detected</span>
+              <MockPill tone="orange">paste ×1</MockPill>
+            </div>
+            <div className="pres-mock-q-row">
+              <span>AI library · saved scenarios · regenerate anytime</span>
+              <MockPill tone="green">New</MockPill>
+            </div>
+          </div>
+          <div className="pres-mock-actions">
+            <span className="pres-mock-action">Copy token link</span>
+            <span className="pres-mock-action-done">Include in PDF</span>
+          </div>
+        </div>
+      </div>
+    </MockAppChrome>
+  );
+}
+
 export function MockAuditPage() {
   return (
     <MockAppChrome
@@ -284,6 +327,7 @@ const MOCK_PAGES: Record<string, () => React.JSX.Element> = {
   pipeline: MockPipelinePage,
   booking: MockBookingPage,
   assignments: MockAssignmentsPage,
+  coding: MockCodingPage,
   audit: MockAuditPage,
 };
 

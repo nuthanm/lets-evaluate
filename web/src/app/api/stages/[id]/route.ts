@@ -16,6 +16,10 @@ import { getCandidateStages } from "@/lib/db/queries";
 import { logEvent } from "@/lib/events";
 import { buildInterviewReportPdf, PDF_REPORT_VERSION } from "@/lib/report/pdf";
 import { storeReport } from "@/lib/storage/reports";
+import {
+  getLatestCodingSessionForStage,
+  listCodingSessionEvents,
+} from "@/lib/application/coding/coding-queries";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -98,6 +102,33 @@ export async function PATCH(req: Request, { params }: Params) {
       (screening?.metrics as Record<string, unknown> | undefined) ?? {};
     const score = metrics.tech_match_score;
 
+    const codingSession = await getLatestCodingSessionForStage(
+      stageId,
+      session.user.organizationId,
+    );
+    const codingEvents = codingSession
+      ? await listCodingSessionEvents(codingSession.id, 200)
+      : [];
+    const codingExercise =
+      codingSession &&
+      (codingSession.status === "submitted" ||
+        codingSession.candidateCode.trim().length > 0)
+        ? {
+            title: codingSession.title,
+            language: codingSession.language,
+            scenario: codingSession.scenario,
+            candidateCode: codingSession.candidateCode || codingSession.starterCode,
+            candidateNotes: codingSession.candidateNotes || undefined,
+            status: codingSession.status,
+            submittedAt: codingSession.submittedAt?.toISOString() ?? null,
+            pasteEvents: codingEvents.filter((e) => e.type === "pasted").length,
+            blurEvents: codingEvents.filter((e) => e.type === "blurred").length,
+            syncEvents: codingEvents.filter(
+              (e) => e.type === "code_sync" || e.type === "typing",
+            ).length,
+          }
+        : null;
+
     const pdf = await buildInterviewReportPdf({
       candidateName: candidate?.name ?? "Candidate",
       role: role?.name ?? "Role",
@@ -129,6 +160,7 @@ export async function PATCH(req: Request, { params }: Params) {
         satisfaction: q.satisfaction ?? "",
         notes: q.notes ?? "",
       })),
+      codingExercise,
     });
 
     const safeName = (candidate?.name ?? "candidate").replace(/[^a-z0-9]+/gi, "-");
