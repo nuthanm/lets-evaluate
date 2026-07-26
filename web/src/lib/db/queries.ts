@@ -153,6 +153,7 @@ export async function getOrgQuestions(
   if (!roleId) return visible;
   return visible.filter(
     (q) =>
+      (!q.roleId && !((q.roleIds as string[] | null) ?? []).length) ||
       q.roleId === roleId ||
       (q.roleIds as string[] | null)?.includes(roleId),
   );

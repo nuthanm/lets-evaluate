@@ -1266,6 +1266,9 @@ export function InterviewWorkspace({
                   <span className="text-xs text-[var(--ink-faint)]">{cat.hint}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 p-4">
+                  <p className="text-xs font-semibold text-[var(--ink-faint)]">
+                    Uses question library first for this category, then fills with AI.
+                  </p>
                   <div className="ml-auto flex items-center gap-3">
                     <button
                       type="button"
