@@ -73,18 +73,30 @@ export async function GET(_req: Request, { params }: Params) {
     stageId,
     authSession.user.organizationId,
   );
-  if (!session) return NextResponse.json({ session: null, events: [] });
+  if (!session) {
+    return NextResponse.json(
+      { session: null, events: [] },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
+    );
+  }
 
   const events = await listCodingSessionEvents(session.id);
-  return NextResponse.json({
-    session: serializeSession(session),
-    events: events.map((e) => ({
-      id: e.id,
-      type: e.type,
-      at: e.createdAt.toISOString(),
-      meta: e.meta ?? {},
-    })),
-  });
+  return NextResponse.json(
+    {
+      session: serializeSession(session),
+      events: events.map((e) => ({
+        id: e.id,
+        type: e.type,
+        at: e.createdAt.toISOString(),
+        meta: e.meta ?? {},
+      })),
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    },
+  );
 }
 
 const createSchema = z.object({

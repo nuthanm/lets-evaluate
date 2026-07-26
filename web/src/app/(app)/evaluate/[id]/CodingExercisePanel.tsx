@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 import { Pill } from "@/components/Pill";
 import { cn } from "@/lib/utils";
@@ -65,21 +65,36 @@ export function CodingExercisePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"setup" | "live">("setup");
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStatusRef = useRef<string | null>(null);
 
   const refreshSession = useCallback(async () => {
-    const res = await fetch(`/api/stages/${stageId}/coding`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setSession(data.session ?? null);
-    setEvents(
-      (data.events ?? []).map((e: { id: string; type: string; at: string }) => ({
-        id: e.id,
-        type: e.type,
-        at: e.at,
-      })),
-    );
-    if (data.session?.status === "in_progress" || data.session?.status === "submitted") {
-      setTab("live");
+    try {
+      const res = await fetch(`/api/stages/${stageId}/coding`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        setLiveError("Could not refresh live session");
+        return;
+      }
+      const data = await res.json();
+      const next = (data.session ?? null) as SessionView | null;
+      setSession(next);
+      sessionIdRef.current = next?.id ?? null;
+      sessionStatusRef.current = next?.status ?? null;
+      setEvents(
+        (data.events ?? []).map((e: { id: string; type: string; at: string }) => ({
+          id: e.id,
+          type: e.type,
+          at: e.at,
+        })),
+      );
+      setLastRefreshAt(new Date().toLocaleTimeString());
+      setLiveError(null);
+    } catch {
+      setLiveError("Live refresh failed — retrying…");
     }
   }, [stageId]);
 
@@ -95,13 +110,16 @@ export function CodingExercisePanel({
     void refreshSession();
   }, [loadLibrary, refreshSession]);
 
+  // Auto-poll while Live tab is open (do not depend on session object identity)
   useEffect(() => {
-    if (tab !== "live" || !session || session.status === "submitted") return;
+    if (tab !== "live") return;
+    void refreshSession();
     const t = setInterval(() => {
+      if (sessionStatusRef.current === "submitted") return;
       void refreshSession();
-    }, 2000);
+    }, 1500);
     return () => clearInterval(t);
-  }, [tab, session, refreshSession]);
+  }, [tab, refreshSession]);
 
   function applyExercise(ex: Exercise) {
     setExerciseId(ex.id);
@@ -196,6 +214,8 @@ export function CodingExercisePanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not create link");
       setSession(data.session);
+      sessionIdRef.current = data.session?.id ?? null;
+      sessionStatusRef.current = data.session?.status ?? null;
       setTab("live");
       setMessage("Token link created — copy and share with the candidate.");
       await refreshSession();
@@ -458,17 +478,30 @@ export function CodingExercisePanel({
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[12px] font-bold text-[var(--ink)]">Live editor mirror</p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="!px-3 !py-1.5 text-[11px]"
-                    onClick={() => void refreshSession()}
-                  >
-                    Refresh
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {lastRefreshAt && (
+                      <span className="text-[10px] text-[var(--ink-faint)]">
+                        Updated {lastRefreshAt}
+                      </span>
+                    )}
+                    <Pill variant={session?.status === "in_progress" ? "cyan" : "neutral"}>
+                      Auto · 1.5s
+                    </Pill>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="!px-3 !py-1.5 text-[11px]"
+                      onClick={() => void refreshSession()}
+                    >
+                      Refresh now
+                    </Button>
+                  </div>
                 </div>
+                {liveError && (
+                  <p className="mb-2 text-[12px] text-[var(--orange)]">{liveError}</p>
+                )}
                 {!session ? (
                   <p className="rounded-lg border border-dashed border-[var(--cream-2)] px-3 py-8 text-center text-[12px] text-[var(--ink-faint)]">
                     Generate a token link first, then watch the candidate type here.

@@ -1192,6 +1192,8 @@ export const codingSessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
+    /** Wall-clock when the timed exercise should end (supports refresh/resume). */
+    timerEndsAt: timestamp("timer_ends_at", { withTimezone: true }),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
