@@ -1,6 +1,28 @@
 import mammoth from "mammoth";
 import { isAllowedResumeFilename } from "@/lib/resume/formats";
 
+async function extractPdfTextWithPdfJs(buffer: Buffer): Promise<string> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const document = await pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+  }).promise;
+
+  try {
+    const pages = await Promise.all(
+      Array.from({ length: document.numPages }, async (_, index) => {
+        const page = await document.getPage(index + 1);
+        const content = await page.getTextContent();
+        return content.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ");
+      }),
+    );
+    return pages.join("\n").trim();
+  } finally {
+    await document.destroy();
+  }
+}
+
 export async function extractResumeText(
   buffer: Buffer,
   filename: string,
@@ -15,8 +37,16 @@ export async function extractResumeText(
     try {
       const result = await parser.getText();
       return (result.text || "").trim();
+    } catch (error) {
+      try {
+        return await extractPdfTextWithPdfJs(buffer);
+      } catch (fallbackError) {
+        throw new Error("PDF text extraction failed", {
+          cause: fallbackError ?? error,
+        });
+      }
     } finally {
-      await parser.destroy();
+      await parser.destroy().catch(() => undefined);
     }
   }
   if (lower.endsWith(".docx")) {
