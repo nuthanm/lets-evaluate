@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { apiError, requireApiRole } from "@/lib/api/helpers";
 import { db } from "@/lib/db";
-import { jobDescriptions, projects } from "@/lib/db/schema";
+import { jobDescriptions, projects, roles } from "@/lib/db/schema";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { z } from "zod";
@@ -12,6 +12,7 @@ const saveSchema = z.object({
   jobDescription: jobDescriptionSchema,
   roleId: z.string().trim().optional(),
   projectId: z.string().trim().optional(),
+  customRoleTitle: z.string().trim().min(1).optional(),
 });
 
 function toOptionLabel(row: {
@@ -79,10 +80,34 @@ export async function POST(req: Request) {
   if (forbidden) return forbidden;
 
   const body = saveSchema.parse(await req.json());
-  const roleId = body.roleId?.trim() || null;
+  let roleId = body.roleId?.trim() || null;
   const projectId = body.projectId?.trim() || null;
   const location = body.jobDescription.location.trim();
   const experience = body.jobDescription.experience.trim();
+
+  if (!roleId && body.customRoleTitle) {
+    const [existingRole] = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.organizationId, session.user.organizationId),
+          eq(roles.name, body.customRoleTitle),
+        ),
+      )
+      .limit(1);
+
+    roleId = existingRole?.id ?? uuid();
+    if (!existingRole) {
+      await db.insert(roles).values({
+        id: roleId,
+        organizationId: session.user.organizationId,
+        name: body.customRoleTitle,
+        projectId,
+        projectIds: projectId ? [projectId] : [],
+      });
+    }
+  }
 
   const duplicateConditions = [
     eq(jobDescriptions.organizationId, session.user.organizationId),

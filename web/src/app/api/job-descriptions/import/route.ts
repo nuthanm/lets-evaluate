@@ -35,6 +35,20 @@ function parseJson<T>(text: string): T {
   return JSON.parse(value) as T;
 }
 
+function fileReadError(error: unknown, filename: string): string {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/password|encrypted/i.test(message)) {
+    return "This PDF is password-protected. Remove the password and upload it again.";
+  }
+
+  if (/invalid pdf|corrupt|xref|unexpected end|syntax error/i.test(message)) {
+    return "This PDF appears to be damaged or incomplete. Export it again and upload the new file.";
+  }
+
+  return `Could not extract text from ${filename}. Upload a text-searchable PDF or a DOCX file.`;
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return apiError("Unauthorized", 401);
@@ -61,12 +75,19 @@ export async function POST(req: Request) {
   let extractedText = "";
   try {
     extractedText = await extractResumeText(buffer, file.name);
-  } catch {
-    return apiError("Could not read the uploaded file. Please try another PDF or DOCX.", 400);
+  } catch (error) {
+    console.error("[job-descriptions/import] file text extraction failed", {
+      filename: file.name,
+      error,
+    });
+    return apiError(fileReadError(error, file.name), 422);
   }
 
   if (!extractedText.trim()) {
-    return apiError("The uploaded file appears to be empty.", 400);
+    return apiError(
+      "No text could be found in this file. Upload a text-searchable PDF or a DOCX file.",
+      422,
+    );
   }
 
   const brand = getBrand();

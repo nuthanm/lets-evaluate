@@ -572,7 +572,7 @@ export function JobDescriptionClient({
   async function saveJobDescription() {
     if (!generated) return;
 
-    if (!selectedRoleId || selectedRoleId === "__custom__") {
+    if (!selectedRoleId) {
       setError("Select a role from the list before saving — saved job descriptions need a mapped role to appear as Job ID during candidate creation.");
       return;
     }
@@ -608,6 +608,7 @@ export function JobDescriptionClient({
           jobDescription: generated,
           roleId: selectedRoleOption?.id,
           projectId,
+          customRoleTitle: selectedRoleId === "__custom__" ? resolvedRoleTitle : undefined,
         }),
       });
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
@@ -722,7 +723,7 @@ export function JobDescriptionClient({
       return;
     }
 
-    if (!selectedRoleId || selectedRoleId === "__custom__") {
+    if (!selectedRoleId) {
       setError("Select a role from the list before uploading — saved job descriptions need a mapped role to appear as Job ID during candidate creation.");
       return;
     }
