@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["@aws-sdk/client-s3"],
   },
 
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
+
   async headers() {
     return [
       {

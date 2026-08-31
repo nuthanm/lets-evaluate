@@ -16,6 +16,8 @@ import {
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
 const MAX_JD_TEXT = 12000;
 
+export const runtime = "nodejs";
+
 function openaiClient() {
   if (isAiTestMode()) return null;
   const key = process.env.OPENAI_API_KEY;
