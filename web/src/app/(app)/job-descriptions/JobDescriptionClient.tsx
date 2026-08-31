@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import {
   isAllowedResumeFilename,
   RESUME_UPLOAD_ACCEPT,
-  RESUME_UPLOAD_FRIENDLY_ERROR,
 } from "@/lib/resume/formats";
 
 type GeneratedJd = {
@@ -734,7 +733,7 @@ export function JobDescriptionClient({
     }
 
     if (!isAllowedResumeFilename(uploadFile.name)) {
-      setError(RESUME_UPLOAD_FRIENDLY_ERROR);
+      setError("Please upload a job description in PDF or DOCX format.");
       return;
     }
 

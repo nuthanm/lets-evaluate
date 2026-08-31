@@ -8,10 +8,7 @@ import { mockJobDescription } from "@/lib/ai/mock-fixtures";
 import { normalizeGeneratedJobDescription } from "@/lib/job-description/normalize-generated";
 import { generateJobDescriptionInputSchema } from "@/lib/job-description/types";
 import { extractResumeText } from "@/lib/resume/parse";
-import {
-  isAllowedResumeFilename,
-  RESUME_UPLOAD_FRIENDLY_ERROR,
-} from "@/lib/resume/formats";
+import { isAllowedResumeFilename } from "@/lib/resume/formats";
 
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
 const MAX_JD_TEXT = 12000;
@@ -35,6 +32,20 @@ function parseJson<T>(text: string): T {
       .trim();
   }
   return JSON.parse(value) as T;
+}
+
+function importErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/json|unexpected token|unterminated/i.test(message)) {
+    return "The uploaded job description could not be structured. Please try again or use a text-searchable PDF or DOCX file.";
+  }
+
+  if (/max|too long|length/i.test(message)) {
+    return "The uploaded job description contains text that is too long for the preview. Please upload a shorter version of the document.";
+  }
+
+  return "Could not create a preview from this job description. Please try again.";
 }
 
 function fileReadError(error: unknown, filename: string): string {
@@ -63,7 +74,7 @@ export async function POST(req: Request) {
     return apiError("Upload a PDF or DOCX job description file.", 400);
   }
   if (!isAllowedResumeFilename(file.name)) {
-    return apiError(RESUME_UPLOAD_FRIENDLY_ERROR, 400);
+    return apiError("Please upload a job description in PDF or DOCX format.", 400);
   }
 
   const input = generateJobDescriptionInputSchema.parse({
@@ -128,32 +139,40 @@ export async function POST(req: Request) {
     extractedText.slice(0, MAX_JD_TEXT),
   ].join("\n");
 
-  const completion = await openai.chat.completions.create({
-    model: MODEL,
-    temperature: 0.1,
-    max_tokens: 1800,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You structure existing job descriptions into JSON. Return valid JSON only. Keep content faithful to the uploaded source.",
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0.1,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You structure existing job descriptions into JSON. Return valid JSON only. Keep content faithful to the uploaded source.",
+        },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const parsed = parseJson<Record<string, unknown>>(raw);
+    const jobDescription = normalizeGeneratedJobDescription(input, parsed, orgName);
+
+    return NextResponse.json({
+      jobDescription,
+      usage: {
+        model: completion.model,
+        promptTokens: completion.usage?.prompt_tokens ?? 0,
+        completionTokens: completion.usage?.completion_tokens ?? 0,
+        totalTokens: completion.usage?.total_tokens ?? 0,
       },
-      { role: "user", content: prompt },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content ?? "{}";
-  const parsed = parseJson<Record<string, unknown>>(raw);
-  const jobDescription = normalizeGeneratedJobDescription(input, parsed, orgName);
-
-  return NextResponse.json({
-    jobDescription,
-    usage: {
-      model: completion.model,
-      promptTokens: completion.usage?.prompt_tokens ?? 0,
-      completionTokens: completion.usage?.completion_tokens ?? 0,
-      totalTokens: completion.usage?.total_tokens ?? 0,
-    },
-  });
+    });
+  } catch (error) {
+    console.error("[job-descriptions/import] AI structuring failed", {
+      filename: file.name,
+      error,
+    });
+    return apiError(importErrorMessage(error), 422);
+  }
 }

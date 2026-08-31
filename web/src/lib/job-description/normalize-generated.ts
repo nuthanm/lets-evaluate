@@ -5,8 +5,20 @@ import {
   type JobDescription,
 } from "@/lib/job-description/types";
 
-function clampArray(items: string[] | undefined, min: number, max: number, fallback: string[]) {
-  const source = (items ?? []).map((item) => item.trim()).filter(Boolean);
+function clampText(value: string, maxLength: number): string {
+  return value.trim().slice(0, maxLength);
+}
+
+function clampArray(
+  items: string[] | undefined,
+  min: number,
+  max: number,
+  fallback: string[],
+  maxItemLength = 220,
+) {
+  const source = (items ?? [])
+    .map((item) => clampText(item, maxItemLength))
+    .filter(Boolean);
   if (source.length >= min) return source.slice(0, max);
   return fallback.slice(0, max);
 }
@@ -22,7 +34,7 @@ export function normalizeGeneratedJobDescription(
     experience: input.experience,
     aboutRole:
       typeof parsed.aboutRole === "string" && parsed.aboutRole.trim()
-        ? parsed.aboutRole.trim()
+        ? clampText(parsed.aboutRole, 1200)
         : `${input.roleTitle} at ${orgName} plays a high-impact role in delivering measurable outcomes for enterprise clients through strong execution and collaboration.`,
     whatYoullDo: clampArray(
       Array.isArray(parsed.whatYoullDo)
@@ -44,7 +56,7 @@ export function normalizeGeneratedJobDescription(
         typeof parsed.whatYouBring === "object" &&
         parsed.whatYouBring &&
         typeof (parsed.whatYouBring as { summary?: unknown }).summary === "string"
-          ? ((parsed.whatYouBring as { summary: string }).summary || "").trim() ||
+          ? clampText((parsed.whatYouBring as { summary: string }).summary || "", 1200) ||
             "You bring strong execution fundamentals, role-aligned technical depth, and a collaborative mindset."
           : "You bring strong execution fundamentals, role-aligned technical depth, and a collaborative mindset.",
       skills: clampArray(
@@ -68,7 +80,7 @@ export function normalizeGeneratedJobDescription(
         typeof parsed.whatYouBring === "object" &&
         parsed.whatYouBring &&
         typeof (parsed.whatYouBring as { domain?: unknown }).domain === "string"
-          ? ((parsed.whatYouBring as { domain: string }).domain || "").trim() ||
+          ? clampText((parsed.whatYouBring as { domain: string }).domain || "", 220) ||
             input.domain?.trim() ||
             "Experience in enterprise-grade delivery environments."
           : input.domain?.trim() || "Experience in enterprise-grade delivery environments.",
@@ -89,7 +101,7 @@ export function normalizeGeneratedJobDescription(
     ),
     readyToMakeImpact:
       typeof parsed.readyToMakeImpact === "string" && parsed.readyToMakeImpact.trim()
-        ? parsed.readyToMakeImpact.trim()
+        ? clampText(parsed.readyToMakeImpact, 1200)
         : `Ready to build meaningful outcomes with ${orgName}? Apply now and help shape impactful solutions for global clients.`,
     generatedAt: new Date().toISOString(),
   };
