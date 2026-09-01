@@ -1,5 +1,10 @@
+import { DOMMatrix } from "@napi-rs/canvas";
 import mammoth from "mammoth";
 import { isAllowedResumeFilename } from "@/lib/resume/formats";
+
+if (!globalThis.DOMMatrix) {
+  globalThis.DOMMatrix = DOMMatrix as typeof globalThis.DOMMatrix;
+}
 
 function errorDetails(error: unknown) {
   if (!(error instanceof Error)) return { message: String(error) };
