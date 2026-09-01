@@ -1,5 +1,6 @@
 import { DOMMatrix } from "@napi-rs/canvas";
 import mammoth from "mammoth";
+import "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import { isAllowedResumeFilename } from "@/lib/resume/formats";
 
 if (!globalThis.DOMMatrix) {
