@@ -1,6 +1,22 @@
 import mammoth from "mammoth";
 import { isAllowedResumeFilename } from "@/lib/resume/formats";
 
+function errorDetails(error: unknown) {
+  if (!(error instanceof Error)) return { message: String(error) };
+
+  const cause = error.cause;
+  return {
+    name: error.name,
+    message: error.message,
+    cause:
+      cause instanceof Error
+        ? { name: cause.name, message: cause.message }
+        : cause === undefined
+          ? undefined
+          : String(cause),
+  };
+}
+
 async function extractPdfTextWithPdfJs(buffer: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const document = await pdfjs.getDocument({
@@ -35,18 +51,25 @@ export async function extractResumeText(
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try {
-      const result = await parser.getText();
-      const text = (result.text || "").trim();
-      if (text) return text;
+      let pdfParseError: unknown;
+      try {
+        const result = await parser.getText();
+        const text = (result.text || "").trim();
+        if (text) return text;
+      } catch (error) {
+        pdfParseError = error;
+      }
 
-      return await extractPdfTextWithPdfJs(buffer);
-    } catch (error) {
       try {
         return await extractPdfTextWithPdfJs(buffer);
-      } catch (fallbackError) {
-        throw new Error("PDF text extraction failed", {
-          cause: fallbackError ?? error,
+      } catch (pdfJsError) {
+        console.error("[resume] PDF text extraction failed", {
+          pdfParse: pdfParseError
+            ? errorDetails(pdfParseError)
+            : { message: "No text returned" },
+          pdfJs: errorDetails(pdfJsError),
         });
+        throw new Error("PDF text extraction failed", { cause: pdfJsError });
       }
     } finally {
       await parser.destroy().catch(() => undefined);
