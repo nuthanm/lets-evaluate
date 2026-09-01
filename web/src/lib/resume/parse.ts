@@ -36,7 +36,10 @@ export async function extractResumeText(
     const parser = new PDFParse({ data: buffer });
     try {
       const result = await parser.getText();
-      return (result.text || "").trim();
+      const text = (result.text || "").trim();
+      if (text) return text;
+
+      return await extractPdfTextWithPdfJs(buffer);
     } catch (error) {
       try {
         return await extractPdfTextWithPdfJs(buffer);
